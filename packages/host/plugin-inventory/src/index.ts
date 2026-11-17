@@ -83,6 +83,7 @@ export async function readPluginInventory(ctx: Context): Promise<PluginInventory
   const entries: PluginInventoryEntry[] = []
   const packages = ctx.get('pluginPackages')
   for (const entry of ctx.loader.entries()) {
+    if (entry.options.name === '@local/novaflow-dsh-plugin') continue
     if (entry.options.group) continue
     const base = entry.parent.tree.ctx.baseUrl
     const meta = base === undefined ? undefined : packages?.metaOf(entry.options.name, base)

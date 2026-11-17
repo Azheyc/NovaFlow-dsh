@@ -1,6 +1,6 @@
-DeepSeek Harness
-DeepSeek Harness
-Welcome to DeepSeek Harness
-Build potential. Explore intelligence.
-Sign in
+NovaFlow
+NovaFlow
+Welcome to NovaFlow
+Your workspace, connected.
+Sign in with NovaFlow
 Add API Key

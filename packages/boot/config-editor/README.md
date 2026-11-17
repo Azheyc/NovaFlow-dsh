@@ -77,3 +77,5 @@ Consumers that change request prefixes determine cache effects.
 None.
 
 </details>
+
+The NovaFlow core account row is excluded from editable entries and configuration descriptions; attempts to edit it through the service are rejected.

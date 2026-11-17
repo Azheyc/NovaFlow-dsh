@@ -37,7 +37,8 @@ export class ConfigEditor extends Service {
    * @returns Active entries with unique profile patch ids.
    */
   entries(): Entry[] {
-    const candidates = [...this.ownerContext.loader.entries()].filter(entry => entry.parent.tree.ctx.fiber.entry?.id === 'include')
+    const candidates = [...this.ownerContext.loader.entries()].filter(entry => entry.parent.tree.ctx.fiber.entry?.id === 'include'
+      && entry.options.name !== '@local/novaflow-dsh-plugin')
     const counts = new Map<string, number>()
     for (const entry of candidates) counts.set(entry.options.id, (counts.get(entry.options.id) ?? 0) + 1)
     return candidates.filter(entry => counts.get(entry.options.id) === 1)

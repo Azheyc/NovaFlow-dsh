@@ -114,3 +114,5 @@ Typert 生成由 `./typert` 与 `./remote` 导出的 Host 和 Client Remote 产�
 无。
 
 </details>
+
+NovaFlow 核心账户项不出现在此管理清单中；账户操作继续通过专用账户 API 提供。

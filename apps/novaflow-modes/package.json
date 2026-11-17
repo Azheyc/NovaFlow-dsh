@@ -1,0 +1,21 @@
+{
+  "name": "@local/novaflow-modes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NovaFlow session modes and first-workspace guidance",
+  "license": "MIT",
+  "main": "index.js",
+  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
+  "files": ["index.js", "client.js", "modes.js", "cordis.patch.yml", "locale", "README.md", "README.zh.md"],
+  "dependencies": {
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/dsh-web-app": "workspace:*",
+    "@deepseek-ai/dsh-atomic-write": "workspace:*",
+    "js-yaml": "^4.3.2"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-settings"] }
+  }
+}

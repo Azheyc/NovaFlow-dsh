@@ -1,7 +1,7 @@
-DeepSeek Harness
-DeepSeek Harness
-没有自动打开浏览器？
+NovaFlow
+NovaFlow
+请在浏览器中完成授权
 复制登录链接
-正在完成登录… [disabled]
+正在连接账号并配置模型… [disabled]
 取消
-复制登录链接，用浏览器手动打开完成登录
+登录 NovaFlow 并确认授权后，将自动进入工作区。浏览器未打开时，可复制下方链接

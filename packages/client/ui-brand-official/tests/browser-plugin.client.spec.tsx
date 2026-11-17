@@ -5,6 +5,7 @@ import { cleanup, render } from '@testing-library/react'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply, inject } from '../src/client/index.ts'
 import { OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
+import { NovaFlowFrame } from '../src/client/NovaFlowFrame.tsx'
 import { apply as hostApply } from '../src/index.ts'
 
 afterEach(() => {
@@ -38,6 +39,17 @@ async function bench(declare = true) {
 }
 
 describe('official browser-brand plugin', () => {
+  it('shows the NovaFlow home decoration without intercepting conversation content', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const view = render(<NovaFlowFrame hero><button>Compose</button></NovaFlowFrame>)
+    expect(view.container.querySelector('svg')).toBeNull()
+    expect(view.container.querySelector('canvas[data-home-novaflow]')).not.toBeNull()
+    expect(view.getByRole('button').textContent).toBe('Compose')
+    view.rerender(<NovaFlowFrame hero={false}><button>Compose</button></NovaFlowFrame>)
+    expect(view.container.querySelector('canvas')).toBeNull()
+    expect(view.getByRole('button').textContent).toBe('Compose')
+  })
+
   it('keeps the host Loader entry inert', () => {
     expect(hostApply).not.toThrow()
   })
@@ -46,12 +58,12 @@ describe('official browser-brand plugin', () => {
     expect(inject).toEqual(['slots'])
   })
 
-  it('keeps local sidebar branding and provides the same blank-home feedback', async () => {
+  it('uses NovaFlow branding in local builds without the local-build label or version', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'local')
     const subject = await bench()
     await subject.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(subject.slots.entries('sidebar.brand.mark')).toHaveLength(0)
-    expect(subject.slots.entries('sidebar.brand.name')).toHaveLength(0)
+    expect(subject.slots.entries('sidebar.brand.mark')).toHaveLength(1)
+    expect(subject.slots.entries('sidebar.brand.name')).toHaveLength(1)
     expect(subject.slots.entries('conversation.hero.frame')).toHaveLength(1)
   })
 
@@ -86,14 +98,14 @@ describe('official browser-brand plugin', () => {
     expect(subject.slots.entries(HERO_HOLE)).toHaveLength(0)
   })
 
-  it('registers the whale as a self-contained frame layer without replacing the hero mark', async () => {
+  it('registers NovaFlow as a self-contained frame layer without replacing the hero mark', async () => {
     vi.stubEnv('DSH_CLIENT_BUILD_PROFILE', 'official')
     const subject = await bench()
     const fiber = subject.ctx.plugin({ inject: [...inject], apply })
     try {
       await fiber.await()
       const [entry] = subject.slots.entries('conversation.hero.frame')
-      expect(entry?.options.id).toBe('pixel-whale')
+      expect(entry?.options.id).toBe('novaflow-brand')
       expect(entry?.inject).toBeUndefined()
       expect(subject.slots.entries(HERO_HOLE)).toHaveLength(0)
     } finally {
@@ -103,7 +115,7 @@ describe('official browser-brand plugin', () => {
 
   it('renders the official name independently from both requested mark sizes', () => {
     const name = render(<OfficialBrandName />)
-    expect(name.container.querySelector('svg')?.getAttribute('viewBox')).toBe('26 0 156 24')
+    expect(name.container.querySelector('svg')?.getAttribute('viewBox')).toBe('26 0 88 24')
     name.unmount()
 
     const mark = render(<OfficialBrandMark size={34} />)

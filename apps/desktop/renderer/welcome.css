@@ -50,7 +50,7 @@ body {
   width: 100%;
   height: 100%;
   margin: 0;
-  overflow: hidden;
+  overflow: auto;
   background: transparent;
   font-family: var(--dsw-font-family);
   font-weight: 400;
@@ -80,11 +80,22 @@ body {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-rows: 40px minmax(0, 1fr) 104px;
+  grid-template-rows: 48px minmax(230px, 1fr) 104px;
   justify-items: center;
   align-items: center;
-  padding: 24px 48px 76px;
+  padding: 24px 32px 76px;
 }
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--dsw-font-family);
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.brand-lockup .brand { width: 48px; height: 48px; border-radius: 8px; }
 
 .welcome > .tagline,
 .welcome > .key-form,
@@ -109,7 +120,7 @@ body {
   font-weight: 300;
   line-height: 40px;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .tagline h1,
@@ -124,6 +135,22 @@ body {
   font-size: 26px;
   font-style: normal;
   font-weight: 500;
+}
+
+.tagline .welcome-detail {
+  max-width: 360px;
+  margin: 20px auto 0;
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 24px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (max-width: 480px) {
+  .welcome { padding-inline: 8px; }
+  .tagline { font-size: 22px; line-height: 34px; }
+  .actions { width: min(280px, 100%); }
 }
 
 :lang(en) .tagline em {
@@ -234,7 +261,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 40px;
-  width: 440px;
+  width: min(440px, 100%);
 }
 
 .key-heading {
@@ -319,7 +346,7 @@ body {
 
 
 .auth-waiting { gap: 12px; padding-top: 28px; }
-.auth-waiting p { line-height: 16px; letter-spacing: normal; }
+.auth-waiting p { max-width: 360px; line-height: 24px; letter-spacing: normal; font-family: var(--dsw-font-family); }
 .auth-waiting .copy-link {
   margin-top: 20px;
   padding: 0;

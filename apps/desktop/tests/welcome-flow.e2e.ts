@@ -1,10 +1,10 @@
-/** Built Desktop Host acceptance; run after the repository build, without provider credentials. */
-
-import { createHash } from 'node:crypto'
+/** Built Desktop Host acceptance with synthetic NovaFlow authorization; no production requests. */
+import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DesktopHostProcess } from '../src/host-process.ts'
 import { desktopClientMetadata } from '../src/client-metadata.ts'
@@ -13,135 +13,183 @@ import { authenticateWebHost } from '../src/web-document.ts'
 import { builtHost, prepareDesktopHome } from './harness.ts'
 
 afterEach(() => { vi.unstubAllEnvs() })
+const issuer = 'https://www.ycnovaflow.vip'
+const prefix = '/api/novaflow/v1'
+const code = `nfdc_${'c'.repeat(43)}`
+const access = `nfds_${'a'.repeat(43)}`
 
 async function mockPlatform() {
-  let origin = ''
   let init: Record<string, string> = {}
   let failExchange = false
+  let rejectAuthorization = false
+  let exchanged = false
   const server = createServer((req, res) => {
-    // The real Host composition identifies every Platform request with the five client headers.
-    const expected = {
-      'x-client-bundle-id': '', 'x-client-platform': process.platform === 'win32' ? 'desktop-win' : 'desktop-mac',
-      'x-client-version': '1.2.3', 'x-client-locale': 'en_US',
-      'x-client-timezone-offset': String(-new Date().getTimezoneOffset() * 60),
-    }
-    for (const [name, value] of Object.entries(expected)) {
-      if (req.headers[name] !== value) { res.writeHead(400).end(); return }
-    }
-    if (req.headers.cookie !== 'test_gate=synthetic') { res.writeHead(403).end(); return }
-    if (req.url === '/auth-api/v0/users/logout' && req.method === 'POST') {
-      if (req.headers['x-dsh-auth-token'] !== 'dsh_mock_composition_test') { res.writeHead(401).end(); return }
-      res.writeHead(503).end()
-      return
-    }
     req.setEncoding('utf8')
     let body = ''
     req.on('data', (chunk: string) => { body += chunk })
     req.on('end', () => {
-      const input = JSON.parse(body) as Record<string, string>
-      let value: unknown
-      if (req.url?.endsWith('auth_init')) {
+      const input = (body ? JSON.parse(body) : {}) as Record<string, string>
+      let data: unknown
+      if (req.url === `${prefix}/desktop/auth/start`) {
         init = input
-        if (input.locale !== 'en_US') { res.writeHead(400).end(); return }
-        value = { authorize_url: `${origin}/dsh/authorize?authorize_id=test`, expires_in: 600, authorize_id: 'test' }
-      } else if (req.url?.endsWith('auth_cancel')) {
-        const challenge = createHash('sha256').update(input.code_verifier ?? '').digest('base64url')
-        if (input.authorize_id !== 'test' || challenge !== init.code_challenge) { res.writeHead(400).end(); return }
-        value = null
-      } else {
+        exchanged = false
+        if (init.client_id !== 'novaflow-creator' || init.code_challenge_method !== 'S256') { res.writeHead(400).end(); return }
+        data = { request_id: 'test', authorize_url: `${issuer}/desktop/authorize?request=test`, expires_in: 600 }
+      } else if (req.url === `${prefix}/desktop/auth/exchange`) {
         if (failExchange) { res.writeHead(503).end(); return }
-        const challenge = createHash('sha256').update(input.code_verifier ?? '').digest('base64url')
-        if (challenge !== init.code_challenge || input.redirect_uri !== init.redirect_uri) {
-          res.writeHead(400).end()
-          return
+        if (exchanged || input.code !== code || input.redirect_uri !== init.redirect_uri
+          || createHash('sha256').update(input.code_verifier ?? '').digest('base64url') !== init.code_challenge) {
+          res.writeHead(400).end(); return
         }
-        value = { user: null, token: 'dsh_mock_composition_test', authorized_url: `${origin}/dsh/authorized?result=test&locale=zh_CN` }
+        exchanged = true
+        data = { token_type: 'Bearer', access_token: access, refresh_token: `nfdr_${'r'.repeat(43)}`,
+          session_id: `nfdev_${'s'.repeat(43)}`, expires_in: 900, refresh_expires_in: 2592000 }
+      } else if (req.url === `${prefix}/desktop/auth/revoke`) {
+        // A failed remote revoke must still clear the local device grant.
+        res.writeHead(503).end(); return
+      } else {
+        if (rejectAuthorization || req.headers.authorization !== `Bearer ${access}`) { res.writeHead(401).end(); return }
+        if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: 'personal' }
+        else if (req.url === `${prefix}/creator/models`) data = { items: [
+          { model_id: 'gpt-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
+          { model_id: 'claude-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['anthropic'] },
+        ] }
+        else if (req.url === `${prefix}/plugin/usage`) data = { schema_version: 1, account_mode: 'personal',
+          personal: { balance: '10', frozen: '0', available: '10', unit: 'CNY' }, limits: null, as_of: new Date().toISOString() }
+        else { res.writeHead(404).end(); return }
       }
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ code: 0, data: { biz_code: 0, biz_data: value } }))
+      res.end(JSON.stringify({ code: 0, data }))
     })
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('missing mock listener')
-  origin = `http://127.0.0.1:${String(address.port)}`
   return {
-    origin,
+    origin: `http://127.0.0.1:${String(address.port)}`,
     failExchange: (value: boolean) => { failExchange = value },
-    callback: () => `${init.redirect_uri}?code=test&state=${init.state}`,
+    rejectAuthorization: (value: boolean) => { rejectAuthorization = value },
+    callback: () => `${init.redirect_uri}?${new URLSearchParams({ code, state: init.state!, iss: issuer }).toString()}`,
     close: () => new Promise<void>((resolve) => { server.close(() => { resolve() }); server.closeAllConnections() }),
   }
 }
 
-describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
-  it('persists explicit API keys and browser account login independently across Host restarts', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'dsh-desktop-welcome-'))
+describe.skipIf(!existsSync(builtHost))('built NovaFlow Desktop welcome', () => {
+  it('authorizes with PKCE, configures models, restores login, and rejects stale callbacks after cancellation', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'novaflow-desktop-welcome-'))
     let host: DesktopHostProcess | undefined
     const platform = await mockPlatform()
     try {
-      const { home, project, paths } = await prepareDesktopHome(root)
-      const nodeBin = join(root, 'runtime/primary-runtime/dependencies/node/bin')
-      mkdirSync(nodeBin, { recursive: true })
-      cpSync(process.execPath, join(nodeBin, process.platform === 'win32' ? 'node.exe' : 'node'))
-      writeFileSync(join(paths.profile, 'cordis.patch.yml'), `- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n- id: deepseek-account\n  config:\n${process.platform === 'linux' ? '    desktopPlatform: darwin\n' : ''}    platformOrigin: ${platform.origin}\n    harnessOrigin: ${platform.origin}\n    allowLoopbackHttp: true\n    requestHeaders:\n      Cookie: test_gate=synthetic\n`)
+      const { project, paths } = await prepareDesktopHome(root)
+      // Test-only transport replacement preserves production issuer validation and all Host/plugin code.
+      const preload = join(root, 'mock-novaflow.mjs')
+      writeFileSync(preload, `process.stderr.write = process.stdout.write.bind(process.stdout);
+const original = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  const url = new URL(String(input));
+  if (url.origin === ${JSON.stringify(issuer)}) return original(${JSON.stringify(platform.origin)} + url.pathname + url.search, init);
+  if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') throw new Error('Test blocks external network');
+  return original(input, init);
+};\n`)
+      const environment = { ...process.env, NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` }
       let backend: DesktopWelcomeBackend
       let hostOrigin = ''
+      let cookie = ''
+      const rpc = async <T>(method: string, args: Record<string, unknown> = {}): Promise<T> => {
+        const rpcId = randomUUID()
+        const response = await fetch(`${hostOrigin}/api/${method}`, {
+          method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+          body: JSON.stringify({ type: 'client-request', rpcId, method, payload: { args } }),
+        })
+        const envelope = await response.json() as { result: { ok: boolean; value: T } }
+        expect(envelope.result.ok, method).toBe(true)
+        return envelope.result.value
+      }
       const restart = async (): Promise<void> => {
         await host?.stop()
-        host = new DesktopHostProcess(process.execPath, project, paths.profile, undefined,
-          process.env, undefined, join(root, 'runtime', 'primary-runtime'))
+        host = new DesktopHostProcess(process.execPath, project, paths.profile, undefined, environment)
         const { url } = await host.start()
         hostOrigin = new URL(url).origin
-        backend = connectDesktopWelcome(url, await authenticateWebHost(url))
+        cookie = await authenticateWebHost(url)
+        backend = connectDesktopWelcome(url, cookie)
+        await expect.poll(async () => {
+          const response = await fetch(`${hostOrigin}/api/novaflow-account`, {
+            method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{"action":"state"}',
+          })
+          return response.status
+        }, { timeout: 15_000 }).toBe(200)
       }
-      const status = async () => backend.read()
-      const fingerprint = (): string => createHash('sha256')
-        .update(readFileSync(join(home, '.credentials.yaml'))).digest('hex')
       await restart()
-      expect(await status()).toMatchObject({ hasApiKey: false, localePreference: null })
-      const before = fingerprint()
-      await host!.stop()
-      writeFileSync(join(paths.profile, 'cordis.patch.yml'),
-        readFileSync(join(paths.profile, 'cordis.patch.yml'), 'utf8') + '- id: locale\n  config:\n    preference: zh\n')
-      await restart()
-      expect(await status()).toMatchObject({ hasApiKey: false, localePreference: 'zh' })
-      expect(fingerprint()).toBe(before)
-      expect(await backend!.save('sk-local-onboarding-test')).toEqual({ ok: true })
-      expect(await status()).toMatchObject({ hasApiKey: true, localePreference: 'zh' })
-      await restart()
-      expect(await status()).toMatchObject({ hasApiKey: true })
+      const bundles = await rpc<Array<{ name: string; enabled: boolean; installed: boolean; removable: boolean }>>('pluginManager/listBundles')
+      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager']) {
+        expect(bundles.find(row => row.name === name), name).toMatchObject({ enabled: true, installed: true, removable: true })
+      }
+      expect(bundles.some(row => row.name === '@local/novaflow-dsh-plugin')).toBe(false)
+      const roster = await rpc<{ presets: Array<{ id: string; broken?: string; isDefault: boolean }> }>('agentPresets/list')
+      for (const id of ['novaflow-modeling', 'novaflow-media-creation']) {
+        expect(roster.presets.find(row => row.id === id), id).toMatchObject({ id, isDefault: false })
+        expect(roster.presets.find(row => row.id === id)?.broken, id).toBeUndefined()
+      }
+      const management = await rpc<{ changed: boolean; error?: { code: string } }>('pluginManager/setBundleEnabled', { name: '@local/novaflow-dsh-plugin', enabled: false })
+      expect(management.changed).toBe(false)
+      expect(management.error).toBeDefined()
+      const removal = await rpc<{ changed: boolean; error?: { code: string } }>('pluginManager/removeBundle', { name: '@local/novaflow-dsh-plugin' })
+      expect(removal.changed).toBe(false)
+      expect(removal.error).toBeDefined()
+      const update = await rpc<{ result: { changed: boolean; error?: { code: string } } }>('pluginManager/updateBundle', { name: '@local/novaflow-dsh-plugin', version: '99.0.0' })
+      expect(update.result.changed).toBe(false)
+      expect(update.result.error).toBeDefined()
+      const guide = async (action: string) => (await fetch(`${hostOrigin}/api/novaflow-modes`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ action }),
+      })).json()
+      expect(await guide('state')).toEqual({ seen: false, ready: true })
+      expect(await guide('dismiss')).toEqual({ seen: true, ready: true })
+      expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
+      const unauthorized = await fetch(`${hostOrigin}/api/novaflow-account`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"action":"state"}',
+      })
+      expect(unauthorized.ok).toBe(false)
       await backend!.account.start(desktopClientMetadata('en'))
-      await expect.poll(async () => (await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
+      expect((await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
       expect(new URL(platform.callback()).origin).toBe(hostOrigin)
+      const wrongIssuer = new URL(platform.callback())
+      wrongIssuer.searchParams.set('iss', 'https://wrong.test')
+      expect((await fetch(wrongIssuer)).status).toBe(400)
       platform.failExchange(true)
-      const failed = await fetch(platform.callback(), { redirect: 'manual' })
-      expect(failed.status).toBe(204)
-      expect(await backend!.account.state()).toMatchObject({ status: 'signed-out', attempt: { phase: 'failed' } })
-      expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: false })
+      expect((await fetch(platform.callback())).status).toBe(400)
+      expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
       platform.failExchange(false)
       await backend!.account.start(desktopClientMetadata('en'))
-      await expect.poll(async () => (await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
-      const response = await fetch(platform.callback(), { redirect: 'manual' })
-      expect(response.status).toBe(302)
-      expect(response.headers.get('location')).toBe(`${platform.origin}/dsh/authorized?result=test&locale=zh_CN&login_source=desktop`)
-      expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: true })
+      expect((await fetch(platform.callback())).status).toBe(200)
+      expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
+      const patch = readFileSync(join(paths.profile, 'cordis.patch.yml'), 'utf8')
+      expect(patch).toContain('gpt-fixture')
+      expect(patch).toContain('claude-fixture')
+      expect(patch).toContain('openai-responses')
+      expect(patch).toContain('anthropic-messages')
+      expect(patch).not.toContain(access)
+      const snapshot = await (await fetch(`${hostOrigin}/api/novaflow-account`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{"action":"state"}',
+      })).text()
+      expect(snapshot).not.toContain(access)
+      expect(snapshot).not.toContain('pluginSetup')
+      expect(snapshot).not.toContain('installFlow')
       await restart()
-      expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: true })
-      // A failed remote logout must not block local sign-out through the real Host composition.
+      expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
+      expect(await guide('state')).toEqual({ seen: true, ready: true })
+      platform.rejectAuthorization(true)
+      await restart()
+      expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
+      expect(await backend!.account.state()).toMatchObject({ status: 'signed-out', attempt: null, requiresSignOut: false })
+      platform.rejectAuthorization(false)
       await backend!.account.signOut(desktopClientMetadata('en'))
-      expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: false })
+      expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
       await backend!.account.start(desktopClientMetadata('en'))
-      await expect.poll(async () => (await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
       const waiting = await backend!.account.state()
       const late = platform.callback()
       await backend!.account.cancel(waiting.attempt!.id)
-      expect((await fetch(late, { redirect: 'manual' })).status).not.toBe(302)
-      expect(await status()).toMatchObject({ loggedIn: false })
-      // A handle left open after acknowledged teardown must not fail the update handoff.
-      vi.stubEnv('NODE_OPTIONS', `--import=data:text/javascript,${encodeURIComponent(
-        "process.on('message', message => { if (message?.type === 'shutdown') setInterval(() => {}, 1000) })")}`)
-      await restart()
-      await host!.stop(true)
+      expect((await fetch(late)).status).toBe(400)
+      expect(await backend!.read()).toMatchObject({ loggedIn: false })
     } finally {
       await host?.stop()
       await platform.close()

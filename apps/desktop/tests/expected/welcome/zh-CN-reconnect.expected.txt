@@ -1,0 +1,6 @@
+NovaFlow
+NovaFlow
+重新连接 NovaFlow 账号
+清除旧授权并登录
+添加 API Key
+NovaFlow 未接受已保存的授权。重新登录可恢复访问，已保存的模型设置会保留

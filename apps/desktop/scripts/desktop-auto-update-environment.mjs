@@ -1,6 +1,7 @@
 /** Resolve the Desktop auto-update channel and its Tencent COS destination. */
 
 import { valid } from 'semver'
+import { isNovaFlowDistribution, NOVAFLOW_UPDATE_URL } from './novaflow-distribution.mjs'
 
 /** Environment variable that selects the Desktop update deployment. */
 export const DESKTOP_AUTO_UPDATE_ENV = 'DSH_DESKTOP_AUTO_UPDATE_ENV'
@@ -164,6 +165,10 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const channel = resolveDesktopUpdateChannel(env)
   const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
+  if (isNovaFlowDistribution(env)) {
+    if (target !== 'win-x64') throw new Error('NovaFlow currently distributes Windows x64 only')
+    return { environment, channel, target, origin: 'https://gh-proxy.com', keyPrefix: '', binaryKeyPrefix: '', publicUrl: NOVAFLOW_UPDATE_URL }
+  }
   const deployment = UPDATE_ENVIRONMENTS[environment]
   let origin = deployment.fixedOrigin
   if (origin === undefined) {
@@ -200,6 +205,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
  * @throws {Error} When the selected deployment lacks a bucket or valid updater configuration.
  */
 export function resolveDesktopUploadConfig(env, platform, arch) {
+  if (isNovaFlowDistribution(env)) throw new Error('NovaFlow releases are published to GitHub, not the upstream COS destination')
   const update = resolveDesktopAutoUpdateConfig(env, platform, arch)
   const deployment = UPDATE_ENVIRONMENTS[update.environment]
   return {

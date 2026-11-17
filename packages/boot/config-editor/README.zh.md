@@ -77,3 +77,5 @@ kind: "package-reference"
 无。
 
 </details>
+
+NovaFlow 核心账户项不进入可编辑条目和配置描述，通过服务编辑该项的请求会被拒绝。

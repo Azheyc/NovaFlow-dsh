@@ -187,6 +187,8 @@ macOS 和 Linux 从图形界面启动的程序只继承会话管理器提供的�
 
 ## 开发
 
+此 NovaFlow 定制版内置现有账户插件，原生开屏页通过该插件发起浏览器登录。完成授权并配置模型后进入工作区；开屏页与“账户与余额”共享同一设备授权。恢复、异常处理与验证方式见 [NovaFlow 桌面整合](../novaflow-plugin/INTEGRATION.md)。
+
 开发环境应用菜单提供“刷新页面”（macOS 为 Cmd+R，其他平台为 Ctrl+R）和“重启应用与 Host”。重启会等待 Host 关闭，再重新启动 Electron 和新的 Host；这两项操作都不会重新构建源码。
 
 `dev:desktop` 会构建当前 Host、客户端 bundle、Web 前端和 Electron 壳，把已构建的 CLI 包、私有 Desktop Host 包及其 workspace 依赖投影为一次性桌面 npm 项目，然后直接启动 Electron；这条路径不从 npm 解析 dsh：
@@ -405,3 +407,13 @@ node apps/desktop/node_modules/pnpm/bin/pnpm.mjs --dir apps/desktop run test:upd
 ## 开发备注
 
 上线前 CDN 与容量决策见[桌面更新提案](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.zh.md#cdn-and-capacity-qualification)。
+
+NovaFlow 品牌资源使用用户提供的黑白标识。在 `apps/desktop` 运行 `pnpm run render:brand`，重新生成应用图标、所有托盘分辨率、开屏与插件 SVG、Web 图标和安装程序图片。原图与提取的矢量图保存在 `resources/novaflow/`；安装程序 PNG 尺寸兼容现有布局。
+
+NovaFlow 应用、托盘、favicon 和开屏标识使用圆角黑底；Web 安装图标保留不透明边角供平台裁切。启动时后台校验已有授权：成功则进入工作区，失败则清除本地授权并显示新用户登录首页，不显示恢复文案或过期通知。永久凭据和旧授权恢复的服务端要求见内置插件整合说明。
+
+NovaFlow Desktop 在 `novaflow-preinstalled` 中携带独立锁定的社区插件预装资源：archive-manager 1.3.6、dsh-ops 0.5.5、dsh-rewind-plugin 0.22.2、dshmarket 1.73.20。构建时准备完整依赖树，不执行包脚本；首次启动离线复制缺失包并启用新增项，保留已有依赖及停用选择。`.novaflow-preinstalled-v1.json` 防止用户卸载后被反复补装。新 profile 显示可跳过的模式指引，已有用户升级不弹出。本地 `@local/novaflow-modes` bundle 提供仅作用于会话的建模和自媒体创作模式。
+
+## NovaFlow 发行渠道
+
+NovaFlow Windows 使用独立的 vip.ycnovaflow.desktop 应用标识，经 gh-proxy.com 镜像访问 GitHub Release 资产。保留原有 NSIS 安装器与更新界面。频道、未签名构建和迁移规则见[发行指南](../../docs/upgrade-guide/v0.2.2-rc.3/novaflow-distribution/guide.zh.md)。

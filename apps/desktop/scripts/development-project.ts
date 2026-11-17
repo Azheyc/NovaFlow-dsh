@@ -1,6 +1,7 @@
 /** Prepare the disposable npm-project view used by an unpackaged Electron shell. */
 
 import {
+  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -18,6 +19,7 @@ import type { DesktopRelease } from '../src/release.ts'
 import { DESKTOP_RUNTIME_FILE, type DesktopRuntimeDescriptor } from '../src/runtime-tree.ts'
 import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
 import { desktopTargetPlatform } from './desktop-build-paths.mjs'
+import { prepareNovaFlowPreinstalled } from './prepare-novaflow-preinstalled.ts'
 
 interface PackageManifest {
   readonly name?: string
@@ -165,5 +167,6 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   const runtime: DesktopRuntimeDescriptor = { schemaVersion: 1, release: options.release,
     ...desktopTargetPlatform(options.target), sharedPackages, files: [] }
   writeFileSync(join(options.projectDir, DESKTOP_RUNTIME_FILE), `${JSON.stringify(runtime, undefined, 2)}\n`)
+  cpSync(prepareNovaFlowPreinstalled(), join(options.projectDir, 'novaflow-preinstalled'), { recursive: true, dereference: true })
   return options.projectDir
 }

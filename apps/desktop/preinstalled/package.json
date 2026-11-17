@@ -1,0 +1,11 @@
+{
+  "name": "novaflow-preinstalled-plugins",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@michengai/dsh-archive-manager": "1.3.6",
+    "dsh-ops": "0.5.5",
+    "dsh-rewind-plugin": "0.22.2",
+    "dshmarket": "1.73.20"
+  }
+}

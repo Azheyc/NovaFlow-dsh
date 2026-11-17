@@ -206,3 +206,5 @@ pnpm 执行和组合包校验成功即完成安装，后续发布或启用失败
 无。
 
 </details>
+
+在 NovaFlow 定制版中，核心账户包 `@local/novaflow-dsh-plugin` 不出现在可管理 bundle 列表中，并拒绝替换或管理修改。社区插件行为保持原样。

@@ -2,7 +2,8 @@ import type { ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/typ
 /** Native welcome operations using the shared Web authentication and RPC APIs. */
 
 import { randomUUID } from 'node:crypto'
-import { desktopAccountBackend, type DesktopAccountBackend } from './account-backend.ts'
+import type { DesktopAccountBackend } from './account-backend.ts'
+import { novaFlowAccountBackend } from './novaflow-account-backend.ts'
 
 /** Metadata needed before the native entry or workspace becomes visible. */
 export interface WelcomeState {
@@ -68,7 +69,12 @@ export function connectDesktopWelcome(
     }
     return envelope.result.value
   }
-  const account = desktopAccountBackend(origin, invoke, cookie)
+  const analyticsEnabled = async (): Promise<boolean> => {
+    const enabled = await invoke({ namespace: 'productAnalytics', method: 'enabled', args: {} }, AbortSignal.timeout(1000))
+    if (typeof enabled !== 'boolean') throw new Error('desktop analytics: invalid collection policy')
+    return enabled
+  }
+  const account = novaFlowAccountBackend(origin, cookie, send, analyticsEnabled)
   const settingsAndReference = async () => {
     const settings = await invoke({ namespace: 'settings', method: 'describe', args: {} })
     if (!record(settings) || !Array.isArray(settings.namespaces)) throw new Error('desktop welcome: missing settings namespaces')
@@ -110,7 +116,9 @@ export function connectDesktopWelcome(
         if (typeof key !== 'string') throw new Error('desktop welcome: invalid provider settings path')
         value = record(value) ? value[key] : undefined
       }
-      return record(value) && typeof value.apiKeyEnv === 'string' ? [value.apiKeyEnv] : []
+      // Local NovaFlow bridge keys are transport credentials, not an independent login.
+      const baseURL = record(value) && typeof value.baseURL === 'string' ? value.baseURL : ''
+      return record(value) && typeof value.apiKeyEnv === 'string' && !baseURL.includes('/novaflow/models/') ? [value.apiKeyEnv] : []
     })
     const unique = [...new Set([...(ref === undefined ? [] : [ref]), ...refs])]
     const states: Record<string, unknown> = {}
@@ -132,11 +140,7 @@ export function connectDesktopWelcome(
   return {
     account,
     read,
-    async analyticsEnabled() {
-      const enabled = await invoke({ namespace: 'productAnalytics', method: 'enabled', args: {} }, AbortSignal.timeout(1000))
-      if (typeof enabled !== 'boolean') throw new Error('desktop analytics: invalid collection policy')
-      return enabled
-    },
+    analyticsEnabled,
     async report(event) { await invoke({ namespace: 'productAnalytics', method: 'report', args: { event } }, AbortSignal.timeout(1000)) },
     async readLocalePreference() {
       const settings = await invoke({ namespace: 'settings', method: 'describe', args: {} })

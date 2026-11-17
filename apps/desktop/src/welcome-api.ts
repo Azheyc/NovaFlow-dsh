@@ -3,6 +3,11 @@
 import type { AccountView, SignInAttemptId } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { ProductEventMap } from '@deepseek-ai/dsh-client-product-analytics/types'
 import type { DesktopLocale } from './locale.ts'
+/** Native sign-in projection distinguishing rejected grants from recoverable refresh uncertainty. */
+export type DesktopAccountView = AccountView & {
+  /** A server rejection requires explicit replacement of the saved grant. */
+  readonly requiresSignOut?: boolean
+}
 
 /** Private native welcome channels, installed only while its window exists. */
 export const WELCOME_IPC = {
@@ -14,6 +19,8 @@ export const WELCOME_IPC = {
   cancel: 'dsh-welcome:cancel',
   copyLink: 'dsh-welcome:copy-link',
   state: 'dsh-welcome:state',
+  readState: 'dsh-welcome:read-state',
+  reset: 'dsh-welcome:reset',
   takeNotice: 'dsh-welcome:take-notice',
 } as const
 
@@ -34,7 +41,11 @@ export interface WelcomeOperations {
   /** @returns the pending notification, clearing it before another renderer can receive it. */
   takeNotice(): Promise<WelcomeNotice | undefined>
   /** @returns account state after starting a login attempt. */
-  startSignIn(): Promise<AccountView>
+  startSignIn(): Promise<DesktopAccountView>
+  /** @returns The current login snapshot, including an interrupted stored authorization. */
+  accountState?(): Promise<DesktopAccountView>
+  /** Clear an unusable device grant only after the user explicitly chooses to reconnect. */
+  resetSignIn?(): Promise<DesktopAccountView>
   /** @param id - attempt to cancel. @returns the settled state. */
   cancelSignIn(id: SignInAttemptId): Promise<AccountView>
   /** @param id - current waiting attempt whose authorization URL is copied to the system clipboard. */
@@ -56,7 +67,7 @@ export interface WelcomeOperations {
 /** The renderer receives localized copy, login operations, and safe account snapshots. */
 export type WelcomeApi = DesktopLocale & WelcomeOperations & {
   /** @param listener - safe account snapshot recipient. @returns subscription disposer. */
-  onAccountState(listener: (state: AccountView) => void): () => void
+  onAccountState(listener: (state: DesktopAccountView) => void): () => void
 }
 
 /** Authentication facts supplied at cold start or after a completed sign-out. */

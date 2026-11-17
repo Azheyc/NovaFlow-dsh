@@ -1,0 +1,444 @@
+window.__ModuleLoader__.load({
+  id: '@local/novaflow-dsh-plugin',
+  factory(require) {
+    const React = require('react');
+    const h = React.createElement;
+    // The dictionaries below are kept identical to locale/{en,zh}.json ui.
+    const dictionaries = {
+  "en": {
+    "nav": "Account and balance",
+    "title": "NovaFlow account",
+    "intro": "Sign in to NovaFlow to save the connection in Settings → Models. No API key copying is needed.",
+    "signin": "Sign in to NovaFlow",
+    "retry": "Try again",
+    "loading": "Loading account…",
+    "working": "Working…",
+    "connected": "Connected",
+    "signedout": "Not connected",
+    "accountFallback": "NovaFlow account",
+    "pending": "Waiting for authorization",
+    "pendingHelp": "Complete sign-in and confirm authorization on NovaFlow. This page updates automatically when authorization finishes.",
+    "openAuthorization": "Open authorization page",
+    "popupHelp": "If no browser page opened, use the authorization link below.",
+    "cancel": "Cancel authorization",
+    "cancelled": "Authorization cancelled. You can sign in again when ready.",
+    "expired": "Authorization expired. Start sign-in again.",
+    "failed": "Authorization did not finish. Please try again.",
+    "refresh": "Refresh account and models",
+    "models": "Model configuration",
+    "modelsHelp": "Your connection is saved in Settings → Models. Fetch, add, or edit models in the NovaFlow provider.",
+    "balance": "Account balance",
+    "balanceUnknown": "Balance is currently unavailable. Check your balance on NovaFlow or try refreshing.",
+    "balanceSignin": "Sign in to NovaFlow to view your balance.",
+    "balanceLoading": "Fetching balance…",
+    "balanceRefreshing": "Refreshing balance…",
+    "balanceRefresh": "Refresh balance",
+    "balanceError": "Could not refresh the balance. Please try again.",
+    "balanceStale": "Last updated data — the latest balance could not be confirmed.",
+    "balancePersonal": "Personal balance",
+    "balanceEnterprise": "Enterprise balance",
+    "balanceAvailable": "Available balance",
+    "balanceTotal": "Total balance",
+    "balanceFrozen": "Frozen balance",
+    "balanceCurrency": "CNY",
+    "balanceMissing": "Unavailable",
+    "balanceDailyRemaining": "Remaining today",
+    "balanceMonthlyRemaining": "Remaining this month",
+    "balanceUnlimited": "Unlimited",
+    "balanceUnspecified": "Not set",
+    "balanceBlocked": "Usage is restricted by quota or spending limits, even if an available balance is shown.",
+    "balanceAsOf": "Updated",
+    "balanceDateUnknown": "Update time unavailable",
+    "balanceDateLocale": "en",
+    "platform": "Open NovaFlow",
+    "signout": "Sign out",
+    "signoutConfirm": "Sign out of NovaFlow and clear the local sign-in credentials? Native provider and model configuration will remain for your next sign-in. Running requests may be interrupted.",
+    "signoutYes": "Confirm sign out",
+    "keepConnected": "Stay connected",
+    "warning": "Account synchronization needs attention. Refresh to retry or check your permissions on NovaFlow.",
+    "networkError": "Could not reach the account service or NovaFlow. Check your network connection and try again.",
+    "genericError": "The operation could not be completed. Please try again.",
+    "authorizationError": "NovaFlow authorization was rejected or expired. Please sign in again.",
+    "conflictError": "A managed model connection has changed. Review the connection settings before syncing again.",
+    "unavailableError": "NovaFlow is temporarily unavailable. Please try again later.",
+    "protocolError": "The account service returned an unexpected response. Please refresh or restart Harness.",
+    "reconnectHelp": "The platform did not accept the saved authorization. If sign-in is needed, sign out and sign in again; native model settings are kept.",
+    "revokeFailed": "You are signed out locally, but remote device revocation failed. Revoke this device in NovaFlow Security and access.",
+    "dismissSignout": "Not now",
+    "syncRetryHelp": "Your connection is saved, but account synchronization has not finished. Refresh to retry without signing in again.",
+    "cleanupFailed": "Sign-in credentials were cleared or have expired, but local connection cleanup did not finish. Native provider and model configuration will remain. Sign in again or restart Harness and retry.",
+    "cleanupAndRevokeFailed": "You are signed out locally, but connection cleanup and remote device revocation did not finish. Native provider and model configuration will remain. Restart Harness and revoke this device in NovaFlow Security and access.",
+    "modelThinkingHelp": "In each model’s Advanced settings, configure the reasoning levels it supports. Then choose the reasoning depth for the current conversation in its model picker.",
+    "modelConnectionHelp": "Claude models use Anthropic Messages; other models use OpenAI Responses. Keep the local connection address supplied by the plugin. Manage sign-in and refresh in Account and balance; no API key copying is needed.",
+    "modelFooterTitle": "NovaFlow connection",
+    "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again."
+  },
+  "zh": {
+    "nav": "账户与余额",
+    "title": "NovaFlow 账户",
+    "intro": "登录 NovaFlow 后，连接会保存到「设置 → 模型」，无需复制 API Key。",
+    "signin": "登录 NovaFlow",
+    "retry": "重试",
+    "loading": "正在读取账户…",
+    "working": "正在处理…",
+    "connected": "已连接",
+    "signedout": "未连接",
+    "accountFallback": "NovaFlow 账户",
+    "pending": "等待网页授权",
+    "pendingHelp": "请在 NovaFlow 网页完成登录并确认授权。授权完成后，此页面会自动更新。",
+    "openAuthorization": "打开授权页面",
+    "popupHelp": "如果浏览器页面没有打开，请点击下方授权链接。",
+    "cancel": "取消授权",
+    "cancelled": "授权已取消。需要时可重新登录。",
+    "expired": "授权已过期，请重新发起登录。",
+    "failed": "授权未完成，请重新尝试。",
+    "refresh": "刷新账户与模型",
+    "models": "模型配置",
+    "modelsHelp": "连接已保存到「设置 → 模型」。在 NovaFlow 提供商中获取、新增或编辑模型。",
+    "balance": "账户余额",
+    "balanceUnknown": "余额暂时不可用，请前往 NovaFlow 查看或尝试刷新。",
+    "balanceSignin": "登录 NovaFlow 后可查看余额。",
+    "balanceLoading": "正在获取余额…",
+    "balanceRefreshing": "正在刷新余额…",
+    "balanceRefresh": "刷新余额",
+    "balanceError": "余额刷新失败，请重试。",
+    "balanceStale": "上次更新数据 — 暂未能确认最新余额。",
+    "balancePersonal": "个人余额",
+    "balanceEnterprise": "企业余额",
+    "balanceAvailable": "可用金额",
+    "balanceTotal": "总余额",
+    "balanceFrozen": "冻结金额",
+    "balanceCurrency": "人民币（CNY）",
+    "balanceMissing": "暂无数据",
+    "balanceDailyRemaining": "今日剩余",
+    "balanceMonthlyRemaining": "本月剩余",
+    "balanceUnlimited": "无限制",
+    "balanceUnspecified": "未设置",
+    "balanceBlocked": "当前受额度或限额限制，即使显示可用余额也暂不可使用。",
+    "balanceAsOf": "更新时间",
+    "balanceDateUnknown": "更新时间暂不可用",
+    "balanceDateLocale": "zh-CN",
+    "platform": "打开 NovaFlow",
+    "signout": "退出登录",
+    "signoutConfirm": "退出 NovaFlow 并清除本机登录凭据？原生提供商和模型配置会保留，重新登录后可继续使用。正在进行的请求可能中断。",
+    "signoutYes": "确认退出",
+    "keepConnected": "保持登录",
+    "warning": "账户同步需要处理，请刷新重试或前往 NovaFlow 检查权限。",
+    "networkError": "无法连接账户服务或 NovaFlow，请检查网络连接后重试。",
+    "genericError": "操作未能完成，请重试。",
+    "authorizationError": "NovaFlow 授权被拒绝或已过期，请重新登录。",
+    "conflictError": "受管模型连接已被修改，请检查连接设置后再同步。",
+    "unavailableError": "NovaFlow 暂时不可用，请稍后重试。",
+    "protocolError": "账户服务返回了异常响应，请刷新页面或重启 Harness。",
+    "reconnectHelp": "已保存的授权未被平台接受。需要重新登录时可退出后登录，原生模型配置会保留。",
+    "revokeFailed": "本机已退出，但远端设备撤销失败。请前往 NovaFlow「安全与访问」撤销该设备。",
+    "dismissSignout": "暂不退出",
+    "syncRetryHelp": "连接信息已保留，账户同步尚未完成。请刷新重试，无需重新登录。",
+    "cleanupFailed": "登录凭据已清除或失效，但本机连接清理未完成。原生提供商和模型配置会保留；请重新登录或重启 Harness 后重试。",
+    "cleanupAndRevokeFailed": "本机已退出，但连接清理和远端设备撤销未完成。原生提供商和模型配置会保留；请重启 Harness，并到 NovaFlow「安全与访问」撤销该设备。",
+    "modelThinkingHelp": "在每个模型的「高级」设置中配置它支持的思考档位，再在对话的模型选择器中选择本次使用的思考深度。",
+    "modelConnectionHelp": "Claude 系列使用 Anthropic Messages，其他模型使用 OpenAI Responses。请保留插件填入的本机连接地址；登录与刷新在「账户与余额」管理，无需复制 API Key。",
+    "modelFooterTitle": "NovaFlow 连接",
+    "modelFooterHelp": "NovaFlow 登录后会在此保存原生提供商配置。可直接使用上方编辑器获取、新增或编辑模型；退出登录会保留这些配置，但需重新登录后才能调用。"
+  }
+};
+    const platform = 'https://www.ycnovaflow.vip';
+    const pendingPhases = new Set(['starting', 'waiting', 'exchanging']);
+    const css = `
+      .nf-account {display:flex;flex-direction:column;gap:16px;padding:8px 0;font-size:13px;line-height:22px;color:var(--dsw-alias-label-primary)}
+      .nf-account * {box-sizing:border-box}
+      .nf-account h2,.nf-account h3,.nf-account p {margin:0}
+      .nf-account h2 {font-size:18px;line-height:28px;font-weight:600}
+      .nf-account h3 {font-size:14px;font-weight:500}
+      .nf-card {padding:16px;border:.5px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;gap:12px}
+      .nf-muted {color:var(--dsw-alias-label-secondary)}
+      .nf-actions {display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+      .nf-button {display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:5px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-decoration:none;cursor:pointer;line-height:22px}
+      .nf-button:hover {text-decoration:underline}
+      .nf-button:focus-visible,.nf-launcher:focus-visible {outline:2px solid var(--dsw-alias-label-primary);outline-offset:3px}
+      .nf-button:disabled {opacity:.5;cursor:default;text-decoration:none}
+      .nf-primary {font-weight:600}
+      .nf-launcher {display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer;text-align:left}
+      .nf-launcher[data-narrow=true] {justify-content:center;padding:6px}
+      .nf-avatar {display:flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:600}
+      .nf-launcher-label {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .nf-notice {padding:10px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px;overflow-wrap:anywhere}
+      .nf-guidance {display:flex;flex-direction:column;gap:8px}
+      .nf-balance-amount {font-size:26px;line-height:36px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+      .nf-balance-details {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;margin:0}
+      .nf-balance-details dt {color:var(--dsw-alias-label-secondary)}
+      .nf-balance-details dd {margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+    `;
+    return {
+      inject: ['slots', 'locale'],
+      apply(ctx) {
+        ctx.effect(() => ctx.locale.register('novaflow.account', dictionaries));
+        const translate = ctx.locale.bind('novaflow.account');
+        let disposed = false;
+        let pollTimer;
+        let readPromise;
+        let actionPromise;
+        let generation = 0;
+        let snapshot = { state: null, busy: null, error: null, loaded: false };
+        const listeners = new Set();
+        const controllers = new Set();
+        const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
+        const getSnapshot = () => snapshot;
+        const isPending = state => !state?.connected && pendingPhases.has(state?.attempt?.phase);
+        const safeAuthorization = state => {
+          try {
+            const url = new URL(state?.attempt?.authorizeUrl);
+            return url.origin === platform && !url.username && !url.password ? url.href : null;
+          } catch { return null; }
+        };
+        function publish(patch) {
+          if (disposed) return;
+          snapshot = { ...snapshot, ...patch };
+          for (const listener of listeners) listener();
+          clearTimeout(pollTimer);
+          pollTimer = undefined;
+          if (isPending(snapshot.state) || snapshot.state?.balance?.refreshing) pollTimer = setTimeout(() => { void readState(); }, 1800);
+        }
+        async function request(action, attemptId) {
+          const controller = new AbortController();
+          controllers.add(controller);
+          const timer = setTimeout(() => controller.abort(), 30000);
+          try {
+            const response = await fetch('/api/novaflow-account', {
+              method: 'POST', credentials: 'same-origin', redirect: 'error',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify({ action, ...(attemptId ? { attemptId } : {}) }),
+              signal: controller.signal,
+            });
+            const result = await response.json().catch(() => null);
+            if (result?.ok !== true) {
+              const error = new Error('NovaFlow operation failed');
+              error.code = typeof result?.error?.code === 'string' ? result.error.code : 'PROTOCOL';
+              throw error;
+            }
+            const state = result.value;
+            if (!response.ok || !state || typeof state.connected !== 'boolean' || !Array.isArray(state.models)) {
+              const error = new Error('Invalid account response'); error.code = 'PROTOCOL'; throw error;
+            }
+            return state;
+          } finally { clearTimeout(timer); controllers.delete(controller); }
+        }
+        async function readState() {
+          if (disposed || actionPromise) return;
+          if (readPromise) return readPromise;
+          const current = generation;
+          const work = (async () => {
+            try {
+              const state = await request('state');
+              if (current === generation) publish({ state, loaded: true, error: null });
+            } catch (error) {
+              if (current === generation) publish({ loaded: true, error: error.code || 'NETWORK' });
+            }
+          })();
+          readPromise = work;
+          try { await work; } finally { if (readPromise === work) readPromise = undefined; }
+        }
+        async function act(action) {
+          if (disposed || actionPromise) return;
+          generation++;
+          clearTimeout(pollTimer);
+          publish({ busy: action, error: null });
+          const work = (async () => {
+            try {
+              const state = await request(action, action === 'cancel' ? snapshot.state?.attempt?.id : undefined);
+              publish({ state, loaded: true });
+              if (action === 'start' && !disposed) {
+                const url = safeAuthorization(state);
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              }
+            } catch (error) {
+              if (action === 'refresh_balance') {
+                publish({ state: { ...snapshot.state, balance: {
+                  status: 'error', data: snapshot.state?.balance?.data || null,
+                  error: error.code || 'NETWORK', refreshing: false,
+                } } });
+              } else publish({ error: error.code || 'NETWORK' });
+            }
+          })();
+          actionPromise = work;
+          try { await work; } finally {
+            if (actionPromise === work) actionPromise = undefined;
+            publish({ busy: null });
+          }
+        }
+        function errorText(t, code) {
+          if (!code) return null;
+          const key = code === 'REVOKE_FAILED' ? 'revokeFailed'
+            : code === 'SIGNOUT_REQUIRED' ? 'reconnectHelp'
+            : /NETWORK|TIMEOUT/.test(code) ? 'networkError'
+            : /AUTH|EXPIRED|UNAUTHORIZED|DENIED/.test(code) ? 'authorizationError'
+            : /CONFLICT/.test(code) ? 'conflictError'
+            : /PLATFORM_ERROR|UNAVAILABLE|HTTP_5/.test(code) ? 'unavailableError'
+            : ['PROTOCOL', 'INVALID_RESPONSE'].includes(code) ? 'protocolError' : 'genericError';
+          return t(key);
+        }
+        function useView() {
+          const value = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+          React.useSyncExternalStore(callback => ctx.locale.subscribe(callback), () => ctx.locale.getSnapshot(), () => ctx.locale.getSnapshot());
+          return { ...value, t: translate };
+        }
+        function button(text, onClick, disabled, primary) {
+          return h('button', { type: 'button', className: `nf-button${primary ? ' nf-primary' : ''}`, disabled, onClick }, text);
+        }
+        function external(text, href = platform) {
+          return h('a', { className: 'nf-button', href, target: '_blank', rel: 'noopener noreferrer' }, text);
+        }
+        // Keep server decimal strings intact: no floating-point conversion or currency conversion.
+        function balanceMoney(value, t) {
+          return typeof value === 'string' && /^-?\d+(?:\.\d+)?$/.test(value)
+            ? `${value} ${t('balanceCurrency')}` : t('balanceMissing');
+        }
+        function balanceDate(value, t) {
+          if (typeof value !== 'string' || !value) return null;
+          const date = new Date(value);
+          if (!Number.isFinite(date.getTime())) return null;
+          try {
+            return new Intl.DateTimeFormat(t('balanceDateLocale'), { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+          } catch { return null; }
+        }
+        function BalanceCard({ state, loaded, busy, t }) {
+          const balance = state?.balance;
+          // Credentials and balance data are owned by Host. A signed-out view never reuses them.
+          const data = state?.connected ? balance?.data : null;
+          const fetching = !!state?.connected && (balance?.status === 'loading' || balance?.refreshing || busy === 'refresh_balance');
+          const failed = balance?.status === 'error';
+          const stale = !!data && (failed || balance?.status === 'unavailable');
+          const asOf = data ? balanceDate(data.asOf, t) : null;
+          const remaining = (value, mode) => value === null || value === undefined
+            ? t(mode === 'unlimited' ? 'balanceUnlimited' : 'balanceUnspecified') : balanceMoney(value, t);
+          const detail = (key, value) => h('div', {key}, h('dt', null, t(key)), h('dd', null, value));
+          return h('section', {className:'nf-card', 'aria-label':t('balance'), 'aria-busy':fetching},
+            h('h3', null, t('balance')),
+            !loaded ? h('p', {role:'status'}, t('loading'))
+              : !state?.connected ? h('p', {className:'nf-muted'}, t('balanceSignin'))
+              : h(React.Fragment, null,
+                fetching && h('p', {role:'status'}, t(data ? 'balanceRefreshing' : 'balanceLoading')),
+                failed && h('p', {className:'nf-notice',role:'alert'}, t('balanceError')),
+                stale && h('p', {className:'nf-notice',role:'status'}, t('balanceStale')),
+                data ? h(React.Fragment, null,
+                  h('p', {className:'nf-muted'}, t(data.mode === 'enterprise' ? 'balanceEnterprise' : data.mode === 'personal' ? 'balancePersonal' : 'balance')),
+                  h('div', null, h('p', {className:'nf-muted'}, t('balanceAvailable')), h('p', {className:'nf-balance-amount'}, balanceMoney(data.wallet?.available, t))),
+                  h('dl', {className:'nf-balance-details'},
+                    detail('balanceTotal', balanceMoney(data.wallet?.balance, t)),
+                    detail('balanceFrozen', balanceMoney(data.wallet?.frozen, t)),
+                    data.limits && detail('balanceDailyRemaining', remaining(data.limits.dailyRemaining, data.limits.dailyMode)),
+                    data.limits && detail('balanceMonthlyRemaining', remaining(data.limits.monthlyRemaining, data.limits.monthlyMode))
+                  ),
+                  data.limits?.canUse === false && h('p', {className:'nf-notice',role:'alert'}, t('balanceBlocked')),
+                  h('p', {className:'nf-muted'}, asOf ? h(React.Fragment, null, t('balanceAsOf') + ': ', h('time', {dateTime:data.asOf}, asOf)) : t('balanceDateUnknown'))
+                ) : !fetching && !failed && h('p', {className:'nf-muted',role:'status'}, t('balanceUnknown'))
+              ),
+            h('div', {className:'nf-actions'},
+              state?.connected && button(t(fetching ? 'balanceRefreshing' : 'balanceRefresh'), () => { void act('refresh_balance'); }, !!busy || fetching),
+              external(t('platform'))
+            )
+          );
+        }
+        function Account({ compact = false } = {}) {
+          const { state, loaded, busy, error, t } = useView();
+          const [confirmSignout, setConfirmSignout] = React.useState(false);
+          React.useEffect(() => { setConfirmSignout(false); }, [state?.connected, state?.hasCredential]);
+          const canSignout = !!(state?.connected || state?.hasCredential);
+          const recovery = !state?.connected && !!state?.hasCredential;
+          const credentialRejected = recovery && [error, state?.error].some(code => code === 'AUTH_REQUIRED' || code === 'SIGNOUT_REQUIRED');
+          const waiting = isPending(state);
+          const authorization = waiting ? safeAuthorization(state) : null;
+          const phase = state?.attempt?.phase;
+          const terminal = !state?.connected && ['cancelled', 'canceled', 'expired', 'failed'].includes(phase);
+          return h('section', { className: 'nf-account', 'aria-busy': !!busy, 'aria-label': t('title') },
+            h('style', null, css),
+            !compact && h('header', null, h('h2', null, t('title')), h('p', { className: 'nf-muted' }, t('intro'))),
+            !loaded ? h('p', { role: 'status' }, t('loading')) : h('div', { className: 'nf-card' },
+              h('h3', null, state?.connected ? state.account?.displayName || t('accountFallback') : waiting ? t('pending') : t('signedout')),
+              state?.connected && h('p', { className: 'nf-muted', role: 'status' }, t('connected')),
+              waiting && h('div', { role: 'status' }, h('p', null, t('pendingHelp')), h('p', { className: 'nf-muted' }, t('popupHelp'))),
+              recovery && !waiting && h('p', { role: 'status' }, t(credentialRejected ? 'reconnectHelp' : 'syncRetryHelp')),
+              terminal && h('p', { role: 'status' }, t(phase === 'expired' ? 'expired' : phase === 'failed' ? 'failed' : 'cancelled')),
+              h('div', { className: 'nf-actions' },
+                !canSignout && !waiting && button(busy ? t('working') : t('signin'), () => { void act('start'); }, !!busy, true),
+                authorization && external(t('openAuthorization'), authorization),
+                waiting && button(t('cancel'), () => { void act('cancel'); }, !!busy),
+                canSignout && !waiting && !credentialRejected && button(busy ? t('working') : t('refresh'), () => { void act('refresh'); }, !!busy),
+                external(t('platform')),
+                canSignout && !confirmSignout && button(t('signout'), () => setConfirmSignout(true), !!busy)
+              ),
+              canSignout && confirmSignout && h('div', { className: 'nf-notice', role: 'group', 'aria-label': t('signout') },
+                h('p', null, t('signoutConfirm')),
+                h('div', { className: 'nf-actions' },
+                  button(t(recovery ? 'dismissSignout' : 'keepConnected'), () => setConfirmSignout(false), !!busy),
+                  button(busy ? t('working') : t('signoutYes'), () => { void act('signout'); }, !!busy, true)
+                )
+              )
+            ),
+            (error || state?.error) && h('div', { className: 'nf-notice', role: 'alert' },
+              h('p', null, errorText(t, error || state.error)),
+              !credentialRejected && button(t('retry'), () => { if (canSignout && !waiting) void act('refresh'); else void readState(); }, !!busy)
+            ),
+            state?.warning && h('p', { className: 'nf-notice', role: 'status' }, t(({ REVOKE_FAILED: 'revokeFailed', MODEL_CLEANUP_FAILED: 'cleanupFailed', CLEANUP_AND_REVOKE_FAILED: 'cleanupAndRevokeFailed' })[state.warning] || 'warning')),
+            !compact && h(BalanceCard, {state,loaded,busy,t}),
+            state?.connected && !compact && h('div', { className: 'nf-card' },
+              h('h3', null, t('models')),
+              h('p', null, t('modelsHelp')),
+              h('p', { className: 'nf-muted' }, t('modelThinkingHelp')),
+              h('p', { className: 'nf-muted' }, t('modelConnectionHelp'))
+            )
+          );
+        }
+        function Launcher({ wide, openSettings }) {
+          const { state, t } = useView();
+          const label = state?.connected ? state.account?.displayName || t('accountFallback') : t('title');
+          return h(React.Fragment, null, h('style', null, css),
+            h('button', { type: 'button', className: 'nf-launcher', 'data-narrow': wide === false, title: label, 'aria-label': t('nav'), onClick: () => openSettings('account') },
+              h('span', { className: 'nf-avatar', 'aria-hidden': true }, 'N'),
+              wide !== false && h('span', { className: 'nf-launcher-label' }, label)
+            )
+          );
+        }
+        function SignIn() { return h(Account, { compact: true }); }
+        function ModelsFooter() {
+          const { t } = useView();
+          return h('aside', { className: 'nf-account', 'aria-label': t('modelFooterTitle') },
+            h('style', null, css),
+            h('div', { className: 'nf-notice nf-guidance' },
+              h('h3', null, t('modelFooterTitle')),
+              h('p', null, t('modelFooterHelp')),
+              h('p', { className: 'nf-muted' }, t('modelThinkingHelp')),
+              h('p', { className: 'nf-muted' }, t('modelConnectionHelp'))
+            )
+          );
+        }
+        ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section', id: 'account', order: -10, priority: 100, label: () => translate('nav'),
+        }, Account));
+        ctx.slots.inject('settings.launcher', () => ctx.slots.register({ name: 'settings.launcher', priority: 100 }, Launcher));
+        ctx.slots.inject('settings.models.sign-in', () => ctx.slots.register({ name: 'settings.models.sign-in', priority: 100 }, SignIn));
+        // The installed Models footer contract intentionally has no owner props.
+        // Keep this guidance global rather than guessing a provider-card row shape.
+        ctx.slots.inject('settings.models.footer', () => ctx.slots.register({
+          name: 'settings.models.footer', id: 'novaflow-native-model-guidance', order: 20,
+        }, ModelsFooter));
+        ctx.effect(() => {
+          const focus = () => { if (!document.hidden) void readState(); };
+          window.addEventListener('focus', focus);
+          document.addEventListener('visibilitychange', focus);
+          void readState();
+          return () => {
+            disposed = true;
+            generation++;
+            clearTimeout(pollTimer);
+            for (const controller of controllers) controller.abort();
+            controllers.clear();
+            listeners.clear();
+            window.removeEventListener('focus', focus);
+            document.removeEventListener('visibilitychange', focus);
+          };
+        });
+      },
+    };
+  },
+});

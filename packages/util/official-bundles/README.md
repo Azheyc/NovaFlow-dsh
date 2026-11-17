@@ -90,3 +90,5 @@ Repository checks read the lists in `src/bundles.ts` as TypeScript literals with
 None.
 
 </details>
+
+The NovaFlow customization includes its core account package in protected plugins and hidden bundles.

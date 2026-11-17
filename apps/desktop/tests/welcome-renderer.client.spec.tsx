@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDesktopLocale } from '../src/locale.ts'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { WelcomeSaveResult, WelcomeNotice } from '../src/welcome-api.ts'
+import type { DesktopAccountView } from '../src/welcome-api.ts'
 
 const html = readFileSync(join(import.meta.dirname, '../renderer/welcome.html'), 'utf8')
 afterEach(cleanup)
@@ -18,7 +19,8 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
     takeNotice,
     analytics: vi.fn(async (_event: string, _attributes: object) => {}),
     analyticsEnabled: async () => true,
-    onAccountState: vi.fn((_listener: (state: AccountView) => void) => stopAccount),
+    onAccountState: vi.fn((_listener: (state: DesktopAccountView) => void) => stopAccount),
+    resetSignIn: vi.fn(async (): Promise<DesktopAccountView> => ({ status: 'signed-out', links: { usageUrl: '', topUpUrl: '' }, attempt: null })),
     startSignIn: vi.fn(async (): Promise<AccountView> => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null })),
     cancelSignIn: vi.fn(async (): Promise<AccountView> => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null })),
     copySignInLink: vi.fn(async () => undefined),
@@ -48,10 +50,31 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
 }
 
 describe('desktop welcome presentation', () => {
+  it('returns to the same first-time entry when validation clears saved authorization', async () => {
+    const view = mount()
+    act(() => { view.api.onAccountState.mock.calls[0]![0]({ status: 'signed-out',
+      links: { usageUrl: '', topUpUrl: '' }, attempt: null }) })
+    await expect(view.copy()).toMatchFileSnapshot('./expected/welcome/zh-CN.expected.txt')
+    expect(view.document.body.textContent).not.toContain('恢复 NovaFlow 登录')
+    expect(view.api.resetSignIn).not.toHaveBeenCalled()
+    expect(view.api.startSignIn).not.toHaveBeenCalled()
+  })
+  it('explains an unusable device grant and resets it only after an explicit reconnect click', async () => {
+    const view = mount()
+    act(() => { view.api.onAccountState.mock.calls[0]![0]({ status: 'signed-out', requiresSignOut: true,
+      links: { usageUrl: '', topUpUrl: '' }, attempt: { id: 'restore' as NonNullable<AccountView['attempt']>['id'], phase: 'failed' } }) })
+    expect(view.api.resetSignIn).not.toHaveBeenCalled()
+    expect(view.button('#auth-retry').textContent).toBe('清除旧授权并登录')
+    await expect(view.copy() + view.document.querySelector('#auth-description')!.textContent + '\n')
+      .toMatchFileSnapshot('./expected/welcome/zh-CN-reconnect.expected.txt')
+    fireEvent.click(view.button('#auth-retry'))
+    await vi.waitFor(() => { expect(view.api.resetSignIn).toHaveBeenCalledOnce() })
+    expect(view.api.startSignIn).not.toHaveBeenCalled()
+  })
   it.each(['zh-CN', 'en'])('renders the %s entry and API-key step', async (language) => {
     const view = mount(language)
     expect(view.document.documentElement.lang).toBe(language)
-    expect(view.document.querySelector('img')!.getAttribute('src')).toBe('assets/welcome-brand.svg')
+    expect(view.document.querySelector('img')!.getAttribute('src')).toBe('assets/novaflow.svg')
     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${language}.expected.txt`)
     fireEvent.click(view.button('#api-key'))
     expect(view.document.activeElement).toBe(view.input)

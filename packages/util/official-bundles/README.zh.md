@@ -90,3 +90,5 @@ kind: "package-library"
 无。
 
 </details>
+
+NovaFlow 定制版将核心账户包加入受保护插件及隐藏 bundle 清单。

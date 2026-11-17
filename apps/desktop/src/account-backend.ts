@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
 import { parseRemoteStreamServerMessage, REMOTE_STREAM_MUX_PATH } from '@deepseek-ai/dsh-api-gateway/stream-protocol'
 import type { AccountClientMetadata, AccountView, SignInAttemptId } from '@deepseek-ai/dsh-deepseek-account/types'
+import type { DesktopAccountView } from './welcome-api.ts'
 
 /** Authenticated unary caller shared with native onboarding. */
 export type AccountInvoke = (request: { namespace: string; method: string; args: Record<string, unknown> }) => Promise<unknown>
@@ -56,13 +57,13 @@ function validateBrowserDestination(value: string): void {
 /** Native account operations and explicitly owned stream lifetime. */
 export interface DesktopAccountBackend {
   /** @returns current account snapshot. */
-  state(): Promise<AccountView>
+  state(): Promise<DesktopAccountView>
   /** @param client - this window's identity and current language. @returns new or already-running login attempt. */
-  start(client: AccountClientMetadata): Promise<AccountView>
+  start(client: AccountClientMetadata): Promise<DesktopAccountView>
   /** @param id - attempt to cancel. @returns cancellation or completed commit state. */
-  cancel(id: SignInAttemptId): Promise<AccountView>
+  cancel(id: SignInAttemptId): Promise<DesktopAccountView>
   /** @param client - this window's identity. @returns state after local sign-out. */
-  signOut(client: AccountClientMetadata): Promise<AccountView>
+  signOut(client: AccountClientMetadata): Promise<DesktopAccountView>
   /**
    * @param listener - state recipient.
    * @param failed - stream failure recipient.
@@ -71,7 +72,7 @@ export interface DesktopAccountBackend {
    * @returns stream disposer.
    */
   watch(
-    listener: (state: AccountView) => void, failed: () => void, expired: () => void,
+    listener: (state: DesktopAccountView) => void, failed: () => void, expired: () => void,
     onAnalyticsEnabledChanged?: (enabled: boolean) => void,
   ): () => void
 }

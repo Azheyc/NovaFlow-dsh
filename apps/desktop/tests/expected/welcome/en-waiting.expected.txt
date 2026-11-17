@@ -1,7 +1,7 @@
-DeepSeek Harness
-DeepSeek Harness
-Browser didn’t open automatically?
+NovaFlow
+NovaFlow
+Continue in your browser
 Copy sign-in link
-Completing sign in… [disabled]
+Connecting your account and models… [disabled]
 Cancel
-Copy the sign-in link and open it in your browser to sign in.
+Sign in and authorize on NovaFlow. This window continues automatically. If your browser did not open, copy the link below.

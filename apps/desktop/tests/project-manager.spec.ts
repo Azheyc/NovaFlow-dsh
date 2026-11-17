@@ -43,6 +43,27 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
+  it('adds NovaFlow to existing profiles once and retains user bundles and patch bytes', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    seedPlugin(manager)
+    const path = join(manager.paths.profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dsh: { profile: { bundles: string[] } } }
+    manifest.dsh.profile.bundles = manifest.dsh.profile.bundles.filter(name => name !== '@local/novaflow-dsh-plugin')
+    writeFileSync(path, JSON.stringify(manifest))
+    const patch = join(manager.paths.profile, 'cordis.patch.yml')
+    writeFileSync(patch, '# user settings\n[]\n')
+    await manager.applyRelease()
+    await manager.applyRelease()
+    const result = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
+    const bundles = result.dsh.profile.bundles
+    expect(bundles.filter(name => name === '@local/novaflow-dsh-plugin')).toHaveLength(1)
+    expect(bundles.indexOf('@local/novaflow-dsh-plugin')).toBeLessThan(bundles.indexOf('plugin'))
+    expect(readFileSync(patch, 'utf8')).toBe('# user settings\n[]\n')
+    await manager.disableAllPlugins()
+    const recovered = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest
+    expect(recovered.dsh.profile.bundles).toContain('@local/novaflow-dsh-plugin')
+  })
   it('preserves installed packages, profile state, and the lockfile when preparing a launch', async () => {
     const { manager } = setup()
     await manager.applyRelease()

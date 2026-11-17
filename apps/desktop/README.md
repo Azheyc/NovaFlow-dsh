@@ -187,6 +187,8 @@ macOS and Linux GUI launches inherit only the session manager's environment, wit
 
 ## Develop
 
+This NovaFlow distribution bundles the existing account plugin and uses it for native welcome sign-in. Browser authorization configures authorized models before opening the workspace; the native entry and Account and balance share the same device grant. See [NovaFlow desktop integration](../novaflow-plugin/INTEGRATION.md) for restoration, recovery, and validation.
+
 The development application menu offers Reload Page (Cmd+R on macOS, Ctrl+R elsewhere) and Restart App and Host. Restart waits for Host shutdown before relaunching Electron and starting a new Host; neither action rebuilds source files.
 
 `dev:desktop` builds the current Host, client bundles, Web frontend, and Electron shell, projects the built CLI and private Desktop Host packages with their workspace dependencies into a disposable desktop npm project, and launches Electron without resolving dsh from npm:
@@ -405,3 +407,13 @@ The account provider’s `embeddedPageDist` configuration adds a `dist` query pa
 ## Dev Note
 
 Pre-launch CDN and capacity decisions are tracked in the [Desktop update proposal](../../.agents/notes/proposed/feature/2026-09-08-desktop-update-policy-and-installation.md#cdn-and-capacity-qualification).
+
+NovaFlow brand assets use the supplied black-and-white mark. Run `pnpm run render:brand` in `apps/desktop` to regenerate application icons, all tray resolutions, welcome and plugin SVGs, web icons, and installer images. The source image and traced vector live in `resources/novaflow/`; installer PNG dimensions remain compatible with the existing layout.
+
+NovaFlow application, tray, favicon and welcome artwork uses rounded black tiles; web installation icons retain opaque corners for platform masking. Saved authorization is validated silently at startup: success opens the workspace, while failure clears local authorization and shows the first-time login entry without recovery copy or an expiry notification. See the bundled plugin integration reference for permanent-token and legacy-recovery server requirements.
+
+NovaFlow Desktop carries a separately locked community-plugin seed under `novaflow-preinstalled`: archive-manager 1.3.6, dsh-ops 0.5.5, dsh-rewind-plugin 0.22.2 and dshmarket 1.73.20. Packaging prepares its complete dependency tree without package scripts; first launch copies missing packages offline and selects new additions. Existing dependencies and disabled selections are retained, and `.novaflow-preinstalled-v1.json` prevents subsequent reinstalls after user removal. New profiles receive the optional mode guide; upgrades suppress it. The local `@local/novaflow-modes` bundle supplies session-only modeling and media-creation presets.
+
+## NovaFlow release distribution
+
+NovaFlow Windows uses the independent vip.ycnovaflow.desktop application identity and GitHub release assets mirrored through gh-proxy.com. The existing NSIS installer and updater UI remain in use. See the [distribution guide](../../docs/upgrade-guide/v0.2.2-rc.3/novaflow-distribution/guide.md) for channel, unsigned-build and migration rules.

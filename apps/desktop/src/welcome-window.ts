@@ -66,7 +66,7 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
     active = false
     for (const channel of [
       WELCOME_IPC.analyticsEnabled, WELCOME_IPC.analytics, WELCOME_IPC.takeNotice, WELCOME_IPC.saveApiKey,
-      WELCOME_IPC.skip, WELCOME_IPC.start, WELCOME_IPC.cancel, WELCOME_IPC.copyLink,
+      WELCOME_IPC.skip, WELCOME_IPC.start, WELCOME_IPC.cancel, WELCOME_IPC.copyLink, WELCOME_IPC.readState, WELCOME_IPC.reset,
     ]) {
       ipcMain.removeHandler(channel)
     }
@@ -103,6 +103,8 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
     await operations.skip()
   })
   ipcMain.handle(WELCOME_IPC.start, async (event) => { assertSender(event); return operations.startSignIn() })
+  ipcMain.handle(WELCOME_IPC.readState, async (event) => { assertSender(event); return operations.accountState?.() })
+  ipcMain.handle(WELCOME_IPC.reset, async (event) => { assertSender(event); return operations.resetSignIn?.() })
   ipcMain.handle(WELCOME_IPC.cancel, async (event, id: unknown) => {
     assertSender(event)
     if (typeof id !== 'string') throw new Error('desktop welcome: invalid attempt')

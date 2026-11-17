@@ -30,7 +30,7 @@ describe('pixel whale frame layer', () => {
     const canvas = view.container.querySelector('canvas')
     expect(canvas?.getAttribute('aria-hidden')).toBe('true')
     expect(canvas?.nextElementSibling?.textContent).toBe('content')
-    expect(attach).toHaveBeenCalledExactlyOnceWith(canvas, WHALE_ARTWORK, expect.stringContaining('breach-atlas'))
+    expect(attach).toHaveBeenCalledExactlyOnceWith(canvas, WHALE_ARTWORK, expect.stringContaining('novaflow-atlas'))
     view.rerender(<PixelWhale hero><p>updated</p></PixelWhale>)
     expect(attach).toHaveBeenCalledOnce()
     view.unmount()

@@ -206,3 +206,5 @@ Restoration rewrites only the two snapshotted files; user-authored patch configu
 None.
 
 </details>
+
+In the NovaFlow customization, the core account package `@local/novaflow-dsh-plugin` is omitted from managed bundle listings and rejects replacement or management mutations. Community plugin behavior is unchanged.

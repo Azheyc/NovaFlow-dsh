@@ -114,3 +114,5 @@ These limits define what a point-in-time inventory cannot tell a client. They ar
 None.
 
 </details>
+
+The NovaFlow core account row is intentionally absent from this management projection; account operations remain available through the dedicated account API.

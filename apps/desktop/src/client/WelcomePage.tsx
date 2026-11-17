@@ -5,6 +5,8 @@ import { Toast } from '@deepseek-ai/dsh-client-ui-primitives/src/Toast.tsx'
 import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives/src/StateDot.tsx'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { WelcomeApi } from '../welcome-api.ts'
+import type { DesktopAccountView } from '../welcome-api.ts'
+import { novaFlowWelcomeCopy } from '../novaflow-welcome-copy.ts'
 
 type Page = 'entry' | 'key' | 'account'
 
@@ -16,6 +18,8 @@ type Page = 'entry' | 'key' | 'account'
  */
 export function Welcome({ api }: { api: WelcomeApi }) {
   const { messages: m } = api
+  const nova = novaFlowWelcomeCopy(api.id)
+  const [requiresSignOut, setRequiresSignOut] = useState(false)
   const [expiryNotice, setExpiryNotice] = useState(false)
   const [page, setPage] = useState<Page>('entry')
   const pageRef = useRef<Page>('entry')
@@ -40,9 +44,10 @@ export function Welcome({ api }: { api: WelcomeApi }) {
     pageRef.current = next
     setPage(next)
   }
-  function showAccount(state: AccountView) {
+  function showAccount(state: DesktopAccountView) {
     if (pageRef.current === 'key' || (state.attempt === null && pageRef.current === 'entry')) return
     attemptRef.current = state.attempt
+    setRequiresSignOut(state.requiresSignOut === true)
     setAttempt(state.attempt)
     setStarting(false)
     setCopyFeedback({ status: 'idle' })
@@ -61,6 +66,10 @@ export function Welcome({ api }: { api: WelcomeApi }) {
       })
     }
     takeNotice()
+    const initialRevision = revision.current
+    void api.accountState?.().then((state) => {
+      if (mounted.current && revision.current === initialRevision) showAccount(state)
+    }).catch((_error: unknown) => { /* The interactive sign-in action remains available after an initial read failure. */ })
     const stop = api.onAccountState((state) => {
       revision.current++
       takeNotice()
@@ -125,14 +134,15 @@ export function Welcome({ api }: { api: WelcomeApi }) {
       if (mounted.current) setBusy(false)
     }
   }
-  async function start() {
+  async function start(reset = false) {
+    if (starting) return
     navigate('account')
     setStarting(true)
     setAttempt(null)
     attemptRef.current = null
     const current = ++revision.current
     try {
-      const state = await api.startSignIn()
+      const state = reset && api.resetSignIn ? await api.resetSignIn() : await api.startSignIn()
       if (mounted.current && revision.current === current) showAccount(state)
     } catch {
       if (mounted.current && revision.current === current) setStarting(false)
@@ -166,7 +176,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
   const phase = starting ? 'initializing' : attempt?.phase ?? 'failed'
   const waiting = phase === 'waiting-browser'
   const failed = phase === 'expired' || phase === 'failed'
-  const title = phase === 'initializing' ? m.welcomeAuthStarting
+  const title = requiresSignOut ? nova.reconnectTitle : phase === 'initializing' ? m.welcomeAuthStarting
     : waiting ? m.welcomeAuthWaiting : phase === 'expired' ? m.welcomeAuthExpired
       : phase === 'failed' ? m.welcomeAuthFailed : m.welcomeAuthExchanging
   const heading = page === 'entry' ? 'welcome-heading' : page === 'key' ? 'key-title' : 'auth-status'
@@ -175,10 +185,11 @@ export function Welcome({ api }: { api: WelcomeApi }) {
     {expiryNotice && <Toast text={m.welcomeSessionExpired} onDone={() => { setExpiryNotice(false) }} />}
     <div className="titlebar" aria-hidden="true" />
     <main className="welcome" aria-labelledby={heading}>
-      <img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />
+      <div className="brand-lockup"><img className="brand" src="assets/novaflow.svg" alt={nova.brand} width="48" height="48" /><span aria-hidden="true">{nova.brand}</span></div>
       <div id="tagline" className="tagline" hidden={page !== 'entry'}>
         <h1 id="welcome-heading"><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></h1>
         <p id="welcome-description">{m.welcomeDescription}</p>
+        <p className="welcome-detail">{nova.detail}</p>
       </div>
       <form id="key-form" className="key-form" hidden={page !== 'key'} noValidate onSubmit={(event) => { void saveKey(event) }} aria-busy={busy}>
         <header className="key-heading"><h1 id="key-title">{m.welcomeKeyTitle}</h1><p id="key-description">{m.welcomeKeyDescription}</p></header>
@@ -193,7 +204,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
       <section id="auth-page" className={`key-heading ${waiting ? 'auth-waiting' : phase === 'expired' ? 'auth-expired' : ''}`}
         hidden={page !== 'account'} aria-live="polite">
         <h1 id="auth-status">{title}</h1>
-        <p id="auth-description" hidden={!waiting && phase !== 'expired'}>{waiting ? m.welcomeAuthWaitingDescription : m.welcomeAuthExpiredDescription}</p>
+        <p id="auth-description" hidden={!waiting && phase !== 'expired' && !requiresSignOut}>{requiresSignOut ? nova.reconnectDescription : waiting ? m.welcomeAuthWaitingDescription : m.welcomeAuthExpiredDescription}</p>
         <button id="auth-copy" className="copy-link" type="button" hidden={!waiting} disabled={!waiting || (copyState === 'busy' || copyState === 'copied')} onClick={() => { void copyLink() }}>
           {copyState === 'copied' ? m.welcomeAuthCopied : copyState === 'failed' ? m.welcomeAuthCopyFailed : m.welcomeAuthCopyLink}
         </button>
@@ -202,7 +213,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
         <button id="auth-loading" className="primary" type="button" hidden={failed} disabled aria-label={m.welcomeAuthExchanging}>
           <StateDot state="ongoing" size={16} className="welcome-loading" />
         </button>
-        <button id="auth-retry" className="primary" type="button" hidden={!failed} onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'sign_in' }); void start() }}>{m.welcomeAuthRetry}</button>
+        <button id="auth-retry" className="primary" type="button" hidden={!failed} onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'sign_in' }); void start(requiresSignOut) }}>{requiresSignOut ? nova.reconnect : m.welcomeAuthRetry}</button>
         <button id="auth-api-key" className="secondary" type="button" hidden={!failed} onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'api-key' }); navigate('key') }}>{m.welcomeApiKey}</button>
         <button id="auth-cancel" className="secondary" type="button" hidden={failed}
           disabled={cancelling || phase === 'committing' || phase === 'succeeded' || (phase === 'initializing' && !attempt?.id)}

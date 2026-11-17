@@ -1,0 +1,3 @@
+- insert:
+    - id: novaflow-modes
+      name: '@local/novaflow-modes'

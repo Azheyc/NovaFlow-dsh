@@ -10,6 +10,8 @@ function transport(preference?: string) {
     { ns: 'locale', value: preference === undefined ? {} : { preference } },
   ]
   const send = vi.fn<NonNullable<Parameters<typeof connectDesktopWelcome>[2]>>(async (_input, init) => {
+    if (_input.endsWith('/api/novaflow-account')) return Response.json({ ok: true,
+      value: { connected: false, hasCredential: false, attempt: null, error: null } })
     const { rpcId, method, payload } = JSON.parse(init!.body as string) as {
       rpcId: string
       method: string
@@ -32,6 +34,12 @@ const url = 'http://127.0.0.1:19387/'
 const cookie = 'dsh-auth-fixture=signed'
 
 describe('desktop welcome Web operations', () => {
+  it('does not treat a saved NovaFlow bridge key as a usable account authorization', async () => {
+    const host = transport()
+    Object.assign(host.namespaces[1]!.value.profiles!.example, { baseURL: 'http://127.0.0.1:19387/novaflow/models/example/v1' })
+    host.keys.set('EXAMPLE_API_KEY', 'local-bridge-only')
+    expect(await connectDesktopWelcome(url, cookie, host.send).read()).toMatchObject({ loggedIn: false, hasApiKey: false })
+  })
   it.each(['light', 'dark', 'system'] as const)('reads the live %s theme in the existing settings request', async (preference) => {
     const host = transport()
     host.namespaces.push({ ns: 'ui-theme', value: { preference } })

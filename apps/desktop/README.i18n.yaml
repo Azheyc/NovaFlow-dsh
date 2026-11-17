@@ -42,8 +42,8 @@
   en: 98cf848762482d48
   zh: 74f9100a39ec8c2f
 /deepseek-harness-desktop/develop:
-  en: faf7676ba18bbf2f
-  zh: f1d7b75ad348c548
+  en: 2306db90105effad
+  zh: 8d096b46a7d40d29
 /deepseek-harness-desktop/develop/startup-onboarding:
   en: 67dc7ef3e293236a
   zh: 1b224db684a2d1d7
@@ -75,5 +75,8 @@
   en: b1eeadfefb338056
   zh: 28683fbdf1e98685
 /deepseek-harness-desktop/dev-note:
-  en: 8e26b460ba31f21b
-  zh: fbcd0307b3867125
+  en: 3c8110d3500a075b
+  zh: c8b37d7f5ea96830
+/deepseek-harness-desktop/novaflow-release-distribution:
+  en: fad330c9cbb0f794
+  zh: 2c0e6ba817a4fd59
