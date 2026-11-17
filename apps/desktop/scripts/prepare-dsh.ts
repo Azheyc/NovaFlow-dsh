@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join, relative, resolve } from 'node:path'
+import { basename, delimiter, join, relative, resolve } from 'node:path'
 import { desktopNodeEnvironment } from '../src/node-environment.ts'
 import { createRuntimeProjectMetadata } from '../src/project-manager.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
@@ -146,7 +146,12 @@ async function main(): Promise<void> {
     const officeManifest = JSON.parse(readFileSync(join(modules, '@deepseek-ai/libreoffice-kit/package.json'), 'utf8'))
     const officeEngine = selectOfficeEngine(officeManifest, target)
     mkdirSync(DSH_OUTPUT_ROOT, { recursive: true })
-    cpSync(prepareNovaFlowPreinstalled(), join(DSH_OUTPUT_ROOT, 'novaflow-preinstalled'), { recursive: true, dereference: true })
+    const preinstalled = join(DSH_OUTPUT_ROOT, 'novaflow-preinstalled')
+    // Match archive cleanup before the immutable inventory is sealed.
+    cpSync(prepareNovaFlowPreinstalled(), preinstalled, {
+      recursive: true, dereference: true, filter: source => basename(source) !== '.gitkeep',
+    })
+    await prepareRuntimeManifests(preinstalled)
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:materialize-modules', async () => {
       cpSync(modules, join(DSH_OUTPUT_ROOT, 'node_modules'), {
         recursive: true, dereference: true,
