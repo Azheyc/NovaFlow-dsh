@@ -11,6 +11,7 @@ it('keeps the Windows updater and NSIS flow on the mirrored NovaFlow release fee
   expect(config.nsis.differentialPackage).toBe(true)
   expect(config.publish).toEqual([{ provider: 'generic', url: 'https://gh-proxy.com/https://github.com/Azheyc/NovaFlow-dsh/releases/latest/download/', channel: 'nightly' }])
   expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
+  expect(config.extraMetadata).toHaveProperty('name', '@novaflow/desktop')
   expect(config.win.forceCodeSigning).toBe(false)
 })
 it('uses the same mirror for both channels and refuses upstream publication', () => {
