@@ -13,6 +13,8 @@ function fixture(existing = false) {
   const profile = join(root, 'profile'), runtime = join(root, 'runtime'), seed = join(runtime, 'novaflow-preinstalled')
   mkdirSync(profile, { recursive: true })
   mkdirSync(join(seed, 'node_modules', 'fixture-plugin'), { recursive: true })
+  mkdirSync(join(seed, 'node_modules', 'fixture-plugin', 'native'), { recursive: true })
+  writeFileSync(join(seed, 'node_modules', 'fixture-plugin', 'native', 'payload.bin'), Buffer.from([0, 255, 12, 128]))
   writeFileSync(join(seed, 'package.json'), JSON.stringify({ dependencies: { 'fixture-plugin': '1.0.0' } }))
   writeFileSync(join(seed, 'node_modules', 'fixture-plugin', 'package.json'), JSON.stringify({ name: 'fixture-plugin', version: '1.0.0' }))
   writeFileSync(join(profile, 'package.json'), JSON.stringify({ dependencies: existing ? { 'fixture-plugin': '2.0.0' } : {}, dsh: { profile: { bundles: [] } } }))
@@ -34,6 +36,7 @@ it('seeds a fresh profile offline and schedules its one-time mode guide', () => 
   expect(f.read().dsh.profile.bundles).toEqual(['fixture-plugin'])
   expect(JSON.parse(readFileSync(join(f.profile, '.novaflow-mode-guide.json'), 'utf8'))).toEqual({ version: 1, seen: false })
   expect(existsSync(join(f.profile, 'node_modules', 'fixture-plugin', 'package.json'))).toBe(true)
+  expect(readFileSync(join(f.profile, 'node_modules', 'fixture-plugin', 'native', 'payload.bin'))).toEqual(Buffer.from([0, 255, 12, 128]))
 })
 
 it('preserves an upgraded disabled plugin and suppresses first-run guidance on upgrade', () => {

@@ -1,6 +1,16 @@
 /** One-time offline community-plugin seeding; subsequent management remains profile-owned. */
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, renameSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, renameSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+
+/** Electron can read ASAR directories but cannot pass them to the native recursive copy operation. */
+function copySeedDirectory(source: string, destination: string): void {
+  mkdirSync(destination, { recursive: true })
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    const from = join(source, entry.name), to = join(destination, entry.name)
+    if (entry.isDirectory()) copySeedDirectory(from, to)
+    else writeFileSync(to, readFileSync(from), { mode: statSync(from).mode })
+  }
+}
 
 /**
  * Copy absent shipped packages and record that this profile has received its initial plugin set.
@@ -35,7 +45,7 @@ export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boo
     if (!existsSync(destination)) {
       mkdirSync(dirname(destination), { recursive: true })
       const staging = mkdtempSync(join(dirname(destination), '.novaflow-seed-'))
-      cpSync(join(seed, 'node_modules', name), staging, { recursive: true, dereference: true })
+      copySeedDirectory(join(seed, 'node_modules', name), staging)
       renameSync(staging, destination)
     }
   }
