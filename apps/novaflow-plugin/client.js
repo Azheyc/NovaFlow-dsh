@@ -71,7 +71,15 @@ window.__ModuleLoader__.load({
     "modelThinkingHelp": "In each model’s Advanced settings, configure the reasoning levels it supports. Then choose the reasoning depth for the current conversation in its model picker.",
     "modelConnectionHelp": "Claude models use Anthropic Messages; other models use OpenAI Responses. Keep the local connection address supplied by the plugin. Manage sign-in and refresh in Account and balance; no API key copying is needed.",
     "modelFooterTitle": "NovaFlow connection",
-    "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again."
+    "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again.",
+    "mediaTitle": "NovaFlow Image",
+    "imageModel": "Image generation model",
+    "videoModel": "Video generation model",
+    "chooseMedia": "Choose a model",
+    "noMedia": "No models available for this account",
+    "mediaSignin": "Sign in to NovaFlow to choose generation models.",
+    "mediaUnavailable": "Selected model unavailable. Choose another model.",
+    "mediaHelp": "The built-in NovaFlow Image MCP uses the models and groups selected here."
   },
   "zh": {
     "nav": "账户与余额",
@@ -139,7 +147,15 @@ window.__ModuleLoader__.load({
     "modelThinkingHelp": "在每个模型的「高级」设置中配置它支持的思考档位，再在对话的模型选择器中选择本次使用的思考深度。",
     "modelConnectionHelp": "Claude 系列使用 Anthropic Messages，其他模型使用 OpenAI Responses。请保留插件填入的本机连接地址；登录与刷新在「账户与余额」管理，无需复制 API Key。",
     "modelFooterTitle": "NovaFlow 连接",
-    "modelFooterHelp": "NovaFlow 登录后会在此保存原生提供商配置。可直接使用上方编辑器获取、新增或编辑模型；退出登录会保留这些配置，但需重新登录后才能调用。"
+    "modelFooterHelp": "NovaFlow 登录后会在此保存原生提供商配置。可直接使用上方编辑器获取、新增或编辑模型；退出登录会保留这些配置，但需重新登录后才能调用。",
+    "mediaTitle": "NovaFlow Image",
+    "imageModel": "图片生成模型",
+    "videoModel": "视频生成模型",
+    "chooseMedia": "选择模型",
+    "noMedia": "当前账户暂无可用模型",
+    "mediaSignin": "登录 NovaFlow 后可选择生成模型。",
+    "mediaUnavailable": "已选模型暂不可用，请重新选择",
+    "mediaHelp": "内置 NovaFlow Image MCP 使用此处选择的模型和分组。"
   }
 };
     const platform = 'https://www.ycnovaflow.vip';
@@ -166,6 +182,8 @@ window.__ModuleLoader__.load({
       .nf-guidance {display:flex;flex-direction:column;gap:8px}
       .nf-balance-amount {font-size:26px;line-height:36px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
       .nf-balance-details {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;margin:0}
+      .nf-picker {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+      .nf-picker select {max-width:100%;min-width:min(200px,100%)}
       .nf-balance-details dt {color:var(--dsw-alias-label-secondary)}
       .nf-balance-details dd {margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
     `;
@@ -199,7 +217,7 @@ window.__ModuleLoader__.load({
           pollTimer = undefined;
           if (isPending(snapshot.state) || snapshot.state?.balance?.refreshing) pollTimer = setTimeout(() => { void readState(); }, 1800);
         }
-        async function request(action, attemptId) {
+        async function request(action, attemptId, fields) {
           const controller = new AbortController();
           controllers.add(controller);
           const timer = setTimeout(() => controller.abort(), 30000);
@@ -207,7 +225,7 @@ window.__ModuleLoader__.load({
             const response = await fetch('/api/novaflow-account', {
               method: 'POST', credentials: 'same-origin', redirect: 'error',
               headers: { 'content-type': 'application/json', accept: 'application/json' },
-              body: JSON.stringify({ action, ...(attemptId ? { attemptId } : {}) }),
+              body: JSON.stringify({ action, ...fields, ...(attemptId ? { attemptId } : {}) }),
               signal: controller.signal,
             });
             const result = await response.json().catch(() => null);
@@ -238,14 +256,14 @@ window.__ModuleLoader__.load({
           readPromise = work;
           try { await work; } finally { if (readPromise === work) readPromise = undefined; }
         }
-        async function act(action) {
+        async function act(action, fields) {
           if (disposed || actionPromise) return;
           generation++;
           clearTimeout(pollTimer);
           publish({ busy: action, error: null });
           const work = (async () => {
             try {
-              const state = await request(action, action === 'cancel' ? snapshot.state?.attempt?.id : undefined);
+              const state = await request(action, action === 'cancel' ? snapshot.state?.attempt?.id : undefined, fields);
               publish({ state, loaded: true });
               if (action === 'start' && !disposed) {
                 const url = safeAuthorization(state);
@@ -401,16 +419,29 @@ window.__ModuleLoader__.load({
         }
         function SignIn() { return h(Account, { compact: true }); }
         function ModelsFooter() {
-          const { t } = useView();
-          return h('aside', { className: 'nf-account', 'aria-label': t('modelFooterTitle') },
-            h('style', null, css),
-            h('div', { className: 'nf-notice nf-guidance' },
-              h('h3', null, t('modelFooterTitle')),
-              h('p', null, t('modelFooterHelp')),
-              h('p', { className: 'nf-muted' }, t('modelThinkingHelp')),
-              h('p', { className: 'nf-muted' }, t('modelConnectionHelp'))
-            )
-          );
+          const { state, busy, loaded, error, t } = useView();
+          function picker(kind, title) {
+            const rows = (state.mediaModels || []).filter(row => row.kind === kind);
+            const key = row => JSON.stringify([row.group, row.id]);
+            const selected = state.media?.selected?.[kind];
+            const available = selected && rows.some(row => key(row) === key(selected));
+            const defaultImages = rows.filter(row => row.id === 'gpt-image-2.6');
+            const initial = !selected && kind === 'image' && defaultImages.length === 1 ? key(defaultImages[0]) : '';
+            return h('label', {className:'nf-picker'}, h('span', null, t(title)),
+              h('select', {className:'nf-button', value:available ? key(selected) : initial,
+                disabled:!!busy || !state.media?.owner || !rows.length,
+                onChange:event => {
+                  const row = rows.find(item => key(item) === event.target.value);
+                  if (row) void act('set_media_model', {kind, model:row.id, group:row.group, owner:state.media.owner});
+                }}, h('option', {value:'',disabled:true}, t(selected && !available ? 'mediaUnavailable' : rows.length ? 'chooseMedia' : 'noMedia')),
+                rows.map(row => h('option', {key:key(row),value:key(row)}, `${row.id} · ${row.group}`))));
+          }
+          return h('section', {className:'nf-account', 'aria-label':t('mediaTitle')}, h('style', null, css),
+            h('div', {className:'nf-card'}, h('h3', null, t('mediaTitle')),
+              !loaded ? h('p', {role:'status'}, t('loading')) : !state?.connected ? h('p', null, t('mediaSignin')) :
+              h(React.Fragment, null, h('p', {className:'nf-muted'}, t('mediaHelp')),
+                picker('image','imageModel'), picker('video','videoModel')),
+              error && h('p', {role:'alert'}, errorText(t,error))));
         }
         ctx.slots.inject('settings.section', () => ctx.slots.register({
           name: 'settings.section', id: 'account', order: -10, priority: 100, label: () => translate('nav'),

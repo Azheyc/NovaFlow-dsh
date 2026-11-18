@@ -1,9 +1,9 @@
 import { equalSecret, NovaError } from './protocol.js'
 
-const MCP_PATH = '/novaflow/magpie-image/mcp'
+const MCP_PATH = '/novaflow/novaflow-image/mcp'
 const BODY_LIMIT = 512 * 1024
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']
-export const MEDIA_MCP_INSTRUCTIONS = 'NovaFlow media tools use the current NovaFlow account. generate_image defaults to the original model ID gpt-image-2.6; no model selection in Magpie is required. Use original NovaFlow model IDs and an optional explicit group. If a model has multiple authorized groups, use list_models and ask which group to use rather than choosing a billing route automatically. For every video request, the user must explicitly select the video model in this request or the valid current request context. Never use a default, an old tool profile, or the first model automatically. If no video model was specified, call list_models with kind=video and ask the user to choose before calling generate_video. generation_result polls the ID returned by an asynchronous generation. Never ask for platform API keys. Relative file paths resolve against the DSH default workspace, not a different session directory; pass a path within that workspace. If a result is unknown, it may already be billed: do not resubmit automatically and ask the user to check NovaFlow history.'
+export const MEDIA_MCP_INSTRUCTIONS = 'NovaFlow media tools use the current NovaFlow account. Use the image and video models selected in NovaFlow Settings > Models. Omit model and group when generating. If a selection is missing, ambiguous, conflicting or unavailable, ask the user to check Settings > Models. Never silently choose another billing group. generation_result polls the ID returned by an asynchronous generation. Never ask for platform API keys. Relative file paths resolve against the DSH default workspace, not a different session directory; pass a path within that workspace. If a result is unknown, it may already be billed: do not resubmit automatically and ask the user to check NovaFlow history.'
 const string = {type:'string',minLength:1}
 const references = {type:'array',items:string}
 const properties = {
@@ -11,10 +11,10 @@ const properties = {
   size:string, quality:string, background:string,
 }
 export const MEDIA_MCP_TOOLS = [
-  {name:'generate_image',description:'Generate an image with NovaFlow. If model is omitted, use gpt-image-2.6 directly; no Magpie model selection is required. Optional model is an original NovaFlow ID, and group explicitly chooses a NovaFlow group. Poll a running result with generation_result.',inputSchema:{type:'object',properties:{...properties,n:{type:'integer',minimum:1,maximum:4}},required:['prompt'],additionalProperties:false}},
-  {name:'generate_video',description:'Generate a video with NovaFlow. model is required and must be explicitly selected by the user in this request or valid current request context. If absent, first list_models(kind=video) and ask the user to choose. Do not use a default model, an old tool profile, or automatically select the first available model. Model is the original NovaFlow ID, not a Magpie provider/model ID.',inputSchema:{type:'object',properties:{prompt:string,model:string,group:string,image:string,reference_images:references,size:string,seconds:{type:'integer',minimum:1},path:string},required:['prompt','model'],additionalProperties:false}},
+  {name:'generate_image',description:'Generate an image with NovaFlow. Use the model and group selected in NovaFlow Settings > Models. Poll a running result with generation_result.',inputSchema:{type:'object',properties:{...properties,n:{type:'integer',minimum:1,maximum:4}},required:['prompt'],additionalProperties:false}},
+  {name:'generate_video',description:'Generate a video with NovaFlow. Use the model and group selected in NovaFlow Settings > Models.',inputSchema:{type:'object',properties:{prompt:string,model:string,group:string,image:string,reference_images:references,size:string,seconds:{type:'integer',minimum:1},path:string},required:['prompt'],additionalProperties:false}},
   {name:'generation_result',description:'Read the status and output of a NovaFlow asynchronous image or video generation by its returned ID.',inputSchema:{type:'object',properties:{id:string},required:['id'],additionalProperties:false}},
-  {name:'list_models',description:'List the current account’s authorized NovaFlow image or video model IDs and groups. For video, show choices to the user and wait for an explicit selection; do not choose the first result automatically.',inputSchema:{type:'object',properties:{kind:{type:'string',enum:['image','video']}},additionalProperties:false}},
+  {name:'list_models',description:'List the current account’s authorized NovaFlow image or video model IDs and groups. Includes the saved selections from Settings > Models.',inputSchema:{type:'object',properties:{kind:{type:'string',enum:['image','video']}},additionalProperties:false}},
 ]
 const loopback = address => address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -75,12 +75,10 @@ export function createMediaMcp({service,origin,key}) {
   async function invoke(name,args,signal) {
     const tool=tools.find(tool=>tool.name===name)
     if(!tool)throw new RequestError(200,'UNKNOWN_TOOL',-32602)
-    if(name==='generate_video' && (!object(args) || typeof args.model!=='string' || !args.model.trim()))return {isError:true,content:[{type:'text',text:JSON.stringify({status:'error',code:'VIDEO_MODEL_REQUIRED'})}]}
     if(!valid(args,tool.inputSchema))throw new RequestError(200,'INVALID_PARAMS',-32602)
     const method={generate_image:'generateImage',generate_video:'generateVideo',generation_result:'generationResult',list_models:'listModels'}[name]
     try {
-      const input=name==='generate_image'?{...args,model:args.model || 'gpt-image-2.6'}:{...args}
-      const result=await cancellable(Promise.resolve().then(()=>service[method](input)),signal)
+      const result=await cancellable(Promise.resolve().then(()=>service[method](args)),signal)
       if(signal.aborted)throw new RequestError(503,'MEDIA_MCP_DISPOSED')
       return {content:[{type:'text',text:JSON.stringify(result)}]}
     } catch(error) {
@@ -115,7 +113,7 @@ export function createMediaMcp({service,origin,key}) {
       let result
       if(message.method==='initialize') {
         if(typeof params.protocolVersion!=='string' || !object(params.capabilities) || !object(params.clientInfo) || typeof params.clientInfo.name!=='string' || typeof params.clientInfo.version!=='string')throw new RequestError(200,'INVALID_PARAMS',-32602)
-        result={protocolVersion:PROTOCOLS.includes(params.protocolVersion)?params.protocolVersion:PROTOCOLS[0],capabilities:{tools:{listChanged:false}},serverInfo:{name:'novaflow-magpie-image',version:'1.0.0'},instructions:MEDIA_MCP_INSTRUCTIONS}
+        result={protocolVersion:PROTOCOLS.includes(params.protocolVersion)?params.protocolVersion:PROTOCOLS[0],capabilities:{tools:{listChanged:false}},serverInfo:{name:'novaflow-image',version:'1.0.0'},instructions:MEDIA_MCP_INSTRUCTIONS}
       } else if(message.method==='ping')result={}
       else if(message.method==='tools/list')result={tools}
       else if(message.method==='tools/call') {

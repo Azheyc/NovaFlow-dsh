@@ -20,7 +20,7 @@ async function installedSdk() {
 }
 const {Client,StreamableHTTPClientTransport}=await installedSdk()
 const key='nfm_'+'k'.repeat(43)
-const path='/novaflow/magpie-image/mcp'
+const path='/novaflow/novaflow-image/mcp'
 function deferred(){let resolve;const promise=new Promise(yes=>resolve=yes);return {promise,resolve}}
 async function fixture(t,overrides={}) {
   const calls=[]
@@ -52,32 +52,30 @@ const text=result=>JSON.parse(result.content.find(item=>item.type==='text').text
 test('actual installed MCP SDK initializes stateless HTTP, receives instructions and lists exact tools/schemas',async t=>{
   const f=await fixture(t),client=await f.connect()
   assert.equal(client.getInstructions(),MEDIA_MCP_INSTRUCTIONS)
-  assert.match(client.getInstructions(),/gpt-image-2\.6/)
-  assert.match(client.getInstructions(),/explicitly select/)
-  assert.match(client.getInstructions(),/Never use a default/)
-  assert.equal(client.getServerVersion().name,'novaflow-magpie-image')
+  assert.match(client.getInstructions(),/NovaFlow Settings > Models/)
+  assert.equal(client.getServerVersion().name,'novaflow-image')
   const result=await client.listTools()
   assert.deepEqual(result.tools.map(tool=>tool.name),['generate_image','generate_video','generation_result','list_models'])
   const image=result.tools.find(tool=>tool.name==='generate_image'),video=result.tools.find(tool=>tool.name==='generate_video')
   assert.deepEqual(image.inputSchema.required,['prompt'])
-  assert.deepEqual(video.inputSchema.required,['prompt','model'])
+  assert.deepEqual(video.inputSchema.required,['prompt'])
   assert.deepEqual(image.inputSchema.properties.n,{type:'integer',minimum:1,maximum:4})
   assert.equal(video.inputSchema.additionalProperties,false)
   assert.equal((await client.ping()).constructor,Object)
   assert.equal(f.calls.length,0)
 })
-test('SDK image call defaults to NovaFlow gpt-image-2.6 without provider configuration',async t=>{
+test('SDK image call leaves omitted model selection to the account service',async t=>{
   const f=await fixture(t),client=await f.connect()
   const result=await client.callTool({name:'generate_image',arguments:{prompt:'synthetic illustration',n:2,reference_images:['/synthetic/reference.png']}})
   assert.deepEqual(text(result),{status:'completed',files:['/synthetic/image.webp']})
-  assert.deepEqual(f.calls,[['image',{prompt:'synthetic illustration',n:2,reference_images:['/synthetic/reference.png'],model:'gpt-image-2.6'}]])
+  assert.deepEqual(f.calls,[['image',{prompt:'synthetic illustration',n:2,reference_images:['/synthetic/reference.png']}]])
   await client.callTool({name:'generate_image',arguments:{prompt:'explicit model',model:'image-original-id',group:'chosen group',quality:'high'}})
   assert.equal(f.calls[1][1].model,'image-original-id');assert.equal(f.calls[1][1].group,'chosen group')
 })
-test('SDK video without a model never reaches service; list then explicit original model works',async t=>{
+test('SDK video accepts a saved model or an explicit original model',async t=>{
   const f=await fixture(t),client=await f.connect()
   const denied=await client.callTool({name:'generate_video',arguments:{prompt:'model unspecified'}})
-  assert.equal(denied.isError,true);assert.equal(text(denied).code,'VIDEO_MODEL_REQUIRED');assert.equal(f.calls.length,0)
+  assert.equal(text(denied).status,'running');assert.deepEqual(f.calls.shift(),['video',{prompt:'model unspecified'}])
   const listed=await client.callTool({name:'list_models',arguments:{kind:'video'}})
   assert.equal(text(listed).models[0].id,'video-original-id')
   const result=await client.callTool({name:'generate_video',arguments:{prompt:'user selected model',model:'video-original-id',group:'chosen group',seconds:8,image:'/synthetic/start.png'}})

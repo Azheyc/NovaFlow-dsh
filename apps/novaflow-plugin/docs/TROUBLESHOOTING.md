@@ -79,14 +79,14 @@
 
 登录不再启动安装器或检查包管理运行时。如仍出现推荐安装 UI，请核对是否启动了旧客户端资源。账户旧安装动作返回 UNSUPPORTED_ACTION，不能通过重新登录重试安装。社区插件的手动安装、更新、卸载仍由插件管理器提供；其包管理问题与登录无关。预装与一次性迁移规则见[整合说明](../INTEGRATION.zh.md)。
 
-## 内置 magpie-image MCP
+## 内置 NovaFlow Image MCP
 
 | 现象／错误 | 检查与处理 |
 |---|---|
-| `serverName "magpie-image" is already in use` | 同名旧客户端仍有效。检查本包停用旧 `magpie-mcp-magpie-image` 的补丁是否被 Agent 预设覆盖；官方结果 overridden 时先解决有效配置来源，不改名掩盖问题 |
+| `serverName "novaflow-image" is already in use` | 检查自定义 MCP 配置，移除与内置服务重名的自定义条目。 |
 | 仍提示去 Magpie 选择模型 | 核对实际可见 Tool schema 与 MCP instructions 是否来自本插件；旧工具说明不能证明新服务已连接 |
-| 图片模型没权限 | 默认是原始 ID `gpt-image-2.6`，失败时不静默切换模型 |
-| `VIDEO_MODEL_REQUIRED` | 列出视频模型并取得用户明确选择，再提交；不使用旧 profile 或首个结果 |
+| 图片模型没权限 | 前往「设置 → 模型 → NovaFlow Image」重新选择有权限的分组和模型 |
+| `VIDEO_MODEL_REQUIRED` | 在模型配置中选择视频生成模型后提交 |
 | 同名模型有多个 group | 请用户明确路由，不自动决定计费组 |
 | 返回运行中 ID | 使用 `generation_result` 查询原 ID，不再次调用生成 |
 | `unknown` 或重启后结果未知 | 可能已计费；先核对平台历史和已有产物，不自动重提 |

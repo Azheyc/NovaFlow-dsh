@@ -65,7 +65,7 @@ Client 使用 `window.__ModuleLoader__.load` 注册动态模块，注入 `slots`
 | POST `/api/novaflow-account` | 通过 Connection 认证，要求 owner 且 `interactions=answer`；JSON 请求，只接受 `action`、可选 `attemptId`、可选 `confirmationId`，正文最多4096字符 |
 | GET `/novaflow/callback` | 浏览器授权回调；核对 Host、当前 state、发行方、期限和登录代次 |
 | `/novaflow/models/<provider>` 前缀 | 本机模型桥；独立本机凭据，按受管路由限定模型、协议和分组 |
-| POST `/novaflow/magpie-image/mcp` | 回环 Streamable HTTP MCP；独立 Bearer、本机来源和 Host 校验 |
+| POST `/novaflow/novaflow-image/mcp` | 回环 Streamable HTTP MCP；独立 Bearer、本机来源和 Host 校验 |
 
 ### 模型路由的注册与匹配
 
@@ -155,7 +155,7 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 
 ## 7. 媒体 MCP 与作业
 
-内置服务提供 `generate_image`、`generate_video`、`generation_result`、`list_models`，经官方 MCP 客户端形成 `mcp__magpie-image__*` 工具名。图片省略 model 时使用原始 ID `gpt-image-2.6`；视频 schema 要求 model，模型必须是用户的明确选择。同名模型跨组时要明确 group，避免擅自选择计费路由。
+内置服务提供 `generate_image`、`generate_video`、`generation_result`、`list_models`，经官方 MCP 客户端形成 `mcp__novaflow-image__*` 工具名。图片与视频工具均可省略 model 和 group，使用当前设备授权记录内的选择。同名模型跨组时要明确 group，避免擅自选择计费路由。
 
 长任务返回 ID 后查询原作业。提交结果未知时不自动重提；重启恢复依据元数据及结果哈希判断。默认输出到默认工作目录的 `generated-images/` 和 `generated-videos/`；相对 path 和参考图也按默认工作目录解析，不跟随其他会话 cwd。
 

@@ -110,9 +110,9 @@ export function createElectronBuilderConfig(
   const packaged = resolveDesktopBuildCommit(env)
   return {
     appId,
-    protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
+    protocols: novaFlow ? [{ name: 'NovaFlow', schemes: ['novaflow'] }] : [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
     extraMetadata: {
-      ...(novaFlow ? { name: '@novaflow/desktop' } : {}),
+      ...(novaFlow ? { name: '@novaflow/desktop', productName:'NovaFlow' } : {}),
       dshDesktopAppId: appId,
       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
@@ -184,7 +184,7 @@ export function createElectronBuilderConfig(
       // Prepared runtime files retain their signatures; PAK resources are sealed by their enclosing bundle.
       signIgnore: ['/Contents/Resources/app\\.asar\\.unpacked/dsh(?:/|$)', '/Contents/Resources/runtime/primary-runtime(?:/|$)', '\\.pak$'],
       notarize: !unsigned && !skipNotarization,
-      target: unsigned ? ['dmg'] : ['dmg', 'zip'],
+      target: unsigned && !novaFlow ? ['dmg'] : ['dmg', 'zip'],
     },
     dmg: {
       format: 'ULMO',

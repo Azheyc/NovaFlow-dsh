@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "NovaFlow account",
-    "description": "Sign in to NovaFlow in your browser and save connections in native Settings → Models. Edit models and supported reasoning levels there; signing out retains model configuration. Built-in media MCP defaults images to gpt-image-2.6 and requires a user-selected video model, without Magpie setup. View personal or enterprise balances and spending limits in Account and balance.",
+    "description": "Sync NovaFlow models and balance. Choose image and video models for the built-in NovaFlow Image MCP in model settings.",
     "detail": "docs/DETAIL.md"
   },
   "ui": {
@@ -70,6 +70,14 @@
     "modelThinkingHelp": "In each model’s Advanced settings, configure the reasoning levels it supports. Then choose the reasoning depth for the current conversation in its model picker.",
     "modelConnectionHelp": "Claude models use Anthropic Messages; other models use OpenAI Responses. Keep the local connection address supplied by the plugin. Manage sign-in and refresh in Account and balance; no API key copying is needed.",
     "modelFooterTitle": "NovaFlow connection",
-    "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again."
+    "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again.",
+    "mediaTitle": "NovaFlow Image",
+    "imageModel": "Image generation model",
+    "videoModel": "Video generation model",
+    "chooseMedia": "Choose a model",
+    "noMedia": "No models available for this account",
+    "mediaSignin": "Sign in to NovaFlow to choose generation models.",
+    "mediaUnavailable": "Selected model unavailable. Choose another model.",
+    "mediaHelp": "The built-in NovaFlow Image MCP uses the models and groups selected here."
   }
 }

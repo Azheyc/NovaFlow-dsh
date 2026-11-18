@@ -1,4 +1,5 @@
 import { ORIGIN, PREFIX, RECORD, NovaError, safeCode, nonce, challenge, equalSecret, callbackOrigin, authorizationUrl, tokenPair, storedGrant } from './protocol.js'
+import { mediaModels } from './media-service.js'
 import { parseBalance } from './balance.js'
 
 /** Owns the saved account grant, without hardware binding. UI snapshots never contain tokens or PKCE secrets. */
@@ -11,7 +12,7 @@ export class NovaAccount {
     this.balanceRefreshing = null; this.balanceController = null; this.signingOut = false
   }
   publish(patch) { this.state = { ...this.state, ...patch, revision: this.state.revision + 1 }; return this.snapshot() }
-  snapshot() { return structuredClone(this.state) }
+  snapshot() { return structuredClone({ ...this.state, mediaModels:this.state.connected ? this.state.mediaModels || [] : [] }) }
   async initialize() {
     const record = await this.credentials.readRecord(RECORD)
     const grant = storedGrant(record)
@@ -138,7 +139,7 @@ export class NovaAccount {
       const grant = storedGrant(current)
       const marker = restoring ? selected.refreshPending : selected.refreshTokenRotation === 'none' ? undefined : owner
       if (this.disposed || grant?.sessionId !== selected.sessionId || grant.refreshToken !== selected.refreshToken || grant.refreshPending !== marker) return undefined
-      committed = true; return { kind: 'grant', payload: pair }
+      committed = true; return { kind: 'grant', payload: { ...pair, ...(grant.mediaModels ? { mediaModels:grant.mediaModels } : {}) } }
     })
     // Closing a client or losing a local write race must not revoke the saved
     // account session, which may also be in use on another client.
@@ -201,7 +202,7 @@ export class NovaAccount {
         if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
         const sameIdentity=this.state.account?.role===account.role
         if (!sameIdentity) this.resetBalance()
-        this.publish({ connected: true, hasCredential: true, account, models, error: null,...(sameIdentity ? {} : {balance:null}) })
+        this.publish({ connected: true, hasCredential: true, account, models, mediaModels:mediaModels(catalog.items), error: null,...(sameIdentity ? {} : {balance:null}) })
         // Balance availability must not delay or fail model sign-in/synchronization.
         void this.refreshBalance().catch(()=>{})
         return this.snapshot()

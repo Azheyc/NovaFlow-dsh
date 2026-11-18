@@ -166,7 +166,7 @@ export function resolveDesktopAutoUpdateConfig(env, platform, arch) {
   const environment = resolveDesktopAutoUpdateEnvironment(env)
   const target = resolveDesktopAutoUpdateTarget(platform, arch)
   if (isNovaFlowDistribution(env)) {
-    if (target !== 'win-x64') throw new Error('NovaFlow currently distributes Windows x64 only')
+    if (target !== 'win-x64' && target !== 'mac-arm64') throw new Error('Unsupported NovaFlow distribution target')
     return { environment, channel, target, origin: 'https://gh-proxy.com', keyPrefix: '', binaryKeyPrefix: '', publicUrl: NOVAFLOW_UPDATE_URL }
   }
   const deployment = UPDATE_ENVIRONMENTS[environment]

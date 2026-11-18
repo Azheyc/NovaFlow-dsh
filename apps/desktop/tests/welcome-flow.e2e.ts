@@ -51,6 +51,7 @@ async function mockPlatform() {
         if (rejectAuthorization || req.headers.authorization !== `Bearer ${access}`) { res.writeHead(401).end(); return }
         if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: 'personal' }
         else if (req.url === `${prefix}/creator/models`) data = { items: [
+          { model_id: 'video-fixture', group_id: 'Video group', kind: 'video', supported_endpoint_types: ['openai-video'] },
           { model_id: 'gpt-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai'] },
           { model_id: 'gpt-6.2-sol', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
           { model_id: 'gpt-6.2-astra', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
@@ -188,11 +189,21 @@ globalThis.fetch = (input, init) => {
       expect(snapshot).not.toContain(access)
       expect(snapshot).not.toContain('pluginSetup')
       expect(snapshot).not.toContain('installFlow')
+      const mediaState = async (action = 'state', fields = {}) => (await (await fetch(`${hostOrigin}/api/novaflow-account`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ action, ...fields }),
+      })).json()).value
+      const media = await mediaState()
+      const video = { id: 'video-fixture', group: 'Video group' }
+      expect(media.mediaModels).toContainEqual(expect.objectContaining(video))
+      expect((await mediaState('set_media_model', { kind:'video', model:video.id, group:video.group, owner:media.media.owner })).media.selected.video).toEqual(video)
       await restart()
       expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
+      expect((await mediaState()).media.selected.video).toEqual(video)
+      await expect.poll(async () => (await mediaState()).media.mcp, { timeout:15000 }).toMatchObject({ state:'connected', toolCount:4 })
       expect(await guide('state')).toEqual({ seen: true, ready: true })
       await backend!.account.signOut(desktopClientMetadata('en'))
       expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
+      expect((await mediaState()).media.selected).toEqual({})
       const savedModels = () => readFileSync(join(paths.profile, 'cordis.patch.yml'), 'utf8')
       expect(savedModels()).not.toContain('gpt-6.2-sol')
       expect(savedModels()).not.toContain('claude-fixture')

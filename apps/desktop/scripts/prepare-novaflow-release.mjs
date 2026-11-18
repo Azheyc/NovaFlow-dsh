@@ -1,5 +1,5 @@
-/** Prepare immutable mirrored asset URLs and checksums for a completed Windows build; never uploads. */
-import { readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs'
+/** Write platform feeds and checksums beside a completed NovaFlow release build. */
+import { createReadStream, existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import yaml from 'js-yaml'
@@ -8,16 +8,30 @@ import { valid } from 'semver'
 const [directory, version] = process.argv.slice(2)
 if (!directory || !version || !valid(version)) throw new Error('Usage: node prepare-novaflow-release.mjs <artifact-directory> <version>')
 const root = resolve(directory)
-const installers = readdirSync(root).filter(name => name.startsWith(`NovaFlow-${version}-`) && name.endsWith('.exe'))
-if (installers.length !== 1) throw new Error('Expected exactly one NovaFlow installer for the selected version')
-const installer = installers[0]
-const blockmap = `${installer}.blockmap`
-if (!statSync(join(root, blockmap)).isFile()) throw new Error('Missing installer blockmap')
-const bytes = readFileSync(join(root, installer))
-const url = `https://gh-proxy.com/https://github.com/Azheyc/NovaFlow-dsh/releases/download/v${version}/${encodeURIComponent(installer)}`
-const sha512 = createHash('sha512').update(bytes).digest('base64')
-const feed = yaml.dump({ version, files: [{ url, sha512, size: bytes.length }], path: url, sha512, releaseDate: new Date().toISOString() })
-for (const channel of ['stable', 'nightly']) writeFileSync(join(root, `${channel}.yml`), feed)
-const assets = [installer, blockmap, 'stable.yml', 'nightly.yml']
-writeFileSync(join(root, 'SHA256SUMS'), assets.map(name => `${createHash('sha256').update(readFileSync(join(root, name))).digest('hex')}  ${name}\n`).join(''))
-console.log(JSON.stringify({ version, directory: root, assets: [...assets, 'SHA256SUMS'] }, null, 2))
+const files = readdirSync(root).filter(name => name.startsWith(`NovaFlow-${version}-`))
+const updates = files.filter(name => name.endsWith('.exe') || name.endsWith('.zip'))
+if (updates.length !== 1) throw new Error('Expected one platform update package for the selected version')
+const update = updates[0]
+const mac = update.endsWith('.zip')
+const assets = [update, `${update}.blockmap`]
+if (mac) {
+  const dmg = update.replace(/\.zip$/, '.dmg')
+  assets.push(dmg)
+  if (existsSync(join(root, `${dmg}.blockmap`))) assets.push(`${dmg}.blockmap`)
+}
+async function hash(name, algorithm, format) {
+  const digest = createHash(algorithm)
+  for await (const chunk of createReadStream(join(root, name))) digest.update(chunk)
+  return digest.digest(format)
+}
+const url = `https://gh-proxy.com/https://github.com/Azheyc/NovaFlow-dsh/releases/download/v${version}/${encodeURIComponent(update)}`
+const sha512 = await hash(update, 'sha512', 'base64')
+const feed = yaml.dump({ version, files: [{ url, sha512, size: statSync(join(root, update)).size }], path: url, sha512, releaseDate: new Date().toISOString() })
+for (const channel of ['stable', 'nightly']) {
+  const name = `${channel}${mac ? '-mac' : ''}.yml`
+  writeFileSync(join(root, name), feed)
+  assets.push(name)
+}
+const checksums = await Promise.all(assets.map(async name => `${await hash(name, 'sha256', 'hex')}  ${name}\n`))
+writeFileSync(join(root, 'SHA256SUMS'), checksums.join(''))
+console.log(JSON.stringify({version, assets:[...assets, 'SHA256SUMS']}))

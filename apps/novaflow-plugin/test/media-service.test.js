@@ -24,7 +24,7 @@ async function fixture(t,options={}) {
   let record=grant(),accessCalls=0
   const requests=[],apiCalls=[],rejected=[]
   const account={accessToken:async()=>{accessCalls++;return record?.payload.accessToken},rejectToken:async value=>rejected.push(value)}
-  const credentials={readRecord:async key=>{assert.equal(key,RECORD);return structuredClone(record)}}
+  const credentials={readRecord:async key=>{assert.equal(key,RECORD);return structuredClone(record)}, modifyRecord:async(key,fn)=>{assert.equal(key,RECORD);record=await fn(record)}}
   const api={request:async(path,request)=>{apiCalls.push({path,...request});assert.equal(path,PREFIX+'/creator/models');return {items:options.rows||rows.filter(row=>!(row.model_id===DEFAULT_IMAGE_MODEL&&row.group_id==='团队 B'))}}}
   const fetchImpl=async(url,init={})=>{
     requests.push({url:String(url),...init})
@@ -56,13 +56,13 @@ async function final(service,job){const deadline=Date.now()+2000;while(job.statu
 test('video model is mandatory and rejects before catalog, token or fetch calls',async t=>{
   const h=await fixture(t)
   await assert.rejects(h.service.generateVideo({prompt:'test'}),code('VIDEO_MODEL_REQUIRED'))
-  await assert.rejects(h.service.generateVideo({prompt:'test',model:' '}),code('VIDEO_MODEL_REQUIRED'))
+  await assert.rejects(h.service.generateVideo({prompt:'test',model:' '}),code('MEDIA_MODEL_UNAVAILABLE'))
   assert.equal(h.requests.length,0);assert.equal(h.apiCalls.length,0);assert.equal(h.accessCalls(),0)
 })
 
 test('catalog lists only image/video rows and ambiguous paid groups require an explicit choice before generation',async t=>{
   const h=await fixture(t,{rows})
-  const list=await h.service.listModels({kind:'image'});assert.ok(list.models.every(row=>row.kind==='image'));assert.equal(list.video_model_required,true)
+  const list=await h.service.listModels({kind:'image'});assert.ok(list.models.every(row=>row.kind==='image'));assert.deepEqual(list.selected,{})
   await assert.rejects(h.service.generateImage({prompt:'test'}),code('MEDIA_GROUP_REQUIRED'))
   assert.equal(h.requests.length,0,'ambiguous groups must never submit a paid generation')
   const job=await h.service.generateImage({prompt:'test',group:'团队 B'});assert.equal(job.group,'团队 B');assert.equal(job.model,DEFAULT_IMAGE_MODEL);assert.equal(h.requests.length,1)
@@ -312,4 +312,21 @@ test('dispose aborts running generation, persists failure and disallows new work
   const job=await h.service.generateImage({prompt:'test'});await entered.promise;await h.service.dispose()
   const persisted=JSON.parse(await fs.readFile(join(h.workspace,'.novaflow-media','jobs',job.id+'.json'),'utf8'));assert.equal(persisted.status,'unknown');assert.equal(persisted.submissionStarted,true)
   await assert.rejects(h.service.listModels(),code('MEDIA_UNAVAILABLE'))
+})
+
+ test('account settings persist the exact image and video groups and reject revoked or conflicting routes',async t=>{
+  const catalog = [...rows]; const h = await fixture(t,{rows:catalog})
+  const {owner} = await h.service.preferences()
+  await h.service.setModel({owner,kind:'image',model:DEFAULT_IMAGE_MODEL,group:'团队 B'})
+  await h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'})
+  assert.equal((await h.service.generateImage({prompt:'test'})).group,'团队 B')
+  assert.equal((await h.service.generateVideo({prompt:'test'})).model,'video-test')
+  assert.equal(JSON.parse(h.requests[1].body).model,'video-test')
+  await assert.rejects(h.service.generateImage({prompt:'test',group:'研发 A'}),code('MEDIA_SELECTION_CONFLICT'))
+  catalog.splice(1,1)
+  await assert.rejects(h.service.generateImage({prompt:'test'}),code('MEDIA_MODEL_UNAVAILABLE'))
+  h.setRecord(grant('x'))
+  assert.deepEqual((await h.service.preferences()).selected,{})
+  await assert.rejects(h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'}),code('MEDIA_ACCOUNT_CHANGED'))
+  assert.equal(h.requests.length,2)
 })

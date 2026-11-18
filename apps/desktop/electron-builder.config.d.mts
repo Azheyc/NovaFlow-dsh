@@ -6,7 +6,7 @@ export interface DesktopElectronBuilderConfig {
   readonly productName: string
   readonly copyright: string
   readonly artifactName: string
-  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness'; readonly schemes: readonly ['dsh'] }]
+  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness' | 'NovaFlow'; readonly schemes: readonly ['dsh'] | readonly ['novaflow'] }]
   readonly directories: {
     readonly output: string
   }

@@ -12,6 +12,18 @@ export const DEFAULT_IMAGE_MODEL = 'gpt-image-2.6'
 const IMAGE_LIMIT = 30*1024*1024, VIDEO_LIMIT=512*1024*1024
 const bad = code => { throw new NovaError(code) }
 const plain = value => value && typeof value==='object' && !Array.isArray(value)
+const endpoints = {image:'image-generation', video:'openai-video'}
+export function mediaModels(items) {
+  if (!Array.isArray(items)) bad('INVALID_RESPONSE')
+  const models = new Map()
+  for (const row of items) {
+    if (!plain(row) || !Object.hasOwn(endpoints, row.kind) || !Array.isArray(row.supported_endpoint_types) || !row.supported_endpoint_types.includes(endpoints[row.kind])) continue
+    if (typeof row.model_id !== 'string' || !row.model_id || typeof row.group_id !== 'string' || !row.group_id) continue
+    models.set(JSON.stringify([row.kind,row.group_id,row.model_id]), {id:row.model_id,group:row.group_id,kind:row.kind,endpoints:row.supported_endpoint_types})
+  }
+  return [...models.values()]
+}
+const ownerId = grant => createHash('sha256').update(grant.sessionId).digest('hex')
 function publicAddress(address) {
   if (address.includes(':')) return /^[23]/.test(address) && !/^2001:(?:db8|0:|10:|20:)/i.test(address) && !address.toLowerCase().includes('ffff:')
   const [a,b]=address.split('.').map(Number)
@@ -69,23 +81,38 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
   async function identity() {
     if(disposed)bad('MEDIA_UNAVAILABLE')
     const grant=storedGrant(await credentials.readRecord(RECORD));if(!grant)bad('AUTH_REQUIRED')
-    return createHash('sha256').update(grant.sessionId).digest('hex')
+    return ownerId(grant)
   }
   async function ensureIdentity(owner) {if(await identity()!==owner)bad('MEDIA_ACCOUNT_CHANGED')}
   async function catalog(kind) {
     const token=await account.accessToken()
     const data=await api.request(PREFIX+'/creator/models',{token,signal:lifecycle.signal})
-    if(!Array.isArray(data?.items))bad('INVALID_RESPONSE')
-    return data.items.filter(item=>plain(item)&&typeof item.model_id==='string'&&typeof item.group_id==='string'&&Array.isArray(item.supported_endpoint_types) && (!kind||item.kind===kind))
+    return mediaModels(data?.items).filter(row => !kind || row.kind === kind)
+  }
+  async function preferences() {
+    const grant = storedGrant(await credentials.readRecord(RECORD))
+    return grant ? {owner:ownerId(grant),selected:grant.mediaModels || {}} : {owner:null,selected:{}}
   }
   async function listModels({kind}={}) {
-    if(kind!==undefined&&!['image','video'].includes(kind))bad('INVALID_REQUEST')
-    await identity()
-    const rows=await catalog(kind)
-    return {default_image_model:DEFAULT_IMAGE_MODEL,video_model_required:true,models:rows.filter(x=>x.kind==='image'||x.kind==='video').map(x=>({id:x.model_id,group:x.group_id,kind:x.kind,endpoints:x.supported_endpoint_types}))}
+    if(kind!==undefined&&!Object.hasOwn(endpoints,kind))bad('INVALID_REQUEST')
+    const owner = await identity()
+    const models = await catalog(kind)
+    const prefs = await preferences()
+    if (prefs.owner !== owner) bad('MEDIA_ACCOUNT_CHANGED')
+    return {models, selected:prefs.selected}
+  }
+  async function setModel({kind,model,group,owner}) {
+    if (!Object.hasOwn(endpoints,kind) || typeof model !== 'string' || !model || typeof group !== 'string' || !group || typeof owner !== 'string') bad('INVALID_REQUEST')
+    await ensureIdentity(owner)
+    await select(kind,model,group)
+    await credentials.modifyRecord(RECORD, async current => {
+      const grant = storedGrant(current)
+      if (!grant || ownerId(grant) !== owner) bad('MEDIA_ACCOUNT_CHANGED')
+      return {kind:'grant',payload:{...grant,mediaModels:{...grant.mediaModels,[kind]:{id:model,group}}}}
+    })
   }
   async function select(kind,model,group) {
-    const rows=(await catalog(kind)).filter(row=>row.model_id===model && (!group || row.group_id===group) && row.supported_endpoint_types.includes(kind==='image'?'image-generation':'openai-video'))
+    const rows=(await catalog(kind)).filter(row=>row.id===model && (!group || row.group===group))
     if(!rows.length)bad('MEDIA_MODEL_UNAVAILABLE')
     if(rows.length>1&&!group)bad('MEDIA_GROUP_REQUIRED')
     return rows[0]
@@ -125,7 +152,9 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
   async function platform(path,{method='GET',body,group,owner,signal,job}={}) {
     if(!/^\/v1\/(?:images\/(?:generations|edits)|videos(?:\/[A-Za-z0-9_-]+(?:\/content)?)?|tasks\/[A-Za-z0-9_-]+(?:\/artifacts(?:\/[A-Za-z0-9_-]+\/content)?)?)$/.test(path))bad('MEDIA_ROUTE_INVALID')
     await ensureIdentity(owner)
-    const token=await account.accessToken(), headers={Authorization:`Bearer ${token}`,'X-NovaFlow-Group':encodeURIComponent(group),accept:'application/json'}
+    const token=await account.accessToken()
+    await ensureIdentity(owner)
+    const headers={Authorization:`Bearer ${token}`,'X-NovaFlow-Group':encodeURIComponent(group),accept:'application/json'}
     let requestBody=body
     if(body!==undefined && !(body instanceof FormData)){headers['content-type']='application/json';requestBody=JSON.stringify(body)}
     if(method==='POST'&&job){job.submissionStarted=true;await persist(job)}
@@ -205,7 +234,6 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
   }
   async function begin(kind,args) {
     if(!plain(args)||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>32000)bad('INVALID_REQUEST')
-    if(kind==='video'&&(typeof args.model!=='string'||!args.model.trim()))bad('VIDEO_MODEL_REQUIRED')
     if(args.model!==undefined&&(typeof args.model!=='string'||!args.model.trim()))bad('MEDIA_MODEL_UNAVAILABLE')
     if(args.group!==undefined&&(typeof args.group!=='string'||!args.group))bad('INVALID_REQUEST')
     if(args.path!==undefined){
@@ -222,8 +250,15 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     if(args.reference_images!==undefined&&(!Array.isArray(args.reference_images)||args.reference_images.length>8||args.reference_images.some(x=>typeof x!=='string')))bad('MEDIA_REFERENCE_INVALID')
     if(kind==='image'&&args.n!==undefined&&(!Number.isInteger(args.n)||args.n<1||args.n>4))bad('INVALID_REQUEST')
     if(kind==='video'&&args.seconds!==undefined&&(!Number.isInteger(args.seconds)||args.seconds<1||args.seconds>60))bad('INVALID_REQUEST')
-    const owner=await identity(),model=args.model || DEFAULT_IMAGE_MODEL,route=await select(kind,model,args.group)
-    const job={id:randomUUID(),kind,status:'running',model,group:route.group_id,owner,createdAt:Date.now(),...(args.path?{path:args.path}:{})}
+    const {owner,selected} = await preferences()
+    if (!owner) bad('AUTH_REQUIRED')
+    const choice = selected[kind]
+    if (choice && ((args.model && args.model !== choice.id) || (args.group && args.group !== choice.group))) bad('MEDIA_SELECTION_CONFLICT')
+    const model = choice?.id || args.model || (kind === 'image' ? DEFAULT_IMAGE_MODEL : null)
+    if (!model) bad('VIDEO_MODEL_REQUIRED')
+    const route = await select(kind,model,choice?.group || args.group)
+    await ensureIdentity(owner)
+    const job={id:randomUUID(),kind,status:'running',model,group:route.group,owner,createdAt:Date.now(),...(args.path?{path:args.path}:{})}
     await persist(job);jobs.set(job.id,job)
     const work=execute(job,args);running.add(work);work.finally(()=>running.delete(work)).catch(()=>{})
     let timer;await Promise.race([work,new Promise(resolve=>{timer=setTimeout(resolve,waitMs)})]);clearTimeout(timer)
@@ -263,5 +298,5 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     polling.set(id,work);running.add(work)
     work.finally(()=>{polling.delete(id);running.delete(work)}).catch(()=>{})
     return work
-  },listModels,clear(){accountLifetime.abort();accountLifetime=new AbortController()},async dispose(){disposed=true;lifecycle.abort();accountLifetime.abort();await Promise.allSettled([...running])}}
+  },listModels,preferences,setModel,clear(){accountLifetime.abort();accountLifetime=new AbortController()},async dispose(){disposed=true;lifecycle.abort();accountLifetime.abort();await Promise.allSettled([...running])}}
 }

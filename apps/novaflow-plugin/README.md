@@ -62,14 +62,14 @@
 
 图片能力的首次启用遵循原有开关语义。`novaflow_account` 的 `migrate_protocols` 只迁移尚未应用家族策略的旧受管协议，保留图片设置和有效自定义档位，同时应用上述思考规则；可离线编辑已保存受管配置，离线不发布缓存桥权限。`configure_models` 显式重新应用家族协议、text/image输入与协议原生档位，跨协议清理不适用compat。普通刷新保留名称、容量、删除、图片和无关override，但持续规范思考档位。该修复尚未发布，已安装的旧分发包需更新；本地链接需重载插件或重启后核对生效，详见[模型修复记录](docs/MODEL_405_REPAIR.md)。
 
-## 内置 magpie-image MCP
+## 内置 NovaFlow Image MCP
 
-插件内提供同名 MCP 服务，并通过 DSH 官方 MCP 客户端连接；不依赖 Magpie 应用、Magpie Gateway 或其模型设置。旧的外部 Magpie MCP 入口会停用，保留一致的工具名称：
+插件内提供同名 MCP 服务，并通过 DSH 官方 MCP 客户端连接；不依赖 Magpie 应用、Magpie Gateway 或其模型设置。旧的外部 Magpie MCP 入口会停用，内置工具名称如下：
 
-- `mcp__magpie-image__generate_image`：不填 model 时直接使用 NovaFlow 的 **gpt-image-2.6**。支持文字生图、本地/HTTPS参考图编辑、1～4张输出及 size/quality/background。
-- `mcp__magpie-image__generate_video`：**model 必填**。Agent 必须使用用户在当前请求或有效当前上下文中明确选择的模型；没有选择时先列模型并询问，禁止使用默认、旧profile或自动取首个。
-- `mcp__magpie-image__list_models`：只读列出当前账户授权的图片/视频模型和分组。多组同名模型要求明确group，不自动选择计费路由。
-- `mcp__magpie-image__generation_result`：查询返回的作业ID并取得本地结果文件。
+- `mcp__novaflow-image__generate_image`：默认使用「设置 → 模型」中选择的图片模型和分组。支持文字生图、本地/HTTPS参考图编辑、1～4张输出及 size/quality/background。
+- `mcp__novaflow-image__generate_video`：使用「设置 → 模型」中选择的视频模型和分组。
+- `mcp__novaflow-image__list_models`：只读列出当前账户授权的图片/视频模型和分组。多组同名模型要求明确group，不自动选择计费路由。
+- `mcp__novaflow-image__generation_result`：查询返回的作业ID并取得本地结果文件。
 
 工具描述和MCP服务器instructions已同步修改。DSH将服务器instructions加入模型系统提示词，不再提示到Magpie选择模型。图片模型没有权限时明确失败，不自动切换其他模型。
 

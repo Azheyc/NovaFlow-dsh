@@ -24,7 +24,7 @@ test('Host activates against actual installed libraries; management route is own
     llm: {registerAdapter:()=>{throw new Error('signed-out startup must not add any models')}},
     agentDefaultModel: {currentSelection:()=>({provider:'existing',model:'existing'}),saveSelection:async()=>{throw new Error('signed-out startup must not change defaults')}},
     workingDirectory:{defaultDirectory:'/tmp'},
-    mcpManager:{list:()=>[{name:'magpie-image',status:{state:'connected',toolCount:4}}],register:(name,config)=>{assert.equal(name,'magpie-image');assert.equal(config.transport,'streamable-http');assert.match(config.url,/\/novaflow\/magpie-image\/mcp$/);return ()=>{}}},
+    mcpManager:{list:()=>[{name:'novaflow-image',status:{state:'connected',toolCount:4}}],register:(name,config)=>{assert.equal(name,'novaflow-image');assert.equal(config.transport,'streamable-http');assert.match(config.url,/\/novaflow\/novaflow-image\/mcp$/);return ()=>{}}},
     tools:{register:tool=>{tools.push(tool);return ()=>{}}},
   }
   t.after(async()=>{for(const dispose of effects.reverse()) if(typeof dispose==='function') await dispose()})
@@ -44,7 +44,7 @@ test('Host activates against actual installed libraries; management route is own
   const fetch=routes[0].fetch
   const request=(body,type='application/json')=>new Request('http://127.0.0.1:64661/api/novaflow-account',{method:'POST',headers:{'content-type':type},body})
   const state=await (await fetch(request('{"action":"state"}'))).json()
-  assert.equal(state.ok,true);assert.equal(state.value.connected,false);assert.equal(state.value.hasCredential,false);assert.equal(state.value.media.defaultImageModel,'gpt-image-2.6');assert.equal(state.value.media.videoModelRequired,true);assert.equal(state.value.media.mcp.toolCount,4)
+  assert.equal(state.ok,true);assert.equal(state.value.connected,false);assert.equal(state.value.hasCredential,false);assert.deepEqual(state.value.mediaModels,[]);assert.deepEqual(state.value.media.selected,{});assert.equal(state.value.media.mcp.toolCount,4)
   assert.equal((await fetch(request('{"action":"state"}','text/plain'))).status,415)
   assert.equal((await fetch(request('{"action":"state","token":"do-not-accept"}'))).status,400)
   assert.equal((await fetch(request('bad json'))).status,400)

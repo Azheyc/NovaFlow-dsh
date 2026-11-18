@@ -35,18 +35,25 @@ export async function apply(ctx, rawConfig) {
   if (!mediaKey) { mediaKey='nfm_'+randomBytes(32).toString('base64url');await ctx.credentials.set('NOVAFLOW_IMAGE_MCP_KEY',mediaKey) }
   const mediaMcp=createMediaMcp({service:media,origin,key:mediaKey})
   ctx.effect(() => () => mediaMcp.dispose())
-  ctx.effect(() => ctx.webServer.register({kind:'exact',path:'/novaflow/magpie-image/mcp',handler:mediaMcp.handler}))
-  ctx.mcpManager.register('magpie-image',{transport:'streamable-http',url:origin+'/novaflow/magpie-image/mcp',headers:{Authorization:'Bearer ${credential:NOVAFLOW_IMAGE_MCP_KEY}'},startupTimeoutMs:15000,toolCallTimeoutMs:60000,closeTimeoutMs:5000})
+  ctx.effect(() => ctx.webServer.register({kind:'exact',path:'/novaflow/novaflow-image/mcp',handler:mediaMcp.handler}))
+  ctx.mcpManager.register('novaflow-image',{transport:'streamable-http',url:origin+'/novaflow/novaflow-image/mcp',headers:{Authorization:'Bearer ${credential:NOVAFLOW_IMAGE_MCP_KEY}'},startupTimeoutMs:15000,toolCallTimeoutMs:60000,closeTimeoutMs:5000})
   // Native profile edits take ConfigEditor's HMR lock. Defer initial synchronization
   // until apply has returned so Loader activation never waits on its own lock.
   const ready = new Promise(resolve => setImmediate(resolve)).then(async()=>{
     const state=await account.initialize()
     return state
   }).catch(error => account.publish({ error: safeCode(error) })).finally(() => modelStartup.resolve())
-  const view=state=>({...state,delivery:clientDelivery(ctx)})
+  const view=async state=>({...state,delivery:clientDelivery(ctx),media:{
+    ...(state.connected ? await media.preferences() : {owner:null,selected:{}}),
+    mcp:ctx.mcpManager.list().find(server=>server.name==='novaflow-image')?.status || {state:'connecting'},
+  }})
   async function operation(action, input = {}, user = false) {
     await ready
-    if (action === 'state') return view({...account.snapshot(),nativeProviders:binding.summary(),media:{defaultImageModel:'gpt-image-2.6',videoModelRequired:true,mcp:ctx.mcpManager.list().find(server=>server.name==='magpie-image')?.status || {state:'connecting'}}})
+    if (action === 'state') return view({...account.snapshot(),nativeProviders:binding.summary()})
+    if (action === 'set_media_model' && user) {
+      await media.setModel(input)
+      return view(account.snapshot())
+    }
     if (['confirm_plugins', 'dismiss_plugins', 'retry_plugins'].includes(action)) throw new NovaError('UNSUPPORTED_ACTION')
     if (action === 'configure_models' || action === 'migrate_protocols') {
       const configured = action === 'migrate_protocols' ? await binding.migrateProtocols() : await binding.configureAllModels()
@@ -76,7 +83,7 @@ export async function apply(ctx, rawConfig) {
         const text = await request.text()
         if (text.length > 4096) throw new NovaError('INVALID_REQUEST')
         let input; try { input = JSON.parse(text) } catch { throw new NovaError('INVALID_REQUEST') }
-        if (!input || typeof input !== 'object' || typeof input.action !== 'string' || Object.keys(input).some(k => !['action','attemptId','confirmationId'].includes(k)) || (input.attemptId !== undefined && typeof input.attemptId !== 'string') || (input.confirmationId !== undefined && typeof input.confirmationId !== 'string')) throw new NovaError('INVALID_REQUEST')
+        if (!input || typeof input !== 'object' || typeof input.action !== 'string' || Object.keys(input).some(k => !(input.action === 'set_media_model' ? ['action','kind','model','group','owner'] : ['action','attemptId','confirmationId']).includes(k)) || (input.attemptId !== undefined && typeof input.attemptId !== 'string') || (input.confirmationId !== undefined && typeof input.confirmationId !== 'string')) throw new NovaError('INVALID_REQUEST')
         return json({ok:true,value:await operation(input.action,input,true)})
       } catch (error) { return json({ok:false,error:{code:safeCode(error)}},400) }
     },
