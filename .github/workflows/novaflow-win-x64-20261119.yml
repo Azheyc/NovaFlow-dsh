@@ -1,0 +1,52 @@
+name: NovaFlow Windows x64 20261119.1
+on:
+  push:
+    branches: ['build/novaflow-win-x64-20261119.1*']
+    paths: ['.github/workflows/novaflow-win-x64-20261119.yml']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 100
+    env:
+      DSH_PACKAGING_PRESET: test
+      DSH_TELEMETRY_DISABLED: '1'
+      DSH_GATE_CONCURRENCY: '4'
+      NOVAFLOW_VERSION: '0.2.2-rc.3.20261119.1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 8f98159bd4cdef0803317742f1039cda0bcfbf98
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v5
+      - name: Verify recorded source and install dependencies
+        shell: pwsh
+        run: |
+          git rev-parse HEAD
+          node --version
+          pnpm --version
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package NovaFlow Windows x64
+        shell: pwsh
+        run: |
+          $env:DSH_PACKAGING_CONFIG_DIR = (Resolve-Path apps/desktop/novaflow-release).Path
+          pnpm --filter @deepseek-ai/dsh-desktop exec tsx scripts/package-target.ts win-x64 --unsigned --build-version $env:NOVAFLOW_VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node apps/desktop/scripts/prepare-novaflow-release.mjs apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts $env:NOVAFLOW_VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: novaflow-win-x64-20261119.1
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/NovaFlow-*.exe
+            apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/NovaFlow-*.exe.blockmap
+            apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/stable.yml
+            apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/nightly.yml
+            apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/SHA256SUMS
