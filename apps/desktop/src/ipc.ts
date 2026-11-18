@@ -39,6 +39,7 @@ export const DESKTOP_IPC = {
   updatesChannelChanged: 'dsh-desktop:updates-channel-changed',
   updatesStatus: 'dsh-desktop:updates-status',
   updatesOpen: 'dsh-desktop:updates-open',
+  updatesCheck: 'dsh-desktop:updates-check',
   updatesPresentation: 'dsh-desktop:updates-presentation',
   nativeThemeSet: 'dsh-desktop:native-theme-set',
   windowFullscreen: 'dsh-desktop:window-fullscreen',
@@ -106,6 +107,7 @@ export interface DshDesktopProductApi {
     readonly channels: DesktopChannelBridge
     status(): Promise<DesktopUpdatePresentation>
     open(): Promise<void>
+    check(): Promise<void>
     subscribe(listener: (state: DesktopUpdatePresentation) => void): () => void
   }
 }

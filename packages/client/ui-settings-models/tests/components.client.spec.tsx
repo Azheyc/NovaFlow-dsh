@@ -314,7 +314,7 @@ function cardSeatCalls(
     ])
 }
 
-async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
+async function mountFace(scripted: ReturnType<typeof scriptedFace>, hiddenProviders: readonly string[] = []) {
   const { face, update, mutate, set, unset } = scripted
   const ctx = ctxWith(face)
   const mirror = new SettingsDescribeMirror(ctx)
@@ -327,6 +327,7 @@ async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
     operations: operationsWith(face),
     schema: settingsSchema,
     t,
+    hiddenProviders,
     renderSlot: renderSlot as unknown as ModelsSectionProps['renderSlot'],
   }
   const view = render(<ModelsSection {...injected} />)
@@ -672,6 +673,13 @@ describe('ModelsSection', () => {
     expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.models.footer')).toEqual([
       ['settings.models.footer', {}],
     ])
+  })
+
+  it('omits hidden routes without hiding other provider cards', async () => {
+    const { renderSlot } = await mountFace(scriptedFace(), ['deepseek-official', 'deepseek-account'])
+    expect(cardSeatCalls(renderSlot)).toContainEqual(['openai', true, true, 'llm-pi-ai'])
+    expect(cardSeatCalls(renderSlot).some(([provider]) => provider === 'deepseek-official')).toBe(false)
+    expect(screen.queryByText('DeepSeek', { exact: true })).toBeNull()
   })
 
   it('dispatches the provider-card seat inside the first-run setup card', async () => {

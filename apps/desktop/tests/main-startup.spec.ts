@@ -2075,6 +2075,7 @@ describe('desktop main startup', () => {
 
   it('keeps one checking dialog open until the manual check settles, then reports the current version', async () => {
     await readyForUpdate()
+    await expect(invoke(DESKTOP_IPC.updatesCheck, 'shell')).rejects.toThrow()
     const checked = Promise.withResolvers<DesktopUpdateState>()
     const checking = Promise.withResolvers<AbortSignal>()
     const requested = Promise.withResolvers<undefined>()
@@ -2089,9 +2090,8 @@ describe('desktop main startup', () => {
     const submenu = applicationMenuItems()
     const action = submenu.find(item => item.label === 'Check for Updates…')
     expect(action?.click).toBeTypeOf('function')
-    // Electron supplies menu arguments that this callback does not consume.
+    const prompt = Promise.resolve(invoke(DESKTOP_IPC.updatesCheck, 'app'))
     Reflect.apply(action!.click!, undefined, [])
-    const prompt = Promise.resolve(invoke(DESKTOP_IPC.updatesOpen, 'app'))
     const signal = await checking.promise
     await requested.promise
     expect(signal.aborted).toBe(false)

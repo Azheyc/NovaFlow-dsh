@@ -41,6 +41,7 @@ import { DesktopUpdateSource } from './desktop-update-source.ts'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
 import { CurrentVersionRow } from './CurrentVersionRow.tsx'
+import { DesktopUpdateCheckRow } from './DesktopUpdateCheckRow.tsx'
 import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperToolsRow.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
@@ -104,9 +105,14 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-general: dictionaries')
   const connection = ctx.get('connection') as ConnectionHandle
   const carrier = (globalThis as typeof globalThis & { dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge } }).dshDesktop
-  const desktopUpdate = new DesktopUpdateSource(carrier?.protocolVersion === 1 ? carrier.updates : undefined)
+  const updateBridge = carrier?.protocolVersion === 1 ? carrier.updates : undefined
+  const desktopUpdate = new DesktopUpdateSource(updateBridge)
   ctx.effect(() => () => { desktopUpdate.dispose() }, 'ui-settings-general: desktop update carrier')
-  const channelBridge = carrier?.protocolVersion === 1 ? carrier.updates?.channels : undefined
+  if (updateBridge?.check !== undefined) ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item', id: 'desktop-update-check', order: 110, locale: NS,
+    inject: () => ({ hooks: { desktopUpdate: desktopUpdate.store }, check: () => { desktopUpdate.open(true) } }),
+  }, DesktopUpdateCheckRow))
+  const channelBridge = updateBridge?.channels
   if (channelBridge !== undefined) {
     const channel = new DesktopChannelSource(channelBridge)
     ctx.effect(() => () => { channel.dispose() }, 'ui-settings-general: desktop channel')

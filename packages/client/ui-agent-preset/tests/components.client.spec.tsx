@@ -57,6 +57,7 @@ function renderSeat(
 ) {
   const store = createSnapshotStore<AgentPresetSeatState>({ ...SEAT_READY, ...state })
   const developerTools = createSnapshotStore(enabled)
+  const renderSlot = vi.fn(() => null)
   const actions = {
     load: vi.fn(() => Promise.resolve()), select: vi.fn(select), introduced: vi.fn(),
     dismissRefusal: vi.fn((error: AgentPresetSeatState['error']) => {
@@ -74,9 +75,10 @@ function renderSeat(
       ? useSessionRetainInfo
       : <Selected,>(selector: (value: SessionRetainInfo | undefined) => Selected) => selector(session.retainInfo),
     t: translate,
+    renderSlot,
   } as AgentPresetSeatProps
   render(<AgentPresetSeat {...props} />)
-  return { ...actions, developerTools, store }
+  return { ...actions, developerTools, store, renderSlot }
 }
 
 function renderLabel(
@@ -100,6 +102,13 @@ function renderLabel(
 }
 
 describe('the new-session chip', () => {
+  it('renders the current staged selection before a workspace binds a session', () => {
+    const { store, renderSlot } = renderSeat()
+    expect(renderSlot).toHaveBeenLastCalledWith('conversation.hero.agentPreset.selection', { presetId: 'standard' })
+    act(() => { store.set({ ...SEAT_READY, current: 'mine' }) })
+    expect(renderSlot).toHaveBeenLastCalledWith('conversation.hero.agentPreset.selection', { presetId: 'mine' })
+  })
+
   it.each([false, true])('offers Standard, Creator and custom presets with Developer tools %s', (enabled) => {
     const actions = renderSeat({ options: [
       { id: 'standard' }, { id: 'ptc' }, { id: 'minimal' }, { id: 'cordis' }, { id: 'mine' },

@@ -47,6 +47,10 @@ import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController } from './setti
 import { analyticsMode } from './analytics.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    /** The hero picker's current selection, including a pick staged before workspace selection. */
+    'conversation.hero.agentPreset.selection': { kind: 'list'; scope: 'root'; owner: { readonly presetId: string } }
+  }
   interface LocaleNamespaceMap {
     /** Agent-preset surface copy. */
     'settings.agentPreset': AgentPresetSettingsKey
@@ -227,6 +231,7 @@ export function apply(ctx: ClientContext): void {
         name: 'conversation.hero.agentPreset',
         locale: 'settings.agentPreset',
         inject: seatInjected,
+        children: { 'conversation.hero.agentPreset.selection': { kind: 'list', scope: 'root' } },
       }, AgentPresetSeat)
       const label = scope.slots.register({
         name: 'conversation.session.header.actions',

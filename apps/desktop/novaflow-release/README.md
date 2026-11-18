@@ -26,7 +26,7 @@ Existing version comparison, download progress, NSIS installation and restart be
 ## Release checklist
 
 1. Confirm a new version and the source commit. Run relevant tests and the full build. Keep the working tree clean for a traceable artifact.
-2. Run the Windows build above. Require success from archive integrity and packaged-runtime smoke checks; do not publish an installer merely because an exe exists after a failed build.
+2. Run the Windows build above. Packaging and `start-novaflow.ps1` both prepare the same Windows runtime directory. Wait for packaging, archive integrity and runtime checks to finish successfully before restarting the development app. A failed build can leave an exe behind.
 3. From the repository root, run node apps/desktop/scripts/prepare-novaflow-release.mjs apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts $version. Check the resulting five assets match this version.
 4. Push the intended source to the novaflow remote. Create a draft GitHub release targeting that exact commit and upload only the exe, its blockmap, stable.yml, nightly.yml and SHA256SUMS. Do not upload win-unpacked, logs or test fixtures.
 5. Compare GitHub asset digests with local hashes, then publish as Latest. Verify mirrored metadata, full installer SHA-256 and blockmap bytes. Since the feed uses releases/latest/download, marking a release only as a GitHub prerelease will not make it the ordinary latest feed.

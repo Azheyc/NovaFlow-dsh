@@ -963,6 +963,10 @@ async function main(): Promise<void> {
     assertProductSender(event)
     await openUpdatePrompt()
   })
+  ipcMain.handle(DESKTOP_IPC.updatesCheck, async (event) => {
+    assertProductSender(event)
+    await openUpdatePrompt(true)
+  })
 
   let configurationPrompt: Promise<void> | undefined
   const showConfigurationError = (): Promise<void> => {

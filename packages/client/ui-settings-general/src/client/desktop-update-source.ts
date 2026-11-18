@@ -28,16 +28,17 @@ export class DesktopUpdateSource {
     })
   }
 
-  /** Invoke one user action; subsequent clicks join the shell-owned operation. */
-  open(): void {
-    if (!this.live || this.bridge === undefined) return
+  /** @param manual - Request a fresh update check through the shell's manual flow. */
+  open(manual = false): void {
+    const action = manual ? this.bridge?.check : this.bridge?.open
+    if (!this.live || action === undefined) return
     const state = this.store.getSnapshot()
     if (state.opening || (state.presentation !== undefined && state.presentation.configurationError === undefined
       && ['checking', 'verifying', 'installing'].includes(state.presentation.phase))) return
     const operation = Symbol()
     this.openingOperation = operation
-    this.store.set({ ...state, opening: true })
-    void this.bridge.open().catch(() => {
+    this.store.set({ ...state, failed: false, opening: true })
+    void action.call(this.bridge).catch(() => {
       if (this.live && this.openingOperation === operation) this.store.set({ ...this.store.getSnapshot(), failed: true })
     }).finally(() => {
       if (this.live && this.openingOperation === operation) {

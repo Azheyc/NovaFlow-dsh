@@ -31,6 +31,7 @@ export interface DesktopUpdateBridge {
   readonly channels?: DesktopChannelBridge
   status(): Promise<DesktopUpdatePresentation>
   open(): Promise<void>
+  check?(): Promise<void>
   subscribe(listener: (state: DesktopUpdatePresentation) => void): () => void
 }
 

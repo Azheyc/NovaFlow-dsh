@@ -684,10 +684,12 @@ export type OnboardingProcess = 'compact' | 'standard' | 'detailed'
 - `source`: [`packages/client/ui-settings-models/src/onboarding-config.ts:6`](../packages/client/ui-settings-models/src/onboarding-config.ts)
 
 ```ts config-catalog
-/** Onboarding options after schema defaults are applied. */
+/** Models page options after schema defaults are applied. */
 export interface Config {
   /** Offer the browser API-key step when no native shell owns credential onboarding. */
   credentialOnboarding: boolean
+  /** Provider route IDs to omit from the Models page and its catalog. */
+  hiddenProviders: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-client-ui-settings-models -->

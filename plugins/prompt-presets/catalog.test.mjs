@@ -18,6 +18,12 @@ test('each shipped mode has four real recommendations and four complete prompts 
   assert.equal(validCatalog(invalid), false)
 })
 
+test('modeling recommendations cover the CAD, native source file and rendering stages', () => {
+  const modeling = defaults['novaflow-modeling']
+  assert.deepEqual(modeling.categories.map(group => group.name), ['制作 CAD 尺寸图', '开始建模', '依据建模生成效果图'])
+  assert.deepEqual(modeling.featured.slice(0, 3), modeling.categories.map(group => group.prompts[0].id))
+})
+
 test('writes persist, concurrent stale updates fail, unauthorized requests cannot read or save', async context => {
   const dir = await mkdtemp(join(tmpdir(), 'prompt-library-'))
   context.after(() => rm(dir, { recursive: true, force: true }))

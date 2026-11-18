@@ -51,6 +51,8 @@ export interface ModelsSectionInjected {
   schema: SettingsSchemaOperations
   /** Section copy. */
   t: (key: keyof typeof en) => string
+  /** Provider routes omitted from the visible configuration page. */
+  hiddenProviders?: readonly string[]
 }
 
 /**
@@ -236,18 +238,19 @@ export function providerCopy(template: string, target: ProviderIdentity): string
  * @returns the section, or null while the shell has not injected yet.
  */
 export function ModelsSection(props: ModelsSectionProps): ReactNode {
-  const { controller, useSnapshot, operations, schema, t, renderSlot } = props
+  const { controller, useSnapshot, operations, schema, t, renderSlot, hiddenProviders = [] } = props
   if (
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return <Loaded injected={{ controller, useSnapshot, operations, schema, t, hiddenProviders }} renderSlot={renderSlot} />
 }
 
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
-  const { controller, operations, schema, t } = injected
+  const { controller, operations, schema, t, hiddenProviders = [] } = injected
   const snapshot = injected.useSnapshot(value => value)
-  const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
+  const visibleRows = snapshot.rows.filter(row => !hiddenProviders.includes(row.entry.provider))
+  const state = { ...snapshot, rows: visibleRows.map(row => row.entry.provider === 'deepseek-account'
     ? { ...row, entry: { ...row.entry, displayName: t('deepSeekAccount') } } : row) }
   /** A new or failed surface waits for a current snapshot; background refreshes preserve its drafts. */
   const [hasReadySnapshot, setHasReadySnapshot] = useState(state.status === 'ready')
@@ -672,7 +675,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                     className={styles['addPanel']}
                   >
                     <CustomProviderCard
-                      taken={state.rows.map(row => row.entry.provider)}
+                      taken={snapshot.rows.map(row => row.entry.provider)}
                       protocols={protocols}
                       reasoningLevels={reasoningLevels}
                       revision={piAi.revision}

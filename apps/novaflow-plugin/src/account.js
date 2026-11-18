@@ -87,7 +87,7 @@ export class NovaAccount {
       this.pending = null; clearTimeout(this.timer); this.generation++
       const committedGeneration = this.generation
       this.publish({ connected: false, hasCredential: true, account, error: null, attempt: { id: a.id, phase: 'exchanging', expiresAt: a.deadline } })
-      try { await this.refresh(true) } catch (error) { if (committedGeneration === this.generation && !this.disposed) this.publish({ error: safeCode(error) }) }
+      try { await this.refresh(true, { resetModels: true }) } catch (error) { if (committedGeneration === this.generation && !this.disposed) this.publish({ error: safeCode(error) }) }
       if (committedGeneration === this.generation && !this.disposed) this.publish({ attempt: { id: a.id, phase: 'succeeded', expiresAt: a.deadline } })
       return this.snapshot()
     } catch (error) {
@@ -180,10 +180,16 @@ export class NovaAccount {
       if (this.balanceController===controller) this.balanceController=null
     }
   }
-  async refresh(selectDefault = false) {
+  async refresh(selectDefault = false, { resetModels = false } = {}) {
     this.assertActive()
-    if (this.refreshing) return this.refreshing
     const generation = this.generation
+    const inFlight = this.refreshing
+    if (inFlight?.generation === generation) {
+      if (!resetModels || inFlight.resetModels) return inFlight.operation
+      await inFlight.operation.catch(() => {})
+      if (generation !== this.generation) throw new NovaError('CANCELLED')
+      return this.refresh(selectDefault, { resetModels })
+    }
     const operation = (async () => {
       try {
         const token = await this.accessToken()
@@ -191,8 +197,8 @@ export class NovaAccount {
         const catalog = await this.api.request(PREFIX + '/creator/models', { token, signal: this.controller.signal })
         const account = this.accountView(bootstrap)
         if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
-        const models = await this.onCatalog(catalog, selectDefault)
-        if (generation !== this.generation || this.disposed) { await this.onClear(!this.disposed); throw new NovaError('CANCELLED') }
+        const models = await this.onCatalog(catalog, selectDefault, { resetModels })
+        if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
         const sameIdentity=this.state.account?.role===account.role
         if (!sameIdentity) this.resetBalance()
         this.publish({ connected: true, hasCredential: true, account, models, error: null,...(sameIdentity ? {} : {balance:null}) })
@@ -207,8 +213,9 @@ export class NovaAccount {
         throw error
       }
     })()
-    this.refreshing = operation
-    try { return await operation } finally { if (this.refreshing === operation) this.refreshing = null }
+    const refresh = { generation, resetModels, operation }
+    this.refreshing = refresh
+    try { return await operation } finally { if (this.refreshing === refresh) this.refreshing = null }
   }
   async rejectToken(token) {
     let rejected = false
@@ -229,10 +236,10 @@ export class NovaAccount {
       const grant = storedGrant(await this.credentials.readRecord(RECORD))
       await this.credentials.deleteRecord(RECORD)
       this.publish({ connected: false, hasCredential: false, account: null, models: [], balance:null, attempt: null, error: null, warning: null })
-      try { await this.onClear() } catch { this.publish({ warning: 'MODEL_CLEANUP_FAILED' }) }
+      try { await this.onClear(true, { removeProfiles: true }) } catch { this.publish({ warning: 'MODEL_CLEANUP_FAILED' }) }
       if (grant) { try { await this.revoke(grant) } catch { this.publish({ warning: this.state.warning ? 'CLEANUP_AND_REVOKE_FAILED' : 'REVOKE_FAILED' }) } }
       return this.snapshot()
     } finally { this.signingOut=false }
   }
-  async dispose(waitForWork = true) { this.disposed = true; this.cancel(); this.generation++; this.controller.abort(); if (waitForWork) await Promise.allSettled([this.refreshing, this.rotation, this.balanceRefreshing]); await this.onClear(false) }
+  async dispose(waitForWork = true) { this.disposed = true; this.cancel(); this.generation++; this.controller.abort(); if (waitForWork) await Promise.allSettled([this.refreshing?.operation, this.rotation, this.balanceRefreshing]); await this.onClear(false) }
 }

@@ -5,6 +5,9 @@ import { defaults } from './catalog.js'
 
 const text = (value, limit) => typeof value === 'string' && value.trim().length > 0 && value.length <= limit
 const validId = value => text(value, 200) && !Object.hasOwn(Object.prototype, value) && value !== 'prototype'
+const modelingMode = 'novaflow-modeling'
+const legacyModelingDefaults = 'cc2f765532a2e881b1a39bdd93a2e4807bdf262bbd53c0a32545820b393ccf46'
+const fingerprint = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 
 export function validCatalog(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.hasOwn(value, 'standard')) return false
@@ -32,7 +35,11 @@ export function apply(ctx) {
     try { catalog = JSON.parse(await readFile(path, 'utf8')) }
     catch (error) { if (error.code !== 'ENOENT') throw error; catalog = defaults }
     if (!validCatalog(catalog)) throw new Error('提示词库格式无效')
-    return { catalog, revision: createHash('sha256').update(JSON.stringify(catalog)).digest('hex') }
+    // A saved change to another mode may have copied the original modeling defaults.
+    if (Object.hasOwn(catalog, modelingMode) && fingerprint(catalog[modelingMode]) === legacyModelingDefaults) {
+      catalog[modelingMode] = defaults[modelingMode]
+    }
+    return { catalog, revision: fingerprint(catalog) }
   }
   const reply = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
   let writing = Promise.resolve()

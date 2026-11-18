@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   IconAgentPresetOutlineRegular, IconChevronDownOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -72,6 +72,7 @@ export type AgentPresetSeatProps =
   PropsRuntime<'conversation.hero.agentPreset'>
   & PropsLocale<'settings.agentPreset'>
   & InjectFace<AgentPresetSeatInjected>
+  & PropsRenderSlots<'conversation.hero.agentPreset.selection'>
 
 /**
  * Render the new-session agent-preset chip.
@@ -79,7 +80,7 @@ export type AgentPresetSeatProps =
  * @returns The chip and any pending selection refusal, or null outside the main view.
  */
 export function AgentPresetSeat({
-  sessionId, useSessionRetainInfo, load, select, dismissRefusal, introduced, useAgentPresetSeat, useDeveloperTools, t,
+  sessionId, useSessionRetainInfo, load, select, dismissRefusal, introduced, useAgentPresetSeat, useDeveloperTools, t, renderSlot,
 }: AgentPresetSeatProps) {
   const developerTools = useDeveloperTools(value => value)
   const state = useAgentPresetSeat(snapshot => snapshot)
@@ -161,6 +162,7 @@ export function AgentPresetSeat({
 
   return (
     <>
+      {ready && renderSlot('conversation.hero.agentPreset.selection', { presetId: state.current })}
       {ready && <Menu
         open={open && options.length > 0}
         onClose={() => { setOpen(false) }}

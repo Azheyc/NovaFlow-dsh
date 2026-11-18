@@ -96,6 +96,7 @@ export function apply(ctx: ClientContext): void {
     operations,
     schema,
     t,
+    hiddenProviders: configured.hiddenProviders,
   })
   const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
     automatic: credentialOnboarding,

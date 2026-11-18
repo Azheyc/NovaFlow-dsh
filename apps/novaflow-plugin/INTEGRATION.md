@@ -8,6 +8,10 @@ This private workspace carries NovaFlow plugin 2.6.1 inside the customized deskt
 
 Model refresh migrates managed loopback URLs to the platform. Claude uses `https://www.ycnovaflow.vip` and OpenAI-compatible protocols use `https://www.ycnovaflow.vip/v1`. The Host resolves the account access token and adds the group header for each inference request. Model discovery reads the authorized catalog for that group.
 
+The client provisions one managed provider per platform group ID and effective request protocol. Refresh consolidates eligible duplicate providers under the existing provider with the most models. Platform-synced models use a 512,000-token context window and a 128,000-token maximum output in saved profiles and discovery. These values set the client budget. The platform still handles requests according to the selected model's capabilities.
+
+Explicit sign-out removes NovaFlow-managed provider and model settings. Signing in or choosing **Refresh account and models** rebuilds those settings from the current authorized catalog, including deleted groups and edited models. Background synchronization preserves edits and deletions. Independently configured providers and connections repurposed with a custom endpoint or key remain outside this cleanup.
+
 Desktop adds the NovaFlow bundle after the standard Web bundles and before user bundles. Existing profile dependencies and user patches remain intact. Native recovery retains the built-in NovaFlow bundle. The CLI dependency closure carries its code for runtime resolution, while ordinary CLI profiles do not activate it.
 
 Welcome signs in through the plugin's authenticated, owner-only `/api/novaflow-account` endpoint. The main process polls safe local snapshots serially and opens only the validated NovaFlow authorization URL. It does not send tokens to the renderer. The plugin remains the sole owner of PKCE, callback validation, rotating credentials, model synchronization, balance, and logout.

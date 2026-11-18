@@ -26,7 +26,7 @@ test 预设隔离发布配置，不调用上游测试策略服务。安装包保
 ## 发布检查清单
 
 1. 确认新版本号和源码提交，运行相关测试及完整构建。保持工作树干净，使产物可追溯。
-2. 执行上面的 Windows 构建。归档完整性和打包运行时检查必须成功，不能因为失败构建留下了 exe 就发布。
+2. 执行上面的 Windows 构建。打包脚本和 `start-novaflow.ps1` 都会准备同一 Windows 运行时目录，请依次执行。等打包命令成功退出、归档完整性和运行时检查通过，再重启开发版；失败构建也可能留下 exe。
 3. 在仓库根目录运行 node apps/desktop/scripts/prepare-novaflow-release.mjs apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts $version，核对生成的五个资产均对应本次版本。
 4. 将目标源码推送到 novaflow remote。创建指向确切提交的 GitHub 草稿 Release，只上传 exe、对应 blockmap、stable.yml、nightly.yml 和 SHA256SUMS。不上传 win-unpacked、日志或测试材料。
 5. 比较 GitHub 资产摘要与本地哈希，再发布为 Latest。核对镜像元数据、完整安装包 SHA-256 和 blockmap 字节。由于更新源使用 releases/latest/download，只标记为 GitHub prerelease 不会成为普通 latest 更新源。

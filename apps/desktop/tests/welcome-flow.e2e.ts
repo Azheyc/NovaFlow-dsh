@@ -51,7 +51,9 @@ async function mockPlatform() {
         if (rejectAuthorization || req.headers.authorization !== `Bearer ${access}`) { res.writeHead(401).end(); return }
         if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: 'personal' }
         else if (req.url === `${prefix}/creator/models`) data = { items: [
-          { model_id: 'gpt-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
+          { model_id: 'gpt-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai'] },
+          { model_id: 'gpt-6.2-sol', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
+          { model_id: 'gpt-6.2-astra', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
           { model_id: 'claude-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['anthropic'] },
         ] }
         else if (req.url === `${prefix}/plugin/usage`) data = { schema_version: 1, account_mode: 'personal',
@@ -168,25 +170,53 @@ globalThis.fetch = (input, init) => {
       expect(patch).toContain('openai-responses')
       expect(patch).toContain('anthropic-messages')
       expect(patch).not.toContain('/novaflow/models/')
-      for (const [group, endpoint, api, id] of [
-        ['Fixture group', 'openai-responses', 'openai-responses', 'gpt-fixture'],
-        ['Fixture group', 'anthropic-messages', 'anthropic-messages', 'claude-fixture'],
+      for (const [api, ids] of [
+        ['openai-responses', ['gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-fixture']],
+        ['anthropic-messages', ['claude-fixture']],
       ] as const) {
-        const provider = 'novaflow-' + createHash('sha256').update(JSON.stringify([group, endpoint])).digest('hex').slice(0, 20)
+        const provider = 'novaflow-' + createHash('sha256').update(JSON.stringify(['Fixture group', api])).digest('hex').slice(0, 20)
         const baseURL = issuer + (api === 'anthropic-messages' ? '' : '/v1')
-        const models = await rpc<Array<{ id: string }>>('llm/discoverModels', { settingsNs: 'llm-pi-ai', request: { provider, baseURL, api } })
-        expect(models.map(model => model.id)).toEqual([id])
+        const models = await rpc<Array<{ id: string; contextWindow: number; maxTokens: number }>>('llm/discoverModels', { settingsNs: 'llm-pi-ai', request: { provider, baseURL, api } })
+        expect(models.map(model => model.id).sort()).toEqual(ids)
+        expect(models).toEqual(ids.map(() => expect.objectContaining({ contextWindow: 512_000, maxTokens: 128_000 })))
       }
       expect(patch).not.toContain(access)
       const snapshot = await (await fetch(`${hostOrigin}/api/novaflow-account`, {
         method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{"action":"state"}',
       })).text()
+      expect(JSON.parse(snapshot).value.nativeProviders).toHaveLength(2)
       expect(snapshot).not.toContain(access)
       expect(snapshot).not.toContain('pluginSetup')
       expect(snapshot).not.toContain('installFlow')
       await restart()
       expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
       expect(await guide('state')).toEqual({ seen: true, ready: true })
+      await backend!.account.signOut(desktopClientMetadata('en'))
+      expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
+      const savedModels = () => readFileSync(join(paths.profile, 'cordis.patch.yml'), 'utf8')
+      expect(savedModels()).not.toContain('gpt-6.2-sol')
+      expect(savedModels()).not.toContain('claude-fixture')
+      await backend!.account.start(desktopClientMetadata('en'))
+      expect((await fetch(platform.callback())).status).toBe(200)
+      const providerId = (api: string) => 'novaflow-' + createHash('sha256').update(JSON.stringify(['Fixture group', api])).digest('hex').slice(0, 20)
+      const responses = providerId('openai-responses')
+      const messages = providerId('anthropic-messages')
+      const initialized = savedModels()
+      await rpc('settings/mutate', { ns: 'llm-pi-ai', ops: [
+        { op: 'unset', path: ['providers', messages] },
+        { op: 'set', path: ['providers', responses, 'models'], value: [{ id: 'gpt-fixture', name: 'Edited name' }] },
+      ] })
+      expect(savedModels()).toContain('Edited name')
+      expect(savedModels()).not.toContain('gpt-6.2-sol')
+      expect(savedModels()).not.toContain('claude-fixture')
+      const refresh = (action: string) => fetch(`${hostOrigin}/api/novaflow-account`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ action }),
+      })
+      expect((await refresh('refresh')).status).toBe(200)
+      expect(savedModels()).toContain('Edited name')
+      expect(savedModels()).not.toContain('gpt-6.2-sol')
+      expect((await refresh('refresh_models')).status).toBe(200)
+      expect(savedModels()).toBe(initialized)
       platform.rejectAuthorization(true)
       await restart()
       expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })

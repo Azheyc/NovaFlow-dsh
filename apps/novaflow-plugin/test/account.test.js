@@ -59,7 +59,7 @@ function harness(t, options = {}) {
   } }
   const account = new NovaAccount({ credentials, api, origin: 'http://127.0.0.1:64661', now: () => now,
     onCatalog: async (...args) => { catalogCalls.push(args); return options.onCatalog ? options.onCatalog(...args) : [{ id: 'synthetic-model', label: 'Test' }] },
-    onClear: async () => { clears.push(true); await options.onClear?.() },
+    onClear: async (...args) => { clears.push(args); await options.onClear?.(...args) },
   })
   t.after(() => account.dispose())
   return { account, credentials, calls, catalogCalls, clears, setNow: value => { now = value }, api }
@@ -303,7 +303,7 @@ test('catalog completion after sign-out cannot republish an old account', async 
   await refresh
   assert.equal(h.account.snapshot().connected, false)
   assert.deepEqual(h.account.snapshot().models, [])
-  assert.ok(h.clears.length >= 2)
+  assert.deepEqual(h.clears, [[true, { removeProfiles: true }]])
 })
 
 test('a stale rejected token cannot invalidate a newer grant', async t => {
@@ -351,6 +351,20 @@ test('concurrent catalog refreshes share one read and one model publication', as
   assert.equal(count(h, '/creator/models'), 1)
   assert.equal(h.catalogCalls.length, 1)
   assert.ok(results.every(result => result.connected))
+})
+
+test('manual restore waits for a background sync and applies its own reset', async t => {
+  const entered = deferred(), release = deferred()
+  const h = harness(t, { grant: grant(), onCatalog: async (_catalog, _selectDefault, { resetModels }) => {
+    if (!resetModels) { entered.resolve(); await release.promise }
+    return []
+  } })
+  const background = h.account.refresh()
+  await entered.promise
+  const manual = h.account.refresh(false, { resetModels: true })
+  release.resolve()
+  await Promise.all([background, manual])
+  assert.deepEqual(h.catalogCalls.map(call => call[2]), [{ resetModels: false }, { resetModels: true }])
 })
 
 test('disposal during token rotation cannot save or return the newly issued credential', async t => {

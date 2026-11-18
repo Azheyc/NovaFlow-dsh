@@ -11,20 +11,17 @@ export const name = 'novaflow-account'
 export const inject = ['credentials', 'connection', 'webServer', 'llm', 'agentDefaultModel', 'tools', 'configEditor', 'mcpManager', 'workingDirectory']
 export const Config = Schema.object({
   enableAllCapabilities: Schema.boolean().default(true).description('首次开启图片输入与原生推理档位；Claude采用Anthropic Messages，其他模型采用OpenAI Responses；迁移后保留原生模型编辑'),
-  contextWindow: Schema.number().min(8192).max(1048576).default(32768).description('未提供能力元数据时采用的上下文预算；不是平台模型容量声明'),
-  maxTokens: Schema.number().min(1024).max(131072).default(4096).description('每次请求的默认输出上限'),
   modelsRefreshInterval: Schema.number().min(60000).max(3600000).default(600000).description('账户与模型目录刷新间隔（毫秒）'),
 })
 const json = (value, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store, private', 'Referrer-Policy': 'no-referrer' } })
 export async function apply(ctx, rawConfig) {
   const config = Config(rawConfig)
-  if (config.maxTokens >= config.contextWindow) throw new Error('maxTokens must be smaller than contextWindow')
   const origin = callbackOrigin(ctx.webServer.getOrigin())
   const libraries = await loadNativeLibraries()
   let binding, media
   const modelStartup = Promise.withResolvers()
   ctx.effect(() => () => modelStartup.resolve())
-  const account = new NovaAccount({ credentials: ctx.credentials, api: new NovaApi(), origin, onCatalog: (catalog, selectDefault) => binding.update(catalog, selectDefault), onClear: restore => {media?.clear();return binding?.clear(restore)} })
+  const account = new NovaAccount({ credentials: ctx.credentials, api: new NovaApi(), origin, onCatalog: (...args) => binding.update(...args), onClear: (...args) => {media?.clear();return binding?.clear(...args)} })
   binding = await createModelBinding(ctx, account, config, libraries, {whenReady:()=>modelStartup.promise})
   ctx.provide('novaFlowModelTransport', { async fetch(provider, key, input, init) {
     await modelStartup.promise
@@ -56,7 +53,8 @@ export async function apply(ctx, rawConfig) {
       if (account.state.connected) await account.refresh()
       return view({...account.snapshot(),configured,nativeProviders:binding.summary()})
     }
-    if (action === 'refresh') {const state=await account.refresh();return view(state)}
+    if (action === 'refresh') return view(await account.refresh())
+    if (action === 'refresh_models' && user) return view(await account.refresh(false, { resetModels: true }))
     if (action === 'refresh_balance') return view(await account.refreshBalance())
     if (action === 'signout') return view(await account.signout())
     if (action === 'cancel') {

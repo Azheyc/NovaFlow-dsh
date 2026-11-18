@@ -81,3 +81,24 @@ it('adds only new bundled plugins when upgrading a previously seeded profile', (
   seedNovaFlowPlugins(f.profile, f.runtime, false)
   expect(f.read().dsh.profile.bundles).toEqual([])
 })
+
+it.each([true, false])('uses a profile-relative dependency for the private prompt package (fresh: %s)', (fresh) => {
+  const f = fixture()
+  const name = 'novaflow-dsh-prompt-presets'
+  const seed = join(f.runtime, 'novaflow-preinstalled')
+  const pkg = join(seed, 'node_modules', name)
+  mkdirSync(pkg)
+  writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+  writeFileSync(join(seed, 'package.json'), JSON.stringify({ dependencies: { [name]: '1.0.0' } }))
+  if (!fresh) {
+    writeFileSync(join(f.profile, 'package.json'), JSON.stringify({ dependencies: { [name]: '1.0.0' }, dsh: { profile: { bundles: [] } } }))
+    writeFileSync(join(f.profile, '.novaflow-preinstalled-v1.json'), JSON.stringify({ version: 1, packages: { [name]: '1.0.0' } }))
+  }
+  seedNovaFlowPlugins(f.profile, f.runtime, fresh)
+  const spec = f.read().dependencies[name]
+  expect(spec).toBe(`link:./.novaflow-bundled/${name}`)
+  const source = join(f.profile, spec!.slice('link:'.length), 'package.json')
+  expect(readFileSync(source, 'utf8')).toBe(readFileSync(join(pkg, 'package.json'), 'utf8'))
+  expect(f.read().dsh.profile.bundles).toEqual(fresh ? [name] : [])
+  expect(existsSync(join(f.profile, 'node_modules', name, 'package.json'))).toBe(true)
+})

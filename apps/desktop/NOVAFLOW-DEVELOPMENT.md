@@ -12,6 +12,8 @@ This reference maps NovaFlow customization to its owning source and validation. 
 | Account, balance, model synchronization | apps/novaflow-plugin; [integration](../novaflow-plugin/INTEGRATION.md) takes precedence over historical standalone-plugin instructions |
 | Offline plugin seeding | preinstalled/package.json, scripts/prepare-novaflow-preinstalled.ts, src/novaflow-preinstalled.ts |
 | Session modes and first guide | [mode extension](../novaflow-modes/README.md), apps/novaflow-modes/modes.js |
+| Home prompts and settings | [Prompt presets](../../plugins/prompt-presets/README.md). `catalog.js` supplies the defaults, `client.jsx` and `style.css` render the interface, and `index.js` saves changes in the current profile. |
+| Model endpoints and requests | [Model synchronization](../novaflow-plugin/src/native-models.js) migrates managed URLs, [request authentication](../novaflow-plugin/src/model-bridge.js) supplies the platform token and group header, and the [adapter entry](../../packages/llm/llm-pi-ai/src/index.ts) connects inference and discovery. |
 | Logo and home animation | resources/novaflow, scripts/render-novaflow-brand.ts, scripts/render-novaflow-animation.ts, packages/client/ui-brand-official |
 | Windows installer and mirrored updates | [release manual](novaflow-release/README.md), scripts/novaflow-distribution.mjs |
 
@@ -25,11 +27,21 @@ The workspace review launcher preserves .desktop-build/novaflow-review and uses 
 
 ## Validation by change
 
+The desktop build compiles the prompt plugin into the offline seed. To create a standalone archive, run the following PowerShell from the repository root. The directory returned by the preparation script contains the `client.js` entry loaded by the Host.
+
+```powershell
+$seed = node --import tsx --input-type=module -e "import {prepareNovaFlowPreinstalled} from './apps/desktop/scripts/prepare-novaflow-preinstalled.ts'; console.log(prepareNovaFlowPreinstalled())" | Select-Object -Last 1
+if ($LASTEXITCODE -ne 0) { throw 'Plugin preparation failed' }
+npm.cmd pack (Join-Path $seed 'node_modules/novaflow-dsh-prompt-presets') --pack-destination apps/desktop/.desktop-build
+```
+
 Run commands from the repository root. Prefix Vitest commands with node node_modules/pnpm/bin/pnpm.mjs exec. Use vitest.e2e.config.ts for welcome-flow.e2e.ts; build first. Set DSH_INSTALL_DIR to the absolute apps/cli path before running node --test apps/novaflow-plugin/test/*.test.js.
 
 | Change | Targeted validation |
 | --- | --- |
 | Account | Account Node tests; desktop welcome/account renderer tests; built welcome-flow.e2e.ts with synthetic platform transport |
+| Prompt presets | Run `node --test plugins/prompt-presets/catalog.test.mjs`. In a new conversation on upstream DSH and NovaFlow, check category switching, hover preview, replacement confirmation and settings persistence. |
+| Model URLs | `native-models.test.js` covers migration and user edits. `model-bridge.test.js` covers destinations, dynamic authentication and group headers. `welcome-flow.e2e.ts` covers Host login and discovery for each group. |
 | Preinstallation | novaflow-preinstalled.spec.ts, project-manager.spec.ts, runtime-manifests.spec.ts; actual packaged first-profile initialization offline |
 | Mode isolation | novaflow-mode-isolation.spec.ts and real Host preset list; check temporary selection leaves defaults and drafts intact |
 | Updates | novaflow-distribution.spec.ts, desktop-auto-update-environment.spec.ts, desktop-policy-environment.spec.ts; packaged app-update.yml and mirrored assets |

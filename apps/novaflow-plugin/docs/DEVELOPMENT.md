@@ -47,13 +47,11 @@ flowchart TD
 
 ## 3. Host 配置与服务
 
-配置由 `Schema` 的默认导出构建，应用时要求 `maxTokens < contextWindow`。保存配置通过官方编辑能力完成，不手工改写 profile 文件。
+插件配置由 `Config` 定义。模型同步通过官方 ConfigEditor 保存配置。平台目录里的模型统一使用 512,000 tokens 上下文和 128,000 tokens 最大输出，两个值由 `src/native-models.js` 维护。
 
 | 字段 | 默认值 | 范围与语义 |
 |---|---|---|
 | `enableAllCapabilities` | `true` | 控制首次图片输入等能力增强，协议按模型家族选择；`configure_models`显式重新启用能力。无论此开关取值，受管模型均应用明确的思考策略：移除default/off、补足high、提供商默认high |
-| `contextWindow` | `32768` | 8192～1048576；缺少已知模型元数据时的上下文预算 |
-| `maxTokens` | `4096` | 1024～131072，并小于上下文预算；初始化时的输出上限参数 |
 | `modelsRefreshInterval` | `600000` | 60000～3600000 毫秒；仅已连接时定时刷新 |
 
 Host 必需注入 `credentials`、`connection`、`webServer`、`llm`、`agentDefaultModel`、`tools`、`configEditor`、`mcpManager`、`workingDirectory`、`pluginManager`、`storageDomain`。可选的 `clientModules` 用于分发诊断，不应作为登录前置条件。
@@ -82,10 +80,11 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 | 动作 | 交互 HTTP | `novaflow_account` 工具 | 作用 |
 |---|---|---|---|
 | `state` | 是 | 是 | 脱敏账户、余额、原生配置摘要、媒体状态与分发信息；只读 Host 当前状态 |
-| `refresh` | 是 | 是 | 刷新会话／目录，随后非阻塞刷新余额，不开始安装 |
+| `refresh` | 是 | 是 | 同步会话与授权目录，保留本地模型编辑，随后刷新余额 |
+| `refresh_models` | 是 | 否 | 「刷新账户与模型」按钮使用当前授权目录重建 NovaFlow 受管模型配置，随后刷新余额 |
 | `refresh_balance` | 是 | 是 | 单独发起平台余额读取，不刷新模型目录或触发安装 |
 | `cancel` | 是，可带 `attemptId` | 是，无 attempt 参数 | 取消当前待授权过程；交互侧用 attempt ID 防止取消错代次 |
-| `signout` | 是 | 是 | 清理本机登录，尝试撤销当前设备 |
+| `signout` | 是 | 是 | 清理本机登录及受管模型配置，尝试撤销当前设备 |
 | `configure_models` | 是 | 是 | 显式重新应用家族协议，并重新启用text/image输入和协议原生思考档位 |
 | `migrate_protocols` | 是 | 是 | 一次迁移旧受管协议，保留图片设置与有效自定义档位，并统一应用明确的思考策略；可离线编辑已保存受管配置，不发布缓存桥权限 |
 | `start` | 是 | 否 | 发起浏览器登录 |
@@ -96,7 +95,7 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 
 平台固定为 `https://www.ycnovaflow.vip`，账户 API 前缀为 `/api/novaflow/v1`。每次登录生成独立 verifier／state，用 `client_id=novaflow-creator` 和 S256 发起请求；仅接收 `http://127.0.0.1:<port>/novaflow/callback`。浏览器展示平台授权页，由用户批准后换码，再读取创作身份和目录。
 
-设备访问令牌最长900秒。刷新必须串行，先持久化刷新进行中标记，再原子替换令牌；网络结果未知时不能重放旧 refresh，平台会因重放撤销设备。恢复未知刷新状态时，若仍有旧凭据，须在账户与余额中先退出清除旧设备凭据，再重新登录；否则 `start()` 返回 `SIGNOUT_REQUIRED`。退出保留原生提供商和模型配置。
+设备访问令牌最长900秒。刷新必须串行，先持久化刷新进行中标记，再原子替换令牌；网络结果未知时不能重放旧 refresh，平台会因重放撤销设备。恢复未知刷新状态时，若仍有旧凭据，须在账户与余额中先退出清除旧设备凭据，再重新登录；否则 `start()` 返回 `SIGNOUT_REQUIRED`。主动退出通过 ConfigEditor 清除 NovaFlow 受管配置，登录与账户页手动刷新通过当前授权目录重建配置。
 
 | 数据 | 保存位置／所有权 |
 |---|---|

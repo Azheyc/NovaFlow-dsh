@@ -46,19 +46,24 @@ export function parseCatalog(data) {
     if (item.kind !== 'text') continue
     const api = types.includes('anthropic') ? 'anthropic-messages' : types.includes('openai-response') ? 'openai-responses' : types.includes('openai') ? 'openai-completions' : null
     if (!api) continue
-    const provider = 'novaflow-' + createHash('sha256').update(JSON.stringify([item.group_id, api])).digest('hex').slice(0, 20)
+    const provider = providerId(item.group_id, api)
     const key = JSON.stringify([provider,item.model_id]); if (seen.has(key)) continue; seen.add(key)
     result.push({ provider, id: item.model_id, name: item.model_id, group: item.group_id, api })
   }
   return result
 }
 
+function providerId(group, api) {
+  return 'novaflow-' + createHash('sha256').update(JSON.stringify([group, api])).digest('hex').slice(0, 20)
+}
+
+const MODEL_CAPACITY = { contextWindow: 512_000, maxTokens: 128_000 }
 const OWNER_RECORD = 'novaflow-account/native-providers'
 const PREFERENCES_RECORD = 'novaflow-account/model-preferences'
 const REASONING_POLICY = 'explicit-high-v1'
 const RESPONSE_EFFORTS = {low:'low',medium:'medium',high:'high',xhigh:'xhigh',max:'max'}
-function thinkingModel(model, api, config, libraries) {
-  const native = modelSeed({id:model.id,api},config,libraries).reasoningEfforts
+function thinkingModel(model, api, libraries) {
+  const native = modelSeed({id:model.id,api},libraries).reasoningEfforts
   const fallback = api === 'anthropic-messages' ? {low:'low',medium:'medium',high:'high'} : RESPONSE_EFFORTS
   const source = model.reasoningEfforts || native || fallback
   const efforts = Object.fromEntries(Object.entries(source).filter(([key,value])=>key!=='off' && key!=='default' && typeof value==='string'))
@@ -70,7 +75,7 @@ const responsesModel = model => ({...model,input:['text','image'],reasoningEffor
 export const PROTOCOL_POLICY = 'claude-messages-v2'
 export const protocolForModel = id => /(?:^|[/:.])claude(?:$|[-_.:@/\s])/i.test(id) ? 'anthropic-messages' : 'openai-responses'
 const anthropicCompat = compat => Object.fromEntries(Object.entries(compat || {}).filter(([key])=>['forceAdaptiveThinking','supportsTemperature','supportsLongCacheRetention','supportsEagerToolInputStreaming','supportsCacheControlOnTools','allowEmptySignature','supportsStrictTools'].includes(key)))
-function protocolModel(model, api, config, libraries, allCapabilities) {
+function protocolModel(model, api, libraries, allCapabilities) {
   if (api === 'openai-responses') {
     const converted = {...model,compat:responseCompat(model.compat)}
     if (allCapabilities) return responsesModel(converted)
@@ -81,7 +86,7 @@ function protocolModel(model, api, config, libraries, allCapabilities) {
     }
     return converted
   }
-  const seed = modelSeed({id:model.id,api},config,libraries)
+  const seed = modelSeed({id:model.id,api},libraries)
   let efforts=seed.reasoningEfforts
   if (!allCapabilities && model.reasoningEfforts===false) efforts=false
   else if (!allCapabilities && model.reasoningEfforts) {
@@ -99,7 +104,7 @@ function familyGroups(items, owners, profiles) {
     const apis=new Set(ids.map(protocolForModel))
     const primary=owner?.familyApi || (apis.size===1 ? [...apis][0] : rows[0].api==='anthropic-messages' ? 'anthropic-messages' : 'openai-responses')
     for (const api of apis) {
-      const provider=api===primary ? source : 'novaflow-'+createHash('sha256').update(JSON.stringify([source,api])).digest('hex').slice(0,20)
+      const provider=api===primary ? source : providerId(source,api)
       groups.push({source,provider,api,group:rows[0].group,rows:rows.filter(row=>protocolForModel(row.id)===api).map(row=>({...row,provider,api}))})
     }
   }
@@ -126,7 +131,7 @@ export function nativeEfforts(base) {
   }
   return result
 }
-export function modelSeed(item, config, libraries) {
+export function modelSeed(item, libraries) {
   const providers = item.api === 'anthropic-messages' ? ['anthropic'] : item.api === 'openai-responses' ? ['openai'] : ['openai','deepseek','google']
   const metadataId=item.api==='anthropic-messages' && protocolForModel(item.id)==='anthropic-messages' ? item.id.slice(item.id.toLowerCase().lastIndexOf('claude')).toLowerCase() : item.id
   let base = providers.map(p => libraries.getBuiltinModel?.(p,metadataId)).find(model => model?.api === item.api)
@@ -138,7 +143,7 @@ export function modelSeed(item, config, libraries) {
   const compat = {}
   for (const key of ['forceAdaptiveThinking','supportsTemperature','supportsReasoningEffort','thinkingFormat','maxTokensField','requiresReasoningContentOnAssistantMessages']) if (base?.compat?.[key] !== undefined) compat[key] = base.compat[key]
   if (item.api === 'openai-completions' && base?.api === 'openai-responses' && base.reasoning) compat.supportsReasoningEffort = true
-  return { id:item.id, name:item.id, contextWindow:base?.contextWindow || config.contextWindow, maxTokens: Math.min(base?.maxTokens || config.maxTokens,config.maxTokens), input:['text'], reasoningEfforts:nativeEfforts(base), ...(Object.keys(compat).length ? {compat} : {}) }
+  return { id:item.id, name:item.id, ...MODEL_CAPACITY, input:['text'], reasoningEfforts:nativeEfforts(base), ...(Object.keys(compat).length ? {compat} : {}) }
 }
 
 /** Save connection facts through the same ConfigEditor as the official Models page.
@@ -165,6 +170,19 @@ export async function createModelBinding(ctx, account, config, libraries, { when
   }
   const saveOwnership = data => ctx.credentials.modifyRecord(OWNER_RECORD,async () => ({kind:'grant',payload:data}))
   const digest = key => createHash('sha256').update(key).digest('hex')
+  async function managesConnection(provider, owner, profile) {
+    const ref = bridgeRef(provider)
+    if (profile && (profile.apiKeyEnv !== ref || !managedURL(profile.baseURL, provider, profile.api))) return false
+    const key = (await ctx.credentials.resolve(ref))?.value
+    return !key || (key.startsWith('nfb_') && digest(key) === owner?.keyDigest)
+  }
+
+  function deleteProviders(providers, snapshot, removals) {
+    for (const provider of removals) {
+      if (!isDeepStrictEqual(providers[provider], snapshot[provider])) throw new NovaError('MODEL_CONFIG_CONFLICT')
+      delete providers[provider]
+    }
+  }
   async function releaseKey(provider, owner) {
     const profile = entry().options.config?.providers?.[provider]
     const ref = owner.ref || bridgeRef(provider)
@@ -173,32 +191,39 @@ export async function createModelBinding(ctx, account, config, libraries, { when
     if (key && owner.keyDigest && digest(key) === owner.keyDigest) await ctx.credentials.unset(ref)
   }
   let lastCatalog, lastConfigured
-  async function update(catalog, selectDefault, {force=false,ownedItems,protocolsOnly=false}={}) {
+  async function update(catalog, selectDefault, {force=false,ownedItems,protocolsOnly=false,resetModels=false}={}) {
     const generation = revision
     const sourceItems = ownedItems || parseCatalog(catalog), owners = await ownership(), changes = [], routes = []
     if (!ownedItems) lastCatalog = structuredClone(catalog)
     const savedPreferences = await ctx.credentials.readRecord(PREFERENCES_RECORD)
     const preferences = savedPreferences?.kind === 'grant' ? savedPreferences.payload : null
     const setupPending = !protocolsOnly && config.enableAllCapabilities === true && !preferences?.allCapabilities && !preferences?.capabilitiesInitialized
-    const allCapabilities = force || setupPending || preferences?.allCapabilities === true
+    const allCapabilities = resetModels ? config.enableAllCapabilities === true : force || setupPending || preferences?.allCapabilities === true
     const liveEntry = entry(), current = liveEntry.options.config?.providers || {}
-    let groups = familyGroups(sourceItems,owners,current)
+    let groups = familyGroups(sourceItems,owners,resetModels ? {} : current)
     const guarded = new Map()
     // Resolve ownership once before constructing split profiles. A changed source
     // connection/key must never be copied into a new managed child provider.
     for (const source of new Set([...groups.map(group=>group.source),...Object.keys(owners.providers)])) {
-      const prior=owners.providers[source], profile=current[source], ref=bridgeRef(source)
+      const prior=owners.providers[source], profile=current[source]
       if (!prior && profile) throw new NovaError('MODEL_CONFIG_CONFLICT')
-      const key=(await ctx.credentials.resolve(ref))?.value
-      guarded.set(source,!(profile && (profile.apiKeyEnv!==ref || !managedURL(profile.baseURL,source,profile.api))) && !(key && (!prior?.keyDigest || digest(key)!==prior.keyDigest || !key.startsWith('nfb_'))))
+      guarded.set(source,await managesConnection(source,prior,profile))
     }
     const merged = new Map()
     if (!ownedItems) {
       const buckets = new Map(), separate = []
+      const isManagedFamily = (id, group) => {
+        const owner = owners.providers[id], profile = current[id]
+        if (owner?.group !== group.group || owner.mergedInto || !guarded.get(id) ||
+          !guarded.get(owner.sourceProvider || id) || (!resetModels && profile?.api !== group.api)) return false
+        if (owner.familyApi) return owner.familyApi === group.api
+        const ids = [...(profile.models || []).map(model => model.id), ...Object.keys(profile.modelOverrides || {})]
+        return ids.length > 0 && ids.every(id => protocolForModel(id) === group.api)
+      }
       for (const group of groups) {
         const owner = owners.providers[group.provider], profile = current[group.provider]
-        if (!guarded.get(group.source) || (owner?.provisioned && !profile && !owner.mergedInto) ||
-          (profile && (!owner?.protocolPolicy || profile.api !== group.api || profile.apiKeyEnv !== bridgeRef(group.provider) || !managedURL(profile.baseURL,group.provider,profile.api)))) {
+        if (!guarded.get(group.source) || (!resetModels && ((owner?.provisioned && !profile && !owner.mergedInto) ||
+          (profile && !isManagedFamily(group.provider, group))))) {
           separate.push(group); continue
         }
         const key = JSON.stringify([group.group,group.api])
@@ -208,24 +233,19 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       groups = [...separate]
       for (const bucket of buckets.values()) {
         const [first] = bucket
-        const existing = Object.keys(current).find(id=>{
-          const owner=owners.providers[id], profile=current[id]
-          return owner?.group===first.group && owner.familyApi===first.api && !owner.mergedInto && guarded.get(id) && guarded.get(owner.sourceProvider || id) && profile.api===first.api && profile.apiKeyEnv===bridgeRef(id) && managedURL(profile.baseURL,id,profile.api)
-        })
-        const primary = bucket.find(group=>group.provider===existing) || first
-        const canonical = existing || owners.providers[primary.provider]?.mergedInto || primary.provider
-        if (!current[canonical] && owners.providers[canonical]?.provisioned && !selectDefault) continue
-        const target = {...primary,source:owners.providers[canonical]?.sourceProvider || primary.source,provider:canonical,rows:[], additions:new Set(), donors:[]}
+        const existing = Object.keys(current).filter(id => isManagedFamily(id, first))
+          .sort((left, right) => (current[right].models?.length ?? 0) - (current[left].models?.length ?? 0))
+        const primary = bucket.find(group => group.provider === existing[0]) || first
+        const prior = owners.providers[primary.provider]
+        const canonical = existing[0] || prior?.mergedInto || (prior || owners.providers[primary.source] ? primary.provider : providerId(first.group, first.api))
+        if (!current[canonical] && owners.providers[canonical]?.provisioned && !selectDefault && !resetModels) continue
+        const donors = existing.slice(1)
+        for (const donor of donors) merged.set(donor, canonical)
+        const target = {...primary,source:owners.providers[canonical]?.sourceProvider || primary.source,provider:canonical,rows:[], additions:new Set(), donors}
         const seen = new Set()
         for (const group of bucket) {
-          if (group.provider !== canonical && current[group.provider]) {
-            const ref = bridgeRef(group.provider), key = (await ctx.credentials.resolve(ref))?.value
-            if (key && digest(key)!==owners.providers[group.provider]?.keyDigest) { groups.push(group); continue }
-            target.donors.push(group.provider)
-            merged.set(group.provider,canonical)
-          }
           for (const row of group.rows) {
-            if (group.provider!==canonical && !current[group.provider] && !owners.providers[canonical]?.catalogIds?.includes(row.id)) target.additions.add(row.id)
+            if (current[canonical] && group.provider!==canonical && !current[group.provider] && !owners.providers[canonical]?.catalogIds?.includes(row.id)) target.additions.add(row.id)
             if (!seen.has(row.id)) { seen.add(row.id); target.rows.push({...row,provider:canonical}) }
           }
         }
@@ -236,10 +256,10 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       const {provider,source,rows,group:groupId}=group
       const ref=bridgeRef(provider), prior=owners.providers[provider], existing=current[provider]
       if (!prior && existing) throw new NovaError('MODEL_CONFIG_CONFLICT')
-      if (prior?.provisioned && !existing && !selectDefault) continue
+      if (prior?.provisioned && !existing && !selectDefault && !resetModels) continue
       const inherit=provider!==source && !existing && !prior?.provisioned
       if ((!existing || provider===source) && !guarded.get(source)) continue
-      if (inherit && owners.providers[source]?.provisioned && !current[source] && !selectDefault) continue
+      if (inherit && owners.providers[source]?.provisioned && !current[source] && !selectDefault && !resetModels) continue
       if (existing && (existing.apiKeyEnv!==ref || !managedURL(existing.baseURL,provider,existing.api))) continue
       let key=(await ctx.credentials.resolve(ref))?.value
       if (key && (!prior?.keyDigest || digest(key)!==prior.keyDigest || !key.startsWith('nfb_'))) {
@@ -247,38 +267,41 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         continue
       }
       if (!key) key='nfb_'+randomBytes(32).toString('base64url')
-      const template=existing || (inherit ? current[source] : undefined)
-      const migrate=force || prior?.protocolPolicy!==PROTOCOL_POLICY
+      const template=resetModels ? undefined : existing || (inherit ? current[source] : undefined)
+      const migrate=resetModels || force || prior?.protocolPolicy!==PROTOCOL_POLICY
       const api=migrate ? group.api : existing?.api || group.api
       if (!['openai-completions','openai-responses','anthropic-messages'].includes(api)) continue
       const convert=migrate || force || setupPending || !template || template.api!==api
-      const enhanceCapabilities=force || setupPending || (!template && (allCapabilities || config.enableAllCapabilities===true))
+      const enhanceCapabilities=resetModels ? allCapabilities : force || setupPending || (!template && (allCapabilities || config.enableAllCapabilities===true))
       const partition=inherit || prior?.protocolPolicy!==PROTOCOL_POLICY
       const selectModel=model=>!partition || protocolForModel(model.id)===group.api
-      const baseModels=template?.models ? template.models.filter(selectModel).map(model=>convert ? protocolModel(model,api,config,libraries,enhanceCapabilities) : model) : rows.map(row=>{
-        const seed=modelSeed({...row,api},config,libraries)
-        return protocolModel(seed,api,config,libraries,enhanceCapabilities)
+      const baseModels=template?.models ? template.models.filter(selectModel).map(model=>convert ? protocolModel(model,api,libraries,enhanceCapabilities) : model) : rows.map(row=>{
+        const seed=modelSeed({...row,api},libraries)
+        return protocolModel(seed,api,libraries,enhanceCapabilities)
       })
-      const models=baseModels.map(model=>thinkingModel(model,api,config,libraries))
+      const models=baseModels.map(model=>thinkingModel(model,api,libraries))
       const present = new Set(models.map(model=>model.id))
-      for (const donor of group.donors || []) for (const model of current[donor].models || []) {
-        if (!present.has(model.id)) { models.push(model); present.add(model.id) }
+      const donors = resetModels ? [] : group.donors || []
+      for (const donor of donors) for (const model of current[donor].models || []) {
+        if (present.has(model.id)) continue
+        models.push(thinkingModel(model,api,libraries))
+        present.add(model.id)
       }
       for (const row of rows) {
         if (present.has(row.id) || !(group.additions?.has(row.id) || (prior?.catalogIds && !prior.catalogIds.includes(row.id)))) continue
-        models.push(thinkingModel(protocolModel(modelSeed({...row,api},config,libraries),api,config,libraries,allCapabilities),api,config,libraries))
+        models.push(thinkingModel(protocolModel(modelSeed({...row,api},libraries),api,libraries,allCapabilities),api,libraries))
         present.add(row.id)
       }
       const baseURL=platformBase(api)
-      let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:'NovaFlow · '+groupId,api,baseURL,apiKeyEnv:ref,models,defaultContextWindow:config.contextWindow,defaultMaxTokens:config.maxTokens,transport:'sse'}
+      let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:'NovaFlow · '+groupId,api,baseURL,apiKeyEnv:ref,models,transport:'sse'}
       next.reasoning='high'
       if (template?.modelOverrides) {
         next.modelOverrides=Object.fromEntries(Object.entries(template.modelOverrides).filter(([id])=>selectModel({id})).map(([id,value])=>{
-          const converted=convert ? protocolModel({...value,id},api,config,libraries,enhanceCapabilities) : {...value}
+          const converted=convert ? protocolModel({...value,id},api,libraries,enhanceCapabilities) : {...value}
           // Overrides are partial. Absent fields must keep inheriting the model.
           if (!enhanceCapabilities && !Object.hasOwn(value,'reasoningEfforts')) delete converted.reasoningEfforts
           if (!Object.hasOwn(value,'compat')) delete converted.compat
-          const normalized=Object.hasOwn(converted,'reasoningEfforts') ? thinkingModel({...converted,id},api,config,libraries) : converted
+          const normalized=Object.hasOwn(converted,'reasoningEfforts') ? thinkingModel({...converted,id},api,libraries) : converted
           delete normalized.id
           return [id,normalized]
         }))
@@ -288,11 +311,27 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         const generated=rows.find(row=>row.id===model.id)
         return generated && (model.name===model.id+'（'+groupId+'）' || model.name===model.id+' ('+groupId+')') ? {...model,name:model.id} : model
       })}
-      for (const donor of group.donors || []) if (current[donor].modelOverrides) next.modelOverrides={...current[donor].modelOverrides,...next.modelOverrides}
+      for (const donor of donors) if (current[donor].modelOverrides) next.modelOverrides={...current[donor].modelOverrides,...next.modelOverrides}
+      if (!ownedItems) {
+        const catalogIds = new Set(rows.map(row => row.id))
+        next.defaultContextWindow = MODEL_CAPACITY.contextWindow
+        next.defaultMaxTokens = MODEL_CAPACITY.maxTokens
+        next.models = next.models.map(model => catalogIds.has(model.id) ? { ...model, ...MODEL_CAPACITY } : model)
+        if (next.modelOverrides) next.modelOverrides = Object.fromEntries(Object.entries(next.modelOverrides).map(([id, override]) => {
+          if (!catalogIds.has(id)) return [id, override]
+          const capacity = Object.fromEntries(Object.entries(MODEL_CAPACITY).filter(([field]) => Object.hasOwn(override, field)))
+          return [id, { ...override, ...capacity }]
+        }))
+      }
       if (!isDeepStrictEqual(existing,next)) changes.push({provider,next,expected:existing})
       owners.providers[provider]={...prior,group:groupId,api:existing?.api || api,pendingApi:api,ref,namesNormalized:true,provisioned:!!existing,keyDigest:digest(key),sourceProvider:source,familyApi:group.api}
       // Discovery also follows family routing, while removed native models stay removed.
-      routes.push({provider,api,group:groupId,key,models:rows.map(row=>thinkingModel(protocolModel(modelSeed({...row,api},config,libraries),api,config,libraries,allCapabilities),api,config,libraries))})
+      routes.push({provider,api,group:groupId,key,models:rows.map(row=>thinkingModel(protocolModel(modelSeed({...row,api},libraries),api,libraries,allCapabilities),api,libraries))})
+    }
+    const plannedProviders=new Set(routes.map(route=>route.provider))
+    const removals = new Set([...merged].filter(([, target]) => plannedProviders.has(target)).map(([donor]) => donor))
+    if (resetModels) for (const provider of Object.keys(current)) {
+      if (owners.providers[provider] && guarded.get(provider) && !plannedProviders.has(provider)) removals.add(provider)
     }
     if (generation !== revision) throw new NovaError('CANCELLED')
     await saveOwnership(owners)
@@ -301,7 +340,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       await ctx.credentials.set(bridgeRef(route.provider),route.key)
       if (generation !== revision) { await ctx.credentials.unset(bridgeRef(route.provider)); throw new NovaError('CANCELLED') }
     }
-    if (changes.length || merged.size) try { await ctx.configEditor.edit(liveEntry, latest=>{
+    if (changes.length || removals.size) try { await ctx.configEditor.edit(liveEntry, latest=>{
       if (generation !== revision) throw new NovaError('CANCELLED')
       const providers={...latest.providers}
       // Split profiles were derived from this exact source configuration.
@@ -310,26 +349,22 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         if (!isDeepStrictEqual(providers[change.provider],change.expected)) throw new NovaError('MODEL_CONFIG_CONFLICT')
         providers[change.provider]=change.next
       }
-      for (const [donor,target] of merged) {
-        if (!routes.some(route=>route.provider===target)) continue
-        if (!isDeepStrictEqual(current[donor],providers[donor])) throw new NovaError('MODEL_CONFIG_CONFLICT')
-        delete providers[donor]
-      }
+      deleteProviders(providers, current, removals)
       return {...latest,providers}
     }) } catch { console.error('[novaflow-account] native model settings write failed'); throw new NovaError('MODEL_SETTINGS_WRITE_FAILED') }
     if (generation !== revision) throw new NovaError('CANCELLED')
     for (const route of routes) {
       Object.assign(owners.providers[route.provider],{api:route.api,provisioned:true,protocolPolicy:PROTOCOL_POLICY})
       delete owners.providers[route.provider].pendingApi
-      if (!ownedItems) owners.providers[route.provider].catalogIds=[...new Set([...(owners.providers[route.provider].catalogIds || []),...route.models.map(model=>model.id)])]
+      if (!ownedItems) owners.providers[route.provider].catalogIds=[...new Set([...(resetModels ? [] : owners.providers[route.provider].catalogIds || []),...route.models.map(model=>model.id)])]
     }
-    for (const [donor,target] of merged) if (routes.some(route=>route.provider===target)) {
-      owners.providers[donor].mergedInto=target
-      await releaseKey(donor,owners.providers[donor])
+    for (const provider of removals) {
+      if (merged.has(provider)) owners.providers[provider].mergedInto=merged.get(provider)
+      await releaseKey(provider,owners.providers[provider])
+      ctx.emit('llm/models-updated',provider)
     }
     await saveOwnership(owners)
     if (generation !== revision) throw new NovaError('CANCELLED')
-    const plannedProviders=new Set(routes.map(route=>route.provider))
     if (!ownedItems) {
       const facts=JSON.stringify(routes)
       if (facts!==bridgeFacts) { bridge.setRoutes(routes);bridgeFacts=facts }
@@ -347,7 +382,9 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       await ctx.agentDefaultModel.saveSelection(currentDefault)
       await ctx.credentials.modifyRecord(DEFAULT_RECORD,async record=>record?.kind==='grant' && record.payload?.selected ? {...record,payload:{...record.payload,selected:currentDefault}} : undefined)
     }
-    if (selectDefault && selectedItems.length && !selectedItems.some(item=>item.provider===currentDefault.provider && item.id===currentDefault.model)) {
+    const defaultAvailable = nativeProfiles[currentDefault.provider]?.models?.some(model => model.id === currentDefault.model)
+    const replaceMissingDefault = resetModels && owners.providers[currentDefault.provider] && !defaultAvailable
+    if ((selectDefault || replaceMissingDefault) && selectedItems.length && !selectedItems.some(item=>item.provider===currentDefault.provider && item.id===currentDefault.model)) {
       const selected={provider:selectedItems[0].provider,model:selectedItems[0].id,reasoningEffort:'high'}
       await ctx.credentials.modifyRecord(DEFAULT_RECORD,async record=>({kind:'grant',payload:{previous:record?.kind==='grant' && record.payload?.previous ? record.payload.previous : currentDefault,selected}}))
       await ctx.agentDefaultModel.saveSelection(selected)
@@ -356,7 +393,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       await ctx.agentDefaultModel.saveSelection(selected)
       await ctx.credentials.modifyRecord(DEFAULT_RECORD,async record=>record?.kind==='grant' && record.payload?.selected ? {...record,payload:{...record.payload,selected}} : undefined)
     }
-    await ctx.credentials.modifyRecord(PREFERENCES_RECORD,async()=>({kind:'grant',payload:{protocolPolicy:PROTOCOL_POLICY,reasoningPolicy:REASONING_POLICY,allCapabilities:!!allCapabilities,capabilitiesInitialized:!!(force || setupPending || protocolsOnly || preferences?.capabilitiesInitialized)}}))
+    await ctx.credentials.modifyRecord(PREFERENCES_RECORD,async()=>({kind:'grant',payload:{protocolPolicy:PROTOCOL_POLICY,reasoningPolicy:REASONING_POLICY,allCapabilities:!!allCapabilities,capabilitiesInitialized:!!(resetModels || force || setupPending || protocolsOnly || preferences?.capabilitiesInitialized)}}))
     return selectedItems.map(({api,...item})=>item)
   }
   async function updateSafely(...args) {
@@ -390,22 +427,35 @@ export async function createModelBinding(ctx, account, config, libraries, { when
     const providers=lastConfigured?.providers || []
     return {providerCount:providers.length,modelCount:providers.reduce((count,profile)=>count+profile.modelIds.length,0),protocolPolicy:PROTOCOL_POLICY,apis:['anthropic-messages','openai-responses'],capabilitiesReset:force,...(force ? {input:['text','image']} : {}),providers}
   }
-  async function clear(restore = true) {
+  async function clear(restore, { removeProfiles = false } = {}) {
     bridge.clear(); bridgeFacts=''; lastCatalog=undefined; lastConfigured=undefined
     const owners = await ownership()
-    for (const [provider, facts] of Object.entries(owners.providers)) {
-      // The private ref is owned by this bridge, while model configuration remains
-      // available for editing in the official page after sign-out.
-      await releaseKey(provider,facts)
-      ctx.emit('llm/models-updated',provider)
-    }
-    liveProviders.clear()
-    if (restore) {
-      const record = await ctx.credentials.readRecord(DEFAULT_RECORD)
-      const saved = record?.kind === 'grant' ? record.payload : null
-      const selected = ctx.agentDefaultModel.currentSelection()
-      if (saved?.previous && owners.providers[selected.provider]) await ctx.agentDefaultModel.saveSelection(saved.previous)
-      await ctx.credentials.deleteRecord(DEFAULT_RECORD)
+    try {
+      if (removeProfiles && Object.keys(owners.providers).length) {
+        const liveEntry = entry(), current = liveEntry.options.config?.providers || {}
+        const removals = []
+        for (const [provider, owner] of Object.entries(owners.providers)) {
+          if (current[provider] && await managesConnection(provider,owner,current[provider])) removals.push(provider)
+        }
+        if (removals.length) await ctx.configEditor.edit(liveEntry, latest => {
+          const providers = {...latest.providers}
+          deleteProviders(providers, current, removals)
+          return {...latest,providers}
+        })
+      }
+    } finally {
+      liveProviders.clear()
+      for (const [provider, facts] of Object.entries(owners.providers)) {
+        await releaseKey(provider,facts)
+        ctx.emit('llm/models-updated',provider)
+      }
+      if (restore) {
+        const record = await ctx.credentials.readRecord(DEFAULT_RECORD)
+        const saved = record?.kind === 'grant' ? record.payload : null
+        const selected = ctx.agentDefaultModel.currentSelection()
+        if (saved?.previous && owners.providers[selected.provider]) await ctx.agentDefaultModel.saveSelection(saved.previous)
+        await ctx.credentials.deleteRecord(DEFAULT_RECORD)
+      }
     }
   }
   let mutations = Promise.resolve()
@@ -413,5 +463,5 @@ export async function createModelBinding(ctx, account, config, libraries, { when
   return {configureAllModels:()=>serialize(configureAllModels),migrateProtocols:()=>serialize(()=>configureAllModels(false)),summary: () => {
     const providers = entry().options.config?.providers || {}
     return [...new Set([...liveProviders,...(lastConfigured?.providers || []).map(profile=>profile.provider)])].filter(provider=>providers[provider]).map(provider => ({provider,api:providers[provider].api || null,modelCount:providers[provider]?.models?.length || 0,imageModelCount:(providers[provider]?.models || []).filter(model=>model.input?.includes('image')).length,reasoningModels:(providers[provider]?.models || []).filter(model => model.reasoningEfforts && model.reasoningEfforts !== false).map(model=>({id:model.id,efforts:Object.keys(model.reasoningEfforts)}))}))
-  },update:(...args)=>serialize(()=>updateSafely(...args)),clear:(restore=true)=>{revision++;bridge.clear();return restore ? serialize(()=>clear(true)) : clear(false)},bridge}
+  },update:(...args)=>serialize(()=>updateSafely(...args)),clear:(restore=true,options)=>{revision++;bridge.clear();return restore ? serialize(()=>clear(true,options)) : clear(false)},bridge}
 }

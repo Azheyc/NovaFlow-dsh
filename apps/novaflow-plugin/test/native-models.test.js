@@ -9,7 +9,7 @@ import { createModelBinding, loadNativeLibraries, parseCatalog, modelSeed, nativ
 // These tests parse the actual installed official Config. Configuration, secret
 // stores, and HTTP boundaries are isolated in memory; no real account is read.
 const libraries = await loadNativeLibraries()
-const config = { contextWindow: 32768, maxTokens: 4096 }
+const config = {}
 const row = (group, endpoint = 'openai', id = 'test-model', extra = {}) => ({ group_id: group, model_id: id, label: `${id}（${group}）`, kind: 'text', supported_endpoint_types: [endpoint], ...extra })
 const clone = value => structuredClone(value)
 const ownerRecord = 'novaflow-account/native-providers'
@@ -122,6 +122,8 @@ test('first sync saves official providers via ConfigEditor, with secret referenc
     const profile = saved[item.provider]
     assert.equal(profile.apiKeyEnv, bridgeRef(item.provider))
     assert.equal(profile.models[0].name, item.id)
+    assert.equal(parsed[item.provider].models[0].contextWindow, 512_000)
+    assert.equal(parsed[item.provider].models[0].maxTokens, 128_000)
     assert.equal(profile.reasoning, 'high')
     assert.equal(profile.models[0].reasoningEfforts.high, 'high')
     assert.equal(profile.models[0].reasoningEfforts.off, undefined)
@@ -137,20 +139,27 @@ test('first sync saves official providers via ConfigEditor, with secret referenc
   assert.equal(JSON.stringify(saved).includes('nfdr_'), false)
 })
 
-test('repeated sync preserves native edits, removals, reasoning preference and unrelated providers', async t => {
+test('repeated sync updates platform capacities and preserves native names, removals and unrelated providers', async t => {
   const h = await bindingFor(t)
   const catalog = { items: [row('A', 'anthropic', 'claude-opus-4-6'), row('A', 'anthropic', 'claude-custom-model')] }
   const [item] = await h.binding.update(catalog, false)
   const profile = h.state.entry.options.config.providers[item.provider]
   profile.displayName = 'My custom provider'
   profile.reasoningEffort = 'low'
+  profile.defaultContextWindow = 32768
+  profile.defaultMaxTokens = 4096
   profile.models = [{ ...profile.models[0], name: 'My model', contextWindow: 99999, maxTokens: 1234 }]
   h.state.entry.options.config.providers.unrelated = { api: 'openai-completions', baseURL: 'https://example.invalid/v1', apiKeyEnv: 'UNRELATED_KEY', models: [{ id: 'other', contextWindow: 8192, maxTokens: 1024, reasoningEfforts: false }] }
   const before = clone(h.state.entry.options.config)
   const editCount = h.state.edits.length
   const selected = await h.binding.update(catalog, false)
+  const expected = before.providers[item.provider]
+  Object.assign(expected, { defaultContextWindow: 512_000, defaultMaxTokens: 128_000 })
+  Object.assign(expected.models[0], { contextWindow: 512_000, maxTokens: 128_000 })
   assert.deepEqual(h.state.entry.options.config, before)
-  assert.equal(h.state.edits.length, editCount, 'no-op sync must not cause a ConfigEditor restart')
+  assert.equal(h.state.edits.length, editCount + 1)
+  await h.binding.update(catalog, false)
+  assert.equal(h.state.edits.length, editCount + 1, 'no-op sync must not cause a ConfigEditor restart')
   assert.deepEqual(selected.map(value => value.id), ['claude-opus-4-6'])
 })
 
@@ -183,18 +192,44 @@ test('restart migrates an old loopback URL while preserving native profile edits
   assert.equal(h.state.keys.get(bridgeRef(item.provider)), key)
 })
 
-test('sign-out removes local keys but keeps official editable config and restores the old default', async t => {
+test('explicit sign-out removes managed profiles and keys, restores the old default, and permits reinitialization', async t => {
   const h = await bindingFor(t)
   const original = clone(h.state.selection)
   const items = await h.binding.update({ items: [row('A'), row('B')] }, true)
-  const saved = clone(h.state.entry.options.config)
+  const saved = clone(h.state.entry.options.config.providers)
+  const external = { api: 'openai-responses', baseURL: 'https://example.invalid/v1', apiKeyEnv: 'EXTERNAL_KEY', models: [] }
+  h.state.entry.options.config.providers.external = external
   h.state.selection = { provider: items[1].provider, model: items[1].id }
-  await h.binding.clear()
+  await h.binding.clear(true, { removeProfiles: true })
   assert.equal(h.state.keys.size, 0)
-  assert.deepEqual(h.state.entry.options.config, saved)
+  assert.deepEqual(h.state.entry.options.config.providers, { external })
   assert.deepEqual(h.state.selection, original)
   assert.equal(h.state.records.has(defaultRecord), false)
-  assert.ok(h.state.records.has(ownerRecord), 'ownership is retained to preserve native deletion intent')
+  await h.binding.update({ items: [row('A'), row('B')] }, true, { resetModels: true })
+  assert.deepEqual(h.state.entry.options.config.providers, { ...saved, external })
+})
+
+test('manual refresh rebuilds removed and edited models and providers from the current catalog', async t => {
+  const h = await bindingFor(t)
+  const catalog = { items: [row('GPT', 'openai', 'gpt-first'), row('GPT', 'openai-response', 'gpt-second'), row('Claude', 'anthropic', 'claude-test')] }
+  await h.binding.update(catalog, true, { resetModels: true })
+  const initial = clone(h.state.entry.options.config.providers)
+  const [gpt, claude] = Object.keys(initial)
+  await h.binding.update({ items: [row('Old access')] }, false)
+  const profiles = h.state.entry.options.config.providers
+  delete profiles[claude]
+  profiles[gpt].api = 'openai-completions'
+  profiles[gpt].displayName = 'Changed provider'
+  profiles[gpt].models = [{ ...initial[gpt].models[0], name: 'Custom name', input: ['image'] }]
+  profiles[gpt].models.push({ id: 'custom-added', name: 'Custom addition' })
+  profiles[gpt].modelOverrides = { 'gpt-first': { maxTokens: 1024 } }
+  h.state.selection = { provider: gpt, model: 'custom-added' }
+  await h.binding.update(catalog, false, { resetModels: true })
+  assert.deepEqual(h.state.entry.options.config.providers, initial)
+  assert.deepEqual(h.state.selection, { provider: gpt, model: 'gpt-first', reasoningEffort: 'high' })
+  const editCount = h.state.edits.length
+  await h.binding.update(catalog, false, { resetModels: true })
+  assert.equal(h.state.edits.length, editCount)
 })
 
 test('logout preserves a later external default while unloading retains current NovaFlow default', async t => {
@@ -302,14 +337,15 @@ test('sign-out preserves the credential after the user repurposes the profile to
 })
 
 test('unknown model capabilities remain reasoning false; known builtin metadata survives official Config', () => {
-  const unknown = modelSeed({ id: 'unknown-fixture', api: 'openai-responses' }, config, libraries)
+  const unknown = modelSeed({ id: 'unknown-fixture', api: 'openai-responses' }, libraries)
   assert.equal(unknown.reasoningEfforts, false)
-  assert.equal(unknown.contextWindow, config.contextWindow)
-  const claude = modelSeed({ id: 'claude-opus-4-6', api: 'anthropic-messages' }, config, libraries)
+  assert.equal(unknown.contextWindow, 512_000)
+  assert.equal(unknown.maxTokens, 128_000)
+  const claude = modelSeed({ id: 'claude-opus-4-6', api: 'anthropic-messages' }, libraries)
   assert.equal(claude.name, 'claude-opus-4-6')
   assert.equal(claude.compat.forceAdaptiveThinking, true)
   assert.equal(claude.reasoningEfforts.low, 'low'); assert.equal(claude.reasoningEfforts.high, 'high'); assert.equal(claude.reasoningEfforts.max, 'max')
-  const openai = modelSeed({ id: 'gpt-5.4', api: 'openai-responses' }, config, libraries)
+  const openai = modelSeed({ id: 'gpt-5.4', api: 'openai-responses' }, libraries)
   assert.equal(openai.reasoningEfforts.low, 'low'); assert.equal(openai.reasoningEfforts.high, 'high'); assert.equal(openai.reasoningEfforts.xhigh, 'xhigh')
   assert.equal(Object.hasOwn(openai.reasoningEfforts, 'max'), false)
   const parsed = officialProviders({ claude: { api: 'anthropic-messages', baseURL: 'http://127.0.0.1:64661/novaflow/models/test', apiKeyEnv: 'TEST_KEY', models: [claude] }, openai: { api: 'openai-responses', baseURL: 'http://127.0.0.1:64661/novaflow/models/test/v1', apiKeyEnv: 'TEST_KEY', models: [openai, unknown] } })
@@ -322,7 +358,7 @@ test('unknown model capabilities remain reasoning false; known builtin metadata 
 // Config -> official apply -> resolveProfiles/catalog -> PiAiAdapter -> native SDK.
 // Optional settings/auth flows stay absent; all credential reads use a fixture.
 function officialAdapter(id, api, configuredSeed, profileOptions = {}) {
-  const seed = configuredSeed || modelSeed({ id, api }, config, libraries)
+  const seed = configuredSeed || modelSeed({ id, api }, libraries)
   let adapter
   const handle = () => Object.assign(() => {}, { replace: () => {} })
   const ctx = {
@@ -398,7 +434,7 @@ test('configureAllModels uses family protocols with image and native effort prof
     assert.deepEqual(profile.models.map(model => model.id), beforeIds[provider])
     for (const model of profile.models) {
       assert.deepEqual(model.input, ['text','image'])
-      assert.deepEqual(model.reasoningEfforts, expectedApi==='anthropic-messages' ? modelSeed({id:model.id,api:expectedApi},config,libraries).reasoningEfforts : {low:'low',medium:'medium',high:'high',xhigh:'xhigh',max:'max'})
+      assert.deepEqual(model.reasoningEfforts, expectedApi==='anthropic-messages' ? modelSeed({id:model.id,api:expectedApi},libraries).reasoningEfforts : {low:'low',medium:'medium',high:'high',xhigh:'xhigh',max:'max'})
       const raw = saved[provider].models.find(value => value.id === model.id)
       const metadata = await officialAdapter(model.id, profile.api, raw).resolveModel('test', model.id)
       assert.deepEqual(metadata.inputModalities, ['text','image'])
@@ -481,12 +517,50 @@ function legacyResponses(h,catalog) {
     h.state.keys.set(ref,key)
     owners.providers[item.provider]={group:item.group,api:'openai-responses',ref,namesNormalized:true,provisioned:true,keyDigest:createHash('sha256').update(key).digest('hex')}
     profiles[item.provider] ||= {displayName:'Custom '+item.group,api:'openai-responses',apiKeyEnv:ref,baseURL:'http://127.0.0.1:64661/novaflow/models/'+item.provider+'/v1',models:[]}
-    profiles[item.provider].models.push({...modelSeed({...item,api:'openai-responses'},config,libraries),input:['text','image'],reasoningEfforts:{off:'none',low:'low',medium:'medium',high:'high',xhigh:'xhigh',max:'max'},compat:{supportsDeveloperRole:true}})
+    profiles[item.provider].models.push({...modelSeed({...item,api:'openai-responses'},libraries),input:['text','image'],reasoningEfforts:{off:'none',low:'low',medium:'medium',high:'high',xhigh:'xhigh',max:'max'},compat:{supportsDeveloperRole:true}})
   }
   h.state.records.set(ownerRecord,{kind:'grant',payload:owners})
   h.state.records.set('novaflow-account/model-preferences',{kind:'grant',payload:{api:'openai-responses',allCapabilities:true}})
   return profiles
 }
+
+test('first sync keeps one stable GPT provider across advertised protocol and row order changes', async t => {
+  const group = 'gpt pro稳定分组'
+  const full = [row(group, 'openai', 'gpt-6.1-sol'), row(group, 'openai', 'gpt-6.1-astra')]
+  const added = [row(group, 'openai-response', 'gpt-6.2-sol'), row(group, 'openai-response', 'gpt-6.2-astra')]
+  const first = await bindingFor(t)
+  const second = await bindingFor(t)
+  const items = await first.binding.update({ items: [...full, ...added] }, true)
+  const reversed = await second.binding.update({ items: [...added, ...full] }, true)
+  const [provider] = Object.keys(first.state.entry.options.config.providers)
+  assert.deepEqual(Object.keys(second.state.entry.options.config.providers), [provider])
+  for (const models of [items, reversed]) {
+    assert.equal(models.length, 4)
+    assert.ok(models.every(model => model.provider === provider))
+  }
+})
+
+test('refresh removes a managed GPT duplicate even after its advertised protocol disappears from the catalog', async t => {
+  const h = await bindingFor(t)
+  const group = 'gpt pro稳定分组'
+  const full = ['gpt-6.1-sol', 'gpt-6.1-astra', 'gpt-6.1-terra'].map(id => row(group, 'openai', id))
+  const added = [row(group, 'openai-response', 'gpt-6.2-sol'), row(group, 'openai-response', 'gpt-6.2-astra')]
+  const profiles = legacyResponses(h, { items: [...added, ...full] })
+  const [duplicate, primary] = Object.keys(profiles)
+  Object.assign(profiles[duplicate].models[0], { contextWindow: 200_000, maxTokens: 4096 })
+  h.state.selection = { provider: duplicate, model: added[0].model_id, reasoningEffort: 'high' }
+  const catalog = { items: [...full, ...added.map(model => ({ ...model, supported_endpoint_types: ['openai'] }))] }
+  await h.binding.update(catalog, false)
+  const saved = h.state.entry.options.config.providers
+  assert.deepEqual(Object.keys(saved), [primary])
+  assert.deepEqual(saved[primary].models.map(model => model.id), [...full, ...added].map(model => model.model_id))
+  assert.ok(saved[primary].models.every(model => model.contextWindow === 512_000 && model.maxTokens === 128_000))
+  assert.equal(h.state.selection.provider, primary)
+  assert.ok(!h.state.keys.has(bridgeRef(duplicate)))
+  const edits = h.state.edits.length
+  await h.binding.update(catalog, false)
+  assert.equal(h.state.edits.length, edits)
+})
 
 test('refresh merges existing GPT endpoint duplicates and keeps subsequent additions in the original group',async t=>{
   const h=await bindingFor(t), group='gpt pro稳定分组'
@@ -537,7 +611,7 @@ test('legacy pure Claude provider migrates in place with its key, names, image s
   const saved=h.state.entry.options.config.providers[id]
   assert.equal(saved.api,'anthropic-messages');assert.equal(saved.baseURL,'https://www.ycnovaflow.vip')
   assert.equal(h.state.keys.get(bridgeRef(id)),key)
-  assert.equal(saved.models[0].name,'My Opus');assert.equal(saved.models[0].contextWindow,77777);assert.equal(saved.models[0].maxTokens,1234)
+  assert.equal(saved.models[0].name,'My Opus');assert.equal(saved.models[0].contextWindow,512_000);assert.equal(saved.models[0].maxTokens,128_000)
   assert.deepEqual(saved.models[0].input,['text','image'])
   assert.equal(saved.models[0].reasoningEfforts.off,undefined);assert.equal(saved.models[0].reasoningEfforts.xhigh,undefined)
   assert.equal(saved.models[0].compat.forceAdaptiveThinking,true)
@@ -545,7 +619,7 @@ test('legacy pure Claude provider migrates in place with its key, names, image s
   assert.deepEqual(saved.compat,{})
   assert.equal(saved.modelOverrides['claude-opus-4-6'].id,undefined)
   assert.equal(saved.modelOverrides['claude-opus-4-6'].reasoningEfforts,undefined)
-  assert.equal(saved.modelOverrides['claude-opus-4-6'].maxTokens,1024)
+  assert.equal(saved.modelOverrides['claude-opus-4-6'].maxTokens,128_000)
   assert.equal(h.state.records.get(ownerRecord).payload.providers[id].protocolPolicy,PROTOCOL_POLICY)
   const adapter=officialAdapter('claude-opus-4-6',saved.api,saved.models[0])
   assert.ok((await adapter.resolveModel('test','claude-opus-4-6')).reasoning.efforts.some(effort=>effort.id==='max'))
