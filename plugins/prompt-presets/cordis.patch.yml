@@ -1,0 +1,3 @@
+- insert:
+    - id: novaflow-prompt-presets
+      name: novaflow-dsh-prompt-presets

@@ -180,15 +180,55 @@ export async function createModelBinding(ctx, account, config, libraries, { when
     const setupPending = !protocolsOnly && config.enableAllCapabilities === true && !preferences?.allCapabilities && !preferences?.capabilitiesInitialized
     const allCapabilities = force || setupPending || preferences?.allCapabilities === true
     const liveEntry = entry(), current = liveEntry.options.config?.providers || {}
-    const groups = familyGroups(sourceItems,owners,current)
+    let groups = familyGroups(sourceItems,owners,current)
     const guarded = new Map()
     // Resolve ownership once before constructing split profiles. A changed source
     // connection/key must never be copied into a new managed child provider.
-    for (const source of new Set(groups.map(group=>group.source))) {
+    for (const source of new Set([...groups.map(group=>group.source),...Object.keys(owners.providers)])) {
       const prior=owners.providers[source], profile=current[source], ref=bridgeRef(source)
       if (!prior && profile) throw new NovaError('MODEL_CONFIG_CONFLICT')
       const key=(await ctx.credentials.resolve(ref))?.value
       guarded.set(source,!(profile && (profile.apiKeyEnv!==ref || !managedURL(profile.baseURL,source,profile.api))) && !(key && (!prior?.keyDigest || digest(key)!==prior.keyDigest || !key.startsWith('nfb_'))))
+    }
+    const merged = new Map()
+    if (!ownedItems) {
+      const buckets = new Map(), separate = []
+      for (const group of groups) {
+        const owner = owners.providers[group.provider], profile = current[group.provider]
+        if (!guarded.get(group.source) || (owner?.provisioned && !profile && !owner.mergedInto) ||
+          (profile && (!owner?.protocolPolicy || profile.api !== group.api || profile.apiKeyEnv !== bridgeRef(group.provider) || !managedURL(profile.baseURL,group.provider,profile.api)))) {
+          separate.push(group); continue
+        }
+        const key = JSON.stringify([group.group,group.api])
+        if (!buckets.has(key)) buckets.set(key,[])
+        buckets.get(key).push(group)
+      }
+      groups = [...separate]
+      for (const bucket of buckets.values()) {
+        const [first] = bucket
+        const existing = Object.keys(current).find(id=>{
+          const owner=owners.providers[id], profile=current[id]
+          return owner?.group===first.group && owner.familyApi===first.api && !owner.mergedInto && guarded.get(id) && guarded.get(owner.sourceProvider || id) && profile.api===first.api && profile.apiKeyEnv===bridgeRef(id) && managedURL(profile.baseURL,id,profile.api)
+        })
+        const primary = bucket.find(group=>group.provider===existing) || first
+        const canonical = existing || owners.providers[primary.provider]?.mergedInto || primary.provider
+        if (!current[canonical] && owners.providers[canonical]?.provisioned && !selectDefault) continue
+        const target = {...primary,source:owners.providers[canonical]?.sourceProvider || primary.source,provider:canonical,rows:[], additions:new Set(), donors:[]}
+        const seen = new Set()
+        for (const group of bucket) {
+          if (group.provider !== canonical && current[group.provider]) {
+            const ref = bridgeRef(group.provider), key = (await ctx.credentials.resolve(ref))?.value
+            if (key && digest(key)!==owners.providers[group.provider]?.keyDigest) { groups.push(group); continue }
+            target.donors.push(group.provider)
+            merged.set(group.provider,canonical)
+          }
+          for (const row of group.rows) {
+            if (group.provider!==canonical && !current[group.provider] && !owners.providers[canonical]?.catalogIds?.includes(row.id)) target.additions.add(row.id)
+            if (!seen.has(row.id)) { seen.add(row.id); target.rows.push({...row,provider:canonical}) }
+          }
+        }
+        groups.push(target)
+      }
     }
     for (const group of groups) {
       const {provider,source,rows,group:groupId}=group
@@ -218,6 +258,15 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         return protocolModel(seed,api,config,libraries,enhanceCapabilities)
       })
       const models=baseModels.map(model=>thinkingModel(model,api,config,libraries))
+      const present = new Set(models.map(model=>model.id))
+      for (const donor of group.donors || []) for (const model of current[donor].models || []) {
+        if (!present.has(model.id)) { models.push(model); present.add(model.id) }
+      }
+      for (const row of rows) {
+        if (present.has(row.id) || !(group.additions?.has(row.id) || (prior?.catalogIds && !prior.catalogIds.includes(row.id)))) continue
+        models.push(thinkingModel(protocolModel(modelSeed({...row,api},config,libraries),api,config,libraries,allCapabilities),api,config,libraries))
+        present.add(row.id)
+      }
       const baseURL=origin+'/novaflow/models/'+provider+(api==='anthropic-messages'?'':'/v1')
       let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:'NovaFlow · '+groupId,api,baseURL,apiKeyEnv:ref,models,defaultContextWindow:config.contextWindow,defaultMaxTokens:config.maxTokens,transport:'sse'}
       next.reasoning='high'
@@ -237,6 +286,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         const generated=rows.find(row=>row.id===model.id)
         return generated && (model.name===model.id+'（'+groupId+'）' || model.name===model.id+' ('+groupId+')') ? {...model,name:model.id} : model
       })}
+      for (const donor of group.donors || []) if (current[donor].modelOverrides) next.modelOverrides={...current[donor].modelOverrides,...next.modelOverrides}
       if (!isDeepStrictEqual(existing,next)) changes.push({provider,next,expected:existing})
       owners.providers[provider]={...prior,group:groupId,api:existing?.api || api,pendingApi:api,ref,namesNormalized:true,provisioned:!!existing,keyDigest:digest(key),sourceProvider:source,familyApi:group.api}
       // Discovery also follows family routing, while removed native models stay removed.
@@ -249,7 +299,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       await ctx.credentials.set(bridgeRef(route.provider),route.key)
       if (generation !== revision) { await ctx.credentials.unset(bridgeRef(route.provider)); throw new NovaError('CANCELLED') }
     }
-    if (changes.length) try { await ctx.configEditor.edit(liveEntry, latest=>{
+    if (changes.length || merged.size) try { await ctx.configEditor.edit(liveEntry, latest=>{
       if (generation !== revision) throw new NovaError('CANCELLED')
       const providers={...latest.providers}
       // Split profiles were derived from this exact source configuration.
@@ -258,12 +308,22 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         if (!isDeepStrictEqual(providers[change.provider],change.expected)) throw new NovaError('MODEL_CONFIG_CONFLICT')
         providers[change.provider]=change.next
       }
+      for (const [donor,target] of merged) {
+        if (!routes.some(route=>route.provider===target)) continue
+        if (!isDeepStrictEqual(current[donor],providers[donor])) throw new NovaError('MODEL_CONFIG_CONFLICT')
+        delete providers[donor]
+      }
       return {...latest,providers}
     }) } catch { console.error('[novaflow-account] native model settings write failed'); throw new NovaError('MODEL_SETTINGS_WRITE_FAILED') }
     if (generation !== revision) throw new NovaError('CANCELLED')
     for (const route of routes) {
       Object.assign(owners.providers[route.provider],{api:route.api,provisioned:true,protocolPolicy:PROTOCOL_POLICY})
       delete owners.providers[route.provider].pendingApi
+      if (!ownedItems) owners.providers[route.provider].catalogIds=[...new Set([...(owners.providers[route.provider].catalogIds || []),...route.models.map(model=>model.id)])]
+    }
+    for (const [donor,target] of merged) if (routes.some(route=>route.provider===target)) {
+      owners.providers[donor].mergedInto=target
+      await releaseKey(donor,owners.providers[donor])
     }
     await saveOwnership(owners)
     if (generation !== revision) throw new NovaError('CANCELLED')
@@ -279,7 +339,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
     lastConfigured={providers:[...plannedProviders].map(provider=>({provider,api:nativeProfiles[provider]?.api,modelIds:(nativeProfiles[provider]?.models || []).map(model=>model.id)}))}
     const selectedItems=groups.flatMap(group=>group.rows).filter(item=>plannedProviders.has(item.provider) && nativeProfiles[item.provider]?.models?.some(model=>model.id===item.id))
     let currentDefault=ctx.agentDefaultModel.currentSelection()
-    const moved=groups.find(group=>group.source===currentDefault.provider && group.provider!==group.source && plannedProviders.has(group.provider) && nativeProfiles[group.provider]?.models?.some(model=>model.id===currentDefault.model))
+    const moved=groups.find(group=>(group.source===currentDefault.provider || merged.get(currentDefault.provider)===group.provider) && group.provider!==currentDefault.provider && plannedProviders.has(group.provider) && nativeProfiles[group.provider]?.models?.some(model=>model.id===currentDefault.model))
     if (moved && !nativeProfiles[currentDefault.provider]?.models?.some(model=>model.id===currentDefault.model)) {
       currentDefault={...currentDefault,provider:moved.provider}
       await ctx.agentDefaultModel.saveSelection(currentDefault)

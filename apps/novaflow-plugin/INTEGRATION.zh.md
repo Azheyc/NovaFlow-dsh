@@ -14,11 +14,11 @@ Desktop 在标准 Web bundle 之后、用户 bundle 之前加入 NovaFlow。已�
 
 临时同步失败可使用已保存授权重试。启动时自动校验保存的授权；校验失败则清除本地授权，回到与新用户相同的登录首页，保留原生模型设置。自动清理本地授权不撤销其他设备持有的会话副本。取消操作绑定当前授权代次。工作区内退出或授权失效会同步到原生开屏流程。
 
-开屏页复用插件图标，中英文提供 NovaFlow 专属说明；其他界面语言的新增恢复说明暂用英文。主应用名称和安装器身份仍沿用上游名称。
+开屏页复用插件图标，中英文提供 NovaFlow 专属说明；其他界面语言的新增恢复说明暂用英文。Windows 发行使用 NovaFlow 名称和独立安装身份，构建与更新配置见 [Windows 发布手册](../desktop/novaflow-release/README.zh.md)。
 
 ## Windows 与验证
 
-账户插件不再提供推荐插件安装界面、包管理运行时检查或安装动作。四个社区插件由桌面端离线预装。旧 confirm_plugins、dismiss_plugins 和 retry_plugins 请求返回 UNSUPPORTED_ACTION，账户快照不再包含 pluginSetup。核心账户项不出现在插件清单中，不能通过 Host 管理接口关闭、移除、替换或编辑配置。
+账户插件不再提供推荐插件安装界面、包管理运行时检查或安装动作。桌面端离线预装固定版本的社区插件，其中包括 Skills Manager 1.4.11。每个包在同一 profile 中只初始化一次。加入新预装包时，之前卸载的插件及已有启停选择保持原样。旧 confirm_plugins、dismiss_plugins 和 retry_plugins 请求返回 UNSUPPORTED_ACTION，账户快照不再包含 pluginSetup。核心账户项不出现在插件清单中，不能通过 Host 管理接口关闭、移除、替换或编辑配置。
 
 媒体输出路径同时检查 Windows 和 POSIX 路径分隔符。作业元数据使用 DSH 原子写入及 Windows 替换重试。目录链接测试在 Windows 使用 junction；POSIX 权限位断言仅在 POSIX 系统执行。
 

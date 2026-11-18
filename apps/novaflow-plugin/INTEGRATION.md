@@ -14,11 +14,11 @@ The configured issuer is `https://www.ycnovaflow.vip`; the client identity is `n
 
 Transient synchronization failures can retry with the saved grant. Startup validates saved authorization automatically. Failed validation clears the local grant and returns the same entry screen as a new user, keeping native model settings. Automatic local cleanup does not revoke other copies of the session. Cancellation binds to the current attempt. Account sign-out and expiry in the workspace are reflected by native onboarding.
 
-The welcome page reuses the plugin artwork. Chinese and English have NovaFlow-specific explanatory copy; the additional recovery copy uses English for other shell locales. The main application name and installer identity remain the upstream names.
+The welcome page reuses the plugin artwork. Chinese and English have NovaFlow-specific explanatory copy; the additional recovery copy uses English for other shell locales. Windows releases use the NovaFlow application name and independent installation identity. Build and update configuration is owned by the [Windows release manual](../desktop/novaflow-release/README.md).
 
 ## Windows and validation
 
-The account plugin has no recommended-plugin installation UI, package-runtime checks or installer actions. The four community plugins are seeded offline by Desktop. Legacy confirm_plugins, dismiss_plugins and retry_plugins requests return UNSUPPORTED_ACTION; account snapshots no longer contain pluginSetup. The core account row is hidden from plugin inventory and cannot be disabled, removed, replaced or edited through Host management APIs.
+The account plugin has no recommended-plugin installation UI, package-runtime checks or installer actions. Desktop seeds the pinned community plugins offline, including Skills Manager 1.4.11. Each package is offered once per profile, so adding a package to the seed leaves earlier removals and existing enablement choices intact. Legacy confirm_plugins, dismiss_plugins and retry_plugins requests return UNSUPPORTED_ACTION; account snapshots no longer contain pluginSetup. The core account row is hidden from plugin inventory and cannot be disabled, removed, replaced or edited through Host management APIs.
 
 Media output paths inspect both Windows and POSIX separators. Job metadata uses DSH atomic writes with Windows replacement retries. Directory-link tests use Windows junctions; POSIX permission-bit assertions run only on POSIX systems.
 

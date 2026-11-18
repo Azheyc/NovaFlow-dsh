@@ -33,6 +33,7 @@ afterEach(async () => {
     runtimes.clear()
     cleanup()
     localStorage.clear()
+    document.documentElement.removeAttribute('data-platform')
   }
 })
 
@@ -375,6 +376,21 @@ describe('sidebar launcher pins', () => {
     await mountProbeActions(runtime)
     await waitFor(() => { expect(within(navigation).queryByRole('button', { name: 'Alpha panel' })).toBeNull() })
     expect(within(navigation).getByRole('button', { name: 'More' })).toBeTruthy()
+  })
+
+  it('keeps all desktop launchers accessible when More actions are registered', async () => {
+    document.documentElement.setAttribute('data-platform', 'win32')
+    const { runtime, view } = await bench()
+    await mountPanel(runtime, { id: PLUGINS, heading: 'Plugins content', label: 'Plugins', order: 0 })
+    await mountPanel(runtime, { id: SCHEDULES, heading: 'Automation content', label: 'Automation tasks', order: 1 })
+    await mountProbeActions(runtime)
+
+    const navigation = within(await view.findByRole('navigation', { name: 'Global panels' }))
+    expect(navigation.getAllByRole('button').map(row => row.getAttribute('aria-label'))).toEqual(['Plugins', 'Automation tasks'])
+    fireEvent.click(navigation.getByRole('button', { name: 'Plugins' }))
+    expect(view.getByRole('heading', { name: 'Plugins content' })).toBeTruthy()
+    fireEvent.click(navigation.getByRole('button', { name: 'Automation tasks' }))
+    expect(view.getByRole('heading', { name: 'Automation content' })).toBeTruthy()
   })
 
   it.each([false, true])('opens, pins, and dismisses through the More menu with collapsed=%s', async (collapsed) => {

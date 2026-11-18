@@ -170,7 +170,8 @@ export function SidebarRoot({
   const panels = usePanels(snapshot => snapshot)
   const unpinned = useEntryPins(ids => ids)
   const activePanelId = usePanelInfo(info => info.activePanelId)
-  const hasEntryActions = useEntryActions(registered => registered)
+  const hasRegisteredEntryActions = useEntryActions(registered => registered)
+  const hasEntryActions = hasRegisteredEntryActions && !document.documentElement.hasAttribute('data-platform')
   const shortcut = useShortcuts(rows => rows.find(row => row.id === 'sidebar.left.toggle'))
   const newShortcut = useShortcuts(rows => rows.find(row => row.id === 'session.new'))
   // A page whose access snapshot excludes starting a Session offers no New Session affordance.

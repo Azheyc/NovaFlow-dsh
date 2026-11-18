@@ -1,0 +1,15 @@
+{
+  "name": "novaflow-dsh-prompt-presets",
+  "version": "1.0.0",
+  "description": "NovaFlow 提示词预设 · 新会话推荐与可编辑的模式提示词库",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json" },
+  "files": ["index.js", "catalog.js", "client.js", "cordis.patch.yml", "README.md"],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-ui-primitives"] }
+  }
+}

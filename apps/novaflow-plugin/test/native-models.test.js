@@ -486,6 +486,25 @@ function legacyResponses(h,catalog) {
   return profiles
 }
 
+test('refresh merges existing GPT endpoint duplicates and keeps subsequent additions in the original group',async t=>{
+  const h=await bindingFor(t), group='gpt pro稳定分组'
+  const old=row(group,'openai','gpt-6.1-sol'), added=row(group,'openai-response','gpt-6.2-sol')
+  const other=row('gpt特惠分组','openai','gpt-6.1-sol'), catalog={items:[old,added,other]}
+  const profiles=legacyResponses(h,catalog), [primary,duplicate,discount]=Object.keys(profiles)
+  for (const owner of Object.values(h.state.records.get(ownerRecord).payload.providers)) Object.assign(owner,{protocolPolicy:PROTOCOL_POLICY,familyApi:'openai-responses'})
+  profiles[duplicate].models[0].name='My Sol'
+  h.state.selection={provider:duplicate,model:added.model_id,reasoningEffort:'high'}
+  await h.binding.update({items:[added,other,old]},false)
+  const saved=()=>h.state.entry.options.config.providers
+  assert.deepEqual(Object.keys(saved()),[primary,discount])
+  assert.deepEqual(saved()[primary].models.map(model=>model.name),[old.model_id,'My Sol'])
+  assert.equal(h.state.selection.provider,primary)
+  saved()[primary].models.shift()
+  await h.binding.update({items:[old,added,row(group,'openai','gpt-6.2-astra'),other]},false)
+  assert.deepEqual(saved()[primary].models.map(model=>model.id),['gpt-6.2-sol','gpt-6.2-astra'])
+  assert.deepEqual(Object.keys(saved()),[primary,discount])
+})
+
 test('family protocol selection recognizes Claude IDs including vendor prefixes without matching unrelated names',()=>{
   for(const id of ['claude-opus-4-6','Claude-Sonnet-4-5','anthropic/claude-haiku-4-5','anthropic:claude-opus-4-6','us.anthropic.claude-3-5-sonnet'])assert.equal(protocolForModel(id),'anthropic-messages',id)
   for(const id of ['gpt-6.1-sol','deepseek-v4-pro','gemini-pro','notclaude','claudette','unknown'])assert.equal(protocolForModel(id),'openai-responses',id)

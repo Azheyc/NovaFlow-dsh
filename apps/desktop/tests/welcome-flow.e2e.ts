@@ -121,7 +121,7 @@ globalThis.fetch = (input, init) => {
       }
       await restart()
       const bundles = await rpc<Array<{ name: string; enabled: boolean; installed: boolean; removable: boolean }>>('pluginManager/listBundles')
-      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager']) {
+      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', 'novaflow-dsh-prompt-presets']) {
         expect(bundles.find(row => row.name === name), name).toMatchObject({ enabled: true, installed: true, removable: true })
       }
       expect(bundles.some(row => row.name === '@local/novaflow-dsh-plugin')).toBe(false)
