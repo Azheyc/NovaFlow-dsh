@@ -28,7 +28,10 @@ export class DesktopUpdateSource {
     })
   }
 
-  /** @param manual - Request a fresh update check through the shell's manual flow. */
+  /**
+   * Open the desktop updater through its preload bridge.
+   * @param manual - Request a fresh update check through the shell's manual flow.
+   */
   open(manual = false): void {
     const action = manual ? this.bridge?.check : this.bridge?.open
     if (!this.live || action === undefined) return
