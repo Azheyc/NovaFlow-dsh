@@ -118,7 +118,9 @@ export function connectDesktopWelcome(
       }
       // Local NovaFlow bridge keys are transport credentials, not an independent login.
       const baseURL = record(value) && typeof value.baseURL === 'string' ? value.baseURL : ''
-      return record(value) && typeof value.apiKeyEnv === 'string' && !baseURL.includes('/novaflow/models/') ? [value.apiKeyEnv] : []
+      if (!record(value) || typeof value.apiKeyEnv !== 'string' || baseURL.includes('/novaflow/models/')) return []
+      const managed = /^NOVAFLOW_[A-F0-9]{20}_API_KEY$/.test(value.apiKeyEnv) && ['https://www.ycnovaflow.vip', 'https://www.ycnovaflow.vip/v1'].includes(baseURL)
+      return managed ? [] : [value.apiKeyEnv]
     })
     const unique = [...new Set([...(ref === undefined ? [] : [ref]), ...refs])]
     const states: Record<string, unknown> = {}

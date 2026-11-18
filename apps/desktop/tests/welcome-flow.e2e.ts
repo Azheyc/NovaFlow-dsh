@@ -167,6 +167,16 @@ globalThis.fetch = (input, init) => {
       expect(patch).toContain('claude-fixture')
       expect(patch).toContain('openai-responses')
       expect(patch).toContain('anthropic-messages')
+      expect(patch).not.toContain('/novaflow/models/')
+      for (const [group, endpoint, api, id] of [
+        ['Fixture group', 'openai-responses', 'openai-responses', 'gpt-fixture'],
+        ['Fixture group', 'anthropic-messages', 'anthropic-messages', 'claude-fixture'],
+      ] as const) {
+        const provider = 'novaflow-' + createHash('sha256').update(JSON.stringify([group, endpoint])).digest('hex').slice(0, 20)
+        const baseURL = issuer + (api === 'anthropic-messages' ? '' : '/v1')
+        const models = await rpc<Array<{ id: string }>>('llm/discoverModels', { settingsNs: 'llm-pi-ai', request: { provider, baseURL, api } })
+        expect(models.map(model => model.id)).toEqual([id])
+      }
       expect(patch).not.toContain(access)
       const snapshot = await (await fetch(`${hostOrigin}/api/novaflow-account`, {
         method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{"action":"state"}',

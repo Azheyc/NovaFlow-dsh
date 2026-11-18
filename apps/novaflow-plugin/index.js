@@ -26,6 +26,10 @@ export async function apply(ctx, rawConfig) {
   ctx.effect(() => () => modelStartup.resolve())
   const account = new NovaAccount({ credentials: ctx.credentials, api: new NovaApi(), origin, onCatalog: (catalog, selectDefault) => binding.update(catalog, selectDefault), onClear: restore => {media?.clear();return binding?.clear(restore)} })
   binding = await createModelBinding(ctx, account, config, libraries, {whenReady:()=>modelStartup.promise})
+  ctx.provide('novaFlowModelTransport', { async fetch(provider, key, input, init) {
+    await modelStartup.promise
+    return binding.bridge.platformFetch(provider, key, input, init)
+  } })
   ctx.provide('novaflowAccount', account)
   ctx.effect(() => () => account.dispose(false))
   media = createMediaService({account,credentials:ctx.credentials,api:new NovaApi(),workspace:ctx.workingDirectory.defaultDirectory})

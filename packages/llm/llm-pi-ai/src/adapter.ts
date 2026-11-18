@@ -98,6 +98,7 @@ export interface PiAiAdapterOptions {
    * `MISSING_CREDENTIAL` rather than falling back.
    */
   resolveApiKey: (provider: string, profile: ResolvedPiAiProviderProfile) => Promise<string | undefined>
+  resolveFetch?: (provider: string, apiKey: string | undefined) => typeof fetch | undefined
   /**
    * How every collection this adapter builds resolves auth the request-level
    * `apiKey` override does not cover. Required rather than optional: a
@@ -433,6 +434,7 @@ export class PiAiAdapter extends LlmAdapter {
       options.reasoningEffort ?? profile.reasoning,
     )
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
+    const routeFetch = this.config.resolveFetch?.(options.provider, apiKey)
 
     const consumer = new AbortController()
     const upstream = options.signal === undefined
@@ -474,6 +476,7 @@ export class PiAiAdapter extends LlmAdapter {
       })
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
+        ...routeFetch === undefined ? {} : { fetch: routeFetch, transport: 'sse' },
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },

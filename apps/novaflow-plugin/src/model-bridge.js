@@ -69,7 +69,8 @@ export function createModelBridge({ account, origin, fetchImpl = globalThis.fetc
   if (typeof account?.accessToken !== 'function' || typeof fetchImpl !== 'function') throw new Error('Model bridge dependencies unavailable')
   let routes = new Map(), disposed = false
   const active = new Set()
-  function stopActive() { for (const controller of active) controller.abort('routes-changed') }
+  let lifetime = new AbortController()
+  function stopActive() { lifetime.abort(); lifetime = new AbortController(); for (const controller of active) controller.abort('routes-changed') }
   function setRoutes(values) {
     if (disposed) throw new Error('Model bridge disposed')
     if (!Array.isArray(values)) throw new Error('Invalid model bridge routes')
@@ -175,5 +176,40 @@ export function createModelBridge({ account, origin, fetchImpl = globalThis.fetc
       else if (upstream?.body && !upstream.body.locked) await upstream.body.cancel().catch(()=>{})
     }
   }
-  return {setRoutes,clear,dispose,handler}
+  async function platformFetch(provider, key, input, init) {
+    const route = routes.get(provider)
+    if (!route || !equalSecret(key, route.key)) throw new BridgeError(401, 'ACCOUNT_SIGN_IN_REQUIRED')
+    const request = new Request(input, init), url = new URL(request.url)
+    if (url.origin !== ORIGIN || url.username || url.password || url.hash) throw new BridgeError(403, 'INVALID_DESTINATION')
+    if (request.method === 'GET' && url.pathname === '/v1/models' && (!url.search || /^\?limit=[1-9]\d{0,3}$/.test(url.search))) {
+      const limit = Number(url.searchParams.get('limit')) || route.models.length
+      return Response.json({ object: 'list', data: route.models.slice(0, limit).map(model => ({ ...model, object: 'model', display_name: model.name, context_window: model.contextWindow, max_output_tokens: model.maxTokens })) })
+    }
+    if (request.method !== 'POST' || url.pathname !== ENDPOINTS[route.api] || (url.search && !(route.api === 'anthropic-messages' && url.search === '?beta=true'))) throw new BridgeError(403, 'INVALID_DESTINATION')
+    const signal = AbortSignal.any([lifetime.signal, request.signal, AbortSignal.timeout(timeoutMs)])
+    const body = await request.text()
+    if (Buffer.byteLength(body) > BODY_LIMIT) throw new BridgeError(413, 'BODY_TOO_LARGE')
+    const payload = JSON.parse(body)
+    if (!route.models.some(model => model.id === payload?.model)) throw new BridgeError(400, 'MODEL_NOT_ALLOWED')
+    const token = await interruptible(account.accessToken(), signal)
+    if (!token) throw new BridgeError(401, 'ACCOUNT_SIGN_IN_REQUIRED')
+    const headers = new Headers({Authorization: `Bearer ${token}`, 'X-NovaFlow-Group': route.encodedGroup, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream'})
+    if (route.api === 'anthropic-messages') for (const name of ['anthropic-version','anthropic-beta']) {
+      const value = request.headers.get(name)
+      if (value) headers.set(name, value)
+    }
+    const response = await fetchImpl(url.href, {method:'POST', body, headers, signal, redirect:'error'})
+    if (response.ok) {
+      const type = response.headers.get('content-type') || ''
+      if (!/^(application\/json|text\/event-stream)(?:\s*;|$)/i.test(type)) {
+        await response.body?.cancel().catch(()=>{})
+        throw new BridgeError(502, 'UPSTREAM_RESPONSE_INVALID')
+      }
+      return new Response(response.body, {status:response.status, headers:{'content-type':type}})
+    }
+    await response.body?.cancel().catch(()=>{})
+    if (response.status === 401) await account.rejectToken?.(token)
+    return Response.json({error:{message:'NovaFlow model request failed',code:'UPSTREAM_ERROR'}},{status:response.status})
+  }
+  return {setRoutes,clear,dispose,handler,platformFetch}
 }

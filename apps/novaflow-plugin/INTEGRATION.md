@@ -6,6 +6,8 @@ This private workspace carries NovaFlow plugin 2.6.1 inside the customized deskt
 
 ## Account and startup
 
+Model refresh migrates managed loopback URLs to the platform. Claude uses `https://www.ycnovaflow.vip` and OpenAI-compatible protocols use `https://www.ycnovaflow.vip/v1`. The Host resolves the account access token and adds the group header for each inference request. Model discovery reads the authorized catalog for that group.
+
 Desktop adds the NovaFlow bundle after the standard Web bundles and before user bundles. Existing profile dependencies and user patches remain intact. Native recovery retains the built-in NovaFlow bundle. The CLI dependency closure carries its code for runtime resolution, while ordinary CLI profiles do not activate it.
 
 Welcome signs in through the plugin's authenticated, owner-only `/api/novaflow-account` endpoint. The main process polls safe local snapshots serially and opens only the validated NovaFlow authorization URL. It does not send tokens to the renderer. The plugin remains the sole owner of PKCE, callback validation, rotating credentials, model synchronization, balance, and logout.

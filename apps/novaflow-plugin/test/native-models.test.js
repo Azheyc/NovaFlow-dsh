@@ -95,15 +95,16 @@ test('native model profiles reach the bridge through the shipped WebServer prefi
   assert.equal((await earlyResponse.json()).error.code,'BRIDGE_UNAUTHORIZED')
   const providers = h.state.entry.options.config.providers
   for (const [provider, profile] of Object.entries(providers)) {
+    const legacyBase = root.webServer.getOrigin() + '/novaflow/models/' + provider + (profile.api === 'anthropic-messages' ? '' : '/v1')
     const endpoint = profile.api === 'anthropic-messages' ? '/v1/messages' : '/responses'
-    const denied = await fetch(profile.baseURL + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const denied = await fetch(legacyBase + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     assert.equal(denied.status, 401, provider + ' must reach bridge authentication, not static fallback 405')
     assert.equal((await denied.json()).error.code, 'BRIDGE_UNAUTHORIZED')
     const headers = { Authorization: 'Bearer ' + h.state.keys.get(profile.apiKeyEnv) }
-    const discovered = await fetch(profile.baseURL + '/models', { headers })
+    const discovered = await fetch(legacyBase + '/models', { headers })
     assert.equal(discovered.status, 200)
     assert.equal((await discovered.json()).data[0].id, profile.models[0].id)
-    const rejected = await fetch(profile.baseURL + endpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{"model":"missing"}' })
+    const rejected = await fetch(legacyBase + endpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{"model":"missing"}' })
     assert.equal(rejected.status, 400)
     assert.equal((await rejected.json()).error.code, 'MODEL_NOT_ALLOWED')
   }
@@ -125,7 +126,7 @@ test('first sync saves official providers via ConfigEditor, with secret referenc
     assert.equal(profile.models[0].reasoningEfforts.high, 'high')
     assert.equal(profile.models[0].reasoningEfforts.off, undefined)
     assert.equal(parsed[item.provider].api, profile.api)
-    assert.ok(profile.baseURL.startsWith('http://127.0.0.1:64661/novaflow/models/' + item.provider))
+    assert.equal(profile.baseURL, 'https://www.ycnovaflow.vip' + (profile.api === 'anthropic-messages' ? '' : '/v1'))
     const key = h.state.keys.get(profile.apiKeyEnv)
     assert.match(key, /^nfb_[A-Za-z0-9_-]{43}$/)
     assert.equal(JSON.stringify(saved).includes(key), false)
@@ -165,18 +166,19 @@ test('deleted native provider stays deleted on background sync and explicit fres
   assert.ok(h.state.entry.options.config.providers[item.provider])
 })
 
-test('restart updates the loopback port while preserving native profile edits and stable key', async t => {
+test('restart migrates an old loopback URL while preserving native profile edits and stable key', async t => {
   const h = await bindingFor(t)
   const catalog = { items: [row('A')] }
   const [item] = await h.binding.update(catalog, false)
   h.state.entry.options.config.providers[item.provider].models[0].name = 'User name'
+  h.state.entry.options.config.providers[item.provider].baseURL = 'http://127.0.0.1:64661/novaflow/models/' + item.provider + '/v1'
   const key = h.state.keys.get(bridgeRef(item.provider))
   const restarted = harness({ state: h.state, origin: 'http://127.0.0.1:65432' })
   const next = await createModelBinding(restarted.ctx, restarted.account, config, libraries)
   t.after(() => next.clear(false))
   await next.update(catalog, false)
   const profile = h.state.entry.options.config.providers[item.provider]
-  assert.equal(profile.baseURL, 'http://127.0.0.1:65432/novaflow/models/' + item.provider + '/v1')
+  assert.equal(profile.baseURL, 'https://www.ycnovaflow.vip/v1')
   assert.equal(profile.models[0].name, 'User name')
   assert.equal(h.state.keys.get(bridgeRef(item.provider)), key)
 })
@@ -392,7 +394,7 @@ test('configureAllModels uses family protocols with image and native effort prof
   for (const [provider, profile] of Object.entries(parsed)) {
     const expectedApi=protocolForModel(profile.models[0].id)
     assert.equal(profile.api, expectedApi)
-    assert.ok(profile.baseURL.endsWith('/' + provider + (expectedApi==='anthropic-messages' ? '' : '/v1')))
+    assert.equal(profile.baseURL, 'https://www.ycnovaflow.vip' + (expectedApi==='anthropic-messages' ? '' : '/v1'))
     assert.deepEqual(profile.models.map(model => model.id), beforeIds[provider])
     for (const model of profile.models) {
       assert.deepEqual(model.input, ['text','image'])
@@ -533,7 +535,7 @@ test('legacy pure Claude provider migrates in place with its key, names, image s
   profile.modelOverrides={'claude-opus-4-6':{compat:{supportsDeveloperRole:true},maxTokens:1024}}
   await h.binding.update(catalog,false)
   const saved=h.state.entry.options.config.providers[id]
-  assert.equal(saved.api,'anthropic-messages');assert.ok(saved.baseURL.endsWith('/'+id))
+  assert.equal(saved.api,'anthropic-messages');assert.equal(saved.baseURL,'https://www.ycnovaflow.vip')
   assert.equal(h.state.keys.get(bridgeRef(id)),key)
   assert.equal(saved.models[0].name,'My Opus');assert.equal(saved.models[0].contextWindow,77777);assert.equal(saved.models[0].maxTokens,1234)
   assert.deepEqual(saved.models[0].input,['text','image'])
@@ -625,7 +627,7 @@ test('migrated Claude image and max thinking use the actual Anthropic SDK messag
   globalThis.fetch=async(url,init)=>{const request=new Request(url,init);path=new URL(request.url).pathname;body=await request.json();return new Response(JSON.stringify({error:{message:'fixture-only'}}),{status:401,headers:{'content-type':'application/json'}})}
   const model={id:seed.id,name:seed.name,provider:'test',api:profile.api,baseUrl:profile.baseURL,contextWindow:seed.contextWindow,maxTokens:seed.maxTokens,input:seed.input,reasoning:true,thinkingLevelMap:seed.reasoningEfforts,compat:seed.compat,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}}
   await consume(libraries.protocols['anthropic-messages'].streamSimple(model,{messages:[{role:'user',timestamp:0,content:[{type:'text',text:'describe'},{type:'image',data:'aGVsbG8=',mimeType:'image/png'}]}]},{apiKey:'nfb_fixture',reasoning:'max',maxRetries:0}))
-  assert.equal(path,'/novaflow/models/'+item.provider+'/v1/messages')
+  assert.equal(path,'/v1/messages')
   assert.equal(body.output_config.effort,'max');assert.equal(body.thinking.type,'adaptive')
   assert.ok(body.messages[0].content.some(part=>part.type==='image'&&part.source.type==='base64'))
 })

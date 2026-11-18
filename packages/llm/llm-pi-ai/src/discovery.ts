@@ -307,6 +307,7 @@ export interface StoredModelDiscoveryProfile {
   readonly headers: Readonly<Record<string, string>> | undefined
   /** Resolve the named route's credential only when the draft carries none. */
   readonly resolveApiKey: () => Promise<string | undefined>
+  readonly resolveFetch?: (key: string | undefined) => typeof fetch | undefined
 }
 
 /**
@@ -379,7 +380,8 @@ export async function discoverModels(
       headers.set('authorization', `Bearer ${apiKey}`)
     }
     for (const [name, value] of Object.entries(attributionHeaders())) headers.set(name, value)
-    response = await fetch(url, {
+    const fetchModels = stored?.resolveFetch?.(apiKey) ?? fetch
+    response = await fetchModels(url, {
       method: 'GET',
       headers,
       ...request.signal === undefined ? {} : { signal: request.signal },

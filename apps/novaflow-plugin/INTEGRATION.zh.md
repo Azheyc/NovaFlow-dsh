@@ -6,6 +6,8 @@
 
 ## 账户与启动
 
+模型刷新会把受管分组的旧回环地址迁移至平台。Claude 的基础地址为 `https://www.ycnovaflow.vip`，OpenAI 兼容协议使用 `https://www.ycnovaflow.vip/v1`。Host 在每次推理时取得账户访问凭据并添加对应分组头；模型发现读取该分组已授权的目录。
+
 Desktop 在标准 Web bundle 之后、用户 bundle 之前加入 NovaFlow。已有 profile 的依赖和用户 patch 保持原样。原生恢复保留内置 NovaFlow bundle。CLI 依赖闭包携带插件代码以供运行时解析，普通 CLI profile 不会启用插件。
 
 开屏页通过插件已有的、经过认证且仅限所有者的 `/api/novaflow-account` 接口登录。主进程串行轮询本机脱敏状态，只打开验证通过的 NovaFlow 授权地址，不向渲染进程传递令牌。PKCE、回调校验、轮换凭据、模型同步、余额与退出均由原插件负责。

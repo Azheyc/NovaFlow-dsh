@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { createHash, randomBytes } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
-import { NovaError } from './protocol.js'
+import { NovaError, ORIGIN } from './protocol.js'
 import { createModelBridge } from './model-bridge.js'
 
 /** Resolve shipped libraries from this running installation, never another global DSH. */
@@ -108,7 +108,9 @@ function familyGroups(items, owners, profiles) {
 const DEFAULT_RECORD = 'novaflow-account/default-model'
 export const bridgeRef = provider => provider.toUpperCase().replaceAll('-', '_') + '_API_KEY'
 const levels = ['minimal','low','medium','high','xhigh','max']
+const platformBase = api => api === 'anthropic-messages' ? ORIGIN : ORIGIN + '/v1'
 function managedURL(value, provider, api) {
+  if (value === ORIGIN || value === ORIGIN + '/v1') return true
   try {
     const url = new URL(value)
     return url.protocol === 'http:' && url.hostname === '127.0.0.1' && !!url.port && !url.username && !url.password && !url.search && !url.hash && [ '/novaflow/models/' + provider, '/novaflow/models/' + provider + '/v1' ].includes(url.pathname)
@@ -267,7 +269,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         models.push(thinkingModel(protocolModel(modelSeed({...row,api},config,libraries),api,config,libraries,allCapabilities),api,config,libraries))
         present.add(row.id)
       }
-      const baseURL=origin+'/novaflow/models/'+provider+(api==='anthropic-messages'?'':'/v1')
+      const baseURL=platformBase(api)
       let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:'NovaFlow · '+groupId,api,baseURL,apiKeyEnv:ref,models,defaultContextWindow:config.contextWindow,defaultMaxTokens:config.maxTokens,transport:'sse'}
       next.reasoning='high'
       if (template?.modelOverrides) {

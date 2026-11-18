@@ -13,6 +13,26 @@ const definitions = [
 ]
 const routes = () => definitions.map(row=>({provider:row.provider,api:row.api,group:'企业 空间/A',key:KEY,models:[{id:'exact/model',name:'Model name',contextWindow:32768,maxTokens:4096}]}))
 const routePath = (provider='nova-chat',path='/v1/chat/completions')=>'/novaflow/models/'+provider+path
+for (const protocol of definitions) test(`${protocol.api}: SDK uses platform HTTPS with account authorization`, async t => {
+  const f = await fixture(t)
+  const libraries = await loadNativeLibraries()
+  const baseUrl = 'https://www.ycnovaflow.vip' + (protocol.api === 'anthropic-messages' ? '' : '/v1')
+  const model = {id:'exact/model', name:'Model', api:protocol.api, provider:protocol.provider, baseUrl, contextWindow:32768, maxTokens:4096, input:['text'], reasoning:false, cost:{input:0,output:0,cacheRead:0,cacheWrite:0}}
+  const stream = libraries.protocols[protocol.api].streamSimple(model, {messages:[{role:'user',timestamp:0,content:'test'}]}, {apiKey:KEY, transport:'sse', maxRetries:0, fetch:(input, init)=>f.bridge.platformFetch(protocol.provider, KEY, input, init)})
+  await stream.result()
+  assert.equal(f.calls.length, 1)
+  const [{url, init}] = f.calls
+  assert.equal(new URL(url).origin, 'https://www.ycnovaflow.vip')
+  assert.equal(new URL(url).pathname, protocol.path)
+  assert.equal(init.headers.get('authorization'), 'Bearer ' + TOKEN)
+  assert.equal(init.headers.get('x-api-key'), null)
+  assert.equal(init.headers.get('x-novaflow-group'), encodeURIComponent('企业 空间/A'))
+  assert.equal(init.redirect, 'error')
+  await assert.rejects(f.bridge.platformFetch(protocol.provider, KEY, 'https://other.invalid/v1/models'), /INVALID_DESTINATION/)
+  assert.equal((await (await f.bridge.platformFetch(protocol.provider, KEY, 'https://www.ycnovaflow.vip/v1/models')).json()).data[0].id, 'exact/model')
+  f.bridge.clear()
+  await assert.rejects(f.bridge.platformFetch(protocol.provider, KEY, baseUrl), /ACCOUNT_SIGN_IN_REQUIRED/)
+})
 const deferred = () => {let resolve;const promise=new Promise(done=>{resolve=done});return {promise,resolve}}
 async function fixture(t, options={}) {
   let bridge

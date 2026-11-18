@@ -97,6 +97,11 @@ export const name = 'llm-pi-ai'
 export const inject = ['llm']
 
 declare module '@deepseek-ai/cordis' {
+  interface Context {
+    novaFlowModelTransport: {
+      fetch(provider: string, key: string, input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response>
+    }
+  }
   interface Events {
     /**
      * Prepare headers for one pi-ai inference call, excluding model discovery.
@@ -235,9 +240,18 @@ export function apply(ctx: Context, config: Config): void {
   // through `ctx` per call, so they stay correct across the collection rebuilds
   // a configuration change causes, and a sign-in survives one.
   const auth = { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) }
+  const resolveFetch = (provider: string, key: string | undefined): typeof fetch | undefined => {
+    if (!provider.startsWith('novaflow-') || !key?.startsWith('nfb_')) return undefined
+    return (input, init) => {
+      const transport = ctx.get('novaFlowModelTransport')
+      if (!transport) throw new LlmError('NovaFlow account transport unavailable', 'MISSING_CREDENTIAL')
+      return transport.fetch(provider, key, input, init)
+    }
+  }
   const adapter = new PiAiAdapter({
     profiles,
     resolveApiKey,
+    resolveFetch,
     auth,
     prepareHeaders: (request, headers) => ctx.waterfall('llm-pi-ai/request-headers', request, headers, () => headers),
     resolveAttachments: () => ctx.get('attachments'),
@@ -294,6 +308,7 @@ export function apply(ctx: Context, config: Config): void {
     return {
       headers: profile.headers,
       resolveApiKey: () => resolveApiKey(provider, profile),
+      resolveFetch: key => resolveFetch(provider, key),
     }
   }
   // Interrogating an endpoint is a configuration-time action over a draft, so
