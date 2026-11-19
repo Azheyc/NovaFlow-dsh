@@ -3,7 +3,7 @@ import { equalSecret, NovaError } from './protocol.js'
 const MCP_PATH = '/novaflow/novaflow-image/mcp'
 const BODY_LIMIT = 512 * 1024
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']
-export const MEDIA_MCP_INSTRUCTIONS = 'NovaFlow media tools use the current NovaFlow account. Omit model and group when generating to use the active selection in NovaFlow Settings > Models. A default image model with one authorized group works without manual selection and appears in list_models as the active image selection. If generation reports a missing, ambiguous, conflicting or unavailable model, ask the user to check Settings > Models. Never silently choose another billing group. generation_result polls the ID returned by an asynchronous generation. Never ask for platform API keys. Relative file paths resolve against the DSH default workspace, not a different session directory; pass a path within that workspace. If a result is unknown, it may already be billed: do not resubmit automatically and ask the user to check NovaFlow history.'
+export const MEDIA_MCP_INSTRUCTIONS = 'NovaFlow media tools use the current NovaFlow account. Omit model and group when generating to use the active selection in NovaFlow Settings > Models. A default image model with one authorized group works without manual selection and appears in list_models as the active image selection. If generation reports a missing, ambiguous, conflicting or unavailable model, ask the user to check Settings > Models. Never silently choose another billing group. generation_result polls the ID returned by an asynchronous generation. Never ask for platform API keys. Relative reference and output paths use the calling session’s working directory. For a chat image, pass its full sha256: attachment ID or its normalized read-only path. Poll jobs in the workspace where they were submitted. If a result is unknown, it may already be billed: do not resubmit automatically and ask the user to check NovaFlow history.'
 const string = {type:'string',minLength:1}
 const references = {type:'array',items:string}
 const properties = {
@@ -66,19 +66,19 @@ function cancellable(work,signal) {
  * This implements the standard JSON response mode, verified against the installed
  * MCP client SDK. It needs no optional server-side SDK or per-client sessions.
  */
-export function createMediaMcp({service,origin,key}) {
+export function createMediaMcp({service,origin,key,resolveContext}) {
   const local=new URL(origin)
   if(local.protocol!=='http:' || local.hostname!=='127.0.0.1' || !local.port || local.username || local.password || local.search || local.hash || local.pathname!=='/' || typeof key!=='string' || key.length<32 || /\s/.test(key))throw new Error('Invalid media MCP configuration')
   for(const method of ['generateImage','generateVideo','generationResult','listModels'])if(typeof service?.[method]!=='function')throw new Error('Media MCP service unavailable')
   const tools=structuredClone(MEDIA_MCP_TOOLS)
   const active=new Set();let disposed=false
-  async function invoke(name,args,signal) {
+  async function invoke(name,args,signal,meta) {
     const tool=tools.find(tool=>tool.name===name)
     if(!tool)throw new RequestError(200,'UNKNOWN_TOOL',-32602)
     if(!valid(args,tool.inputSchema))throw new RequestError(200,'INVALID_PARAMS',-32602)
     const method={generate_image:'generateImage',generate_video:'generateVideo',generation_result:'generationResult',list_models:'listModels'}[name]
     try {
-      const result=await cancellable(Promise.resolve().then(()=>service[method](args)),signal)
+      const result=await cancellable(Promise.resolve().then(()=>service[method](args,resolveContext?.(name,meta))),signal)
       if(signal.aborted)throw new RequestError(503,'MEDIA_MCP_DISPOSED')
       return {content:[{type:'text',text:JSON.stringify(result)}]}
     } catch(error) {
@@ -118,7 +118,7 @@ export function createMediaMcp({service,origin,key}) {
       else if(message.method==='tools/list')result={tools}
       else if(message.method==='tools/call') {
         if(typeof params.name!=='string')throw new RequestError(200,'INVALID_PARAMS',-32602)
-        result=await invoke(params.name,params.arguments ?? {},controller.signal)
+        result=await invoke(params.name,params.arguments ?? {},controller.signal,params._meta)
       } else throw new RequestError(200,'METHOD_NOT_FOUND',-32601)
       reply(res,200,{jsonrpc:'2.0',id,result})
     } catch(error) {

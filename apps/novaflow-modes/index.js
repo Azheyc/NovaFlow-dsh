@@ -8,8 +8,16 @@ import { writeFileAtomic, withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { modes, composeModes } from './modes.js'
 
 export const name = 'novaflow-modes'
-export const inject = ['agentPresets', 'profileContext', 'connection']
+export const inject = ['agentPresets', 'profileContext', 'connection', 'systemPrompt', 'webServer']
 export async function apply(ctx) {
+  ctx.on('webserver/index-inject', table => {
+    table.push({ kind: 'global', name: '__DSH_HIDDEN_PRESET_CHOICES__', value: ['cordis', 'ops-ptc'] })
+  })
+  ctx.systemPrompt.section({
+    name: 'novaflow:client-identity',
+    order: ctx.systemPrompt.getSectionOrder('HARNESS_IDENTITY') + 1,
+    text: '用户正在 NovaFlow 客户端中与你对话。提及当前应用或会话时，使用「NovaFlow 客户端」或「当前 NovaFlow 客户端会话」，其他语言使用对应的自然表达。DeepSeek Harness（DSH）是底层框架。讲解底层实现、引用文档或给出操作步骤时，保留 `dsh-doc`、`dsh`、包名、命令和路径的原名。',
+  })
   const require = createRequire(import.meta.url)
   const template = yaml.load(await readFile(require.resolve('@deepseek-ai/dsh-web-app/presets/standard.patch.yml'), 'utf8'), { schema: entryListSchema })
   const standard = template.flatMap(patch => patch.insert ?? []).find(row => row.config?.id === 'standard')?.config

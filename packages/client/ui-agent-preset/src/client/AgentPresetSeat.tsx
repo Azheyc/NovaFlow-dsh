@@ -27,6 +27,7 @@ import css from './AgentPresetSeat.module.css'
 
 /** Registration-side business face for the hero chip. */
 export interface AgentPresetSeatInjected {
+  readonly hiddenPresetChoices: readonly string[]
   hooks: {
     /** Shared Developer tools preference; off hides the PTC and Minimal menu choices. */
     developerTools: ObservableSnapshot<boolean>
@@ -80,7 +81,7 @@ export type AgentPresetSeatProps =
  * @returns The chip and any pending selection refusal, or null outside the main view.
  */
 export function AgentPresetSeat({
-  sessionId, useSessionRetainInfo, load, select, dismissRefusal, introduced, useAgentPresetSeat, useDeveloperTools, t, renderSlot,
+  sessionId, useSessionRetainInfo, load, select, dismissRefusal, introduced, useAgentPresetSeat, useDeveloperTools, t, renderSlot, hiddenPresetChoices,
 }: AgentPresetSeatProps) {
   const developerTools = useDeveloperTools(value => value)
   const state = useAgentPresetSeat(snapshot => snapshot)
@@ -104,8 +105,8 @@ export function AgentPresetSeat({
   }, [load])
 
   const options = useMemo(
-    () => state.options.filter(option => developerTools || !requiresCodingTools(option)),
-    [state.options, developerTools],
+    () => state.options.filter(option => !hiddenPresetChoices.includes(option.id) && (developerTools || !requiresCodingTools(option))),
+    [state.options, developerTools, hiddenPresetChoices],
   )
 
   useEffect(() => {

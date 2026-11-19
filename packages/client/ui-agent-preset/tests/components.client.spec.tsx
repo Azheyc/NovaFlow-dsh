@@ -54,6 +54,7 @@ function renderSeat(
   select: () => Promise<string | undefined> = () => Promise.resolve(undefined),
   session?: { id: string; retainInfo: SessionRetainInfo | undefined },
   enabled = true,
+  hiddenPresetChoices: readonly string[] = [],
 ) {
   const store = createSnapshotStore<AgentPresetSeatState>({ ...SEAT_READY, ...state })
   const developerTools = createSnapshotStore(enabled)
@@ -68,6 +69,7 @@ function renderSeat(
   }
   const props = {
     ...actions,
+    hiddenPresetChoices,
     sessionId: session === undefined ? undefined : SessionId(session.id),
     useDeveloperTools: bindSnapshotSelector(developerTools),
     useAgentPresetSeat: bindSnapshotSelector(store),
@@ -122,6 +124,20 @@ describe('the new-session chip', () => {
     expect(screen.queryByRole('menuitem', { name: /^Minimal mode/ }) !== null).toBe(enabled)
     fireEvent.click(screen.getByRole('menuitem', { name: /^Creator mode/ }))
     expect(actions.select).toHaveBeenCalledWith('cordis')
+  })
+
+  it('omits deployment-hidden choices while showing the current preset and allowing another selection', () => {
+    const actions = renderSeat({ current: 'ops-ptc', options: [
+      { id: 'standard' }, { id: 'cordis' }, { id: 'ops-ptc', name: 'OPS (PTC)' },
+      { id: 'novaflow-modeling', name: 'Modeling' }, { id: 'novaflow-media-creation', name: 'Content platform' },
+    ] }, undefined, undefined, true, ['cordis', 'ops-ptc'])
+    fireEvent.click(screen.getByRole('button', { name: 'OPS (PTC)' }))
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3)
+    expect(screen.queryByRole('menuitem', { name: /Creator|OPS/ })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: /^Standard mode/ })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /^Content platform/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Modeling/ }))
+    expect(actions.select).toHaveBeenCalledWith('novaflow-modeling')
   })
 
   it('keeps a named custom preset that overrides a development preset id', () => {

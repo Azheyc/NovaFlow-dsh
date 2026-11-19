@@ -75,6 +75,11 @@ export const inject = [
  * @param ctx - the browser plugin context.
  */
 export function apply(ctx: ClientContext): void {
+  const page = globalThis as { __DSH_HIDDEN_PRESET_CHOICES__?: unknown }
+  const hiddenChoices = page.__DSH_HIDDEN_PRESET_CHOICES__
+  const hiddenPresetChoices = Array.isArray(hiddenChoices)
+    ? hiddenChoices.filter((id: unknown): id is string => typeof id === 'string')
+    : []
   const toolsSettings = ctx.configForms.get<{ enabled: boolean }>('ui-settings')
   const presetSettings = ctx.configForms.get(AGENT_PRESET_SETTINGS_NS)
   let active = true
@@ -190,6 +195,7 @@ export function apply(ctx: ClientContext): void {
       const binding = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId)
       const seat = binding === undefined ? unboundSeat : seatFor(binding)
       return {
+        hiddenPresetChoices,
         hooks: { agentPresetSeat: seat.store, developerTools: ctx.configForms.developerTools.enabled },
         load: () => seat.load(),
         select: async (id: string) => {
@@ -275,6 +281,7 @@ export function apply(ctx: ClientContext): void {
   }
 
   const sectionInjected = (): AgentPresetSectionInjected => ({
+    hiddenPresetChoices,
     hooks: { agentPresetSection: section.store, developerTools: ctx.configForms.developerTools.enabled },
     load: () => section.load(),
     view: (id: string) => section.view(id),

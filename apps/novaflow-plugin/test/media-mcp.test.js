@@ -22,7 +22,7 @@ const {Client,StreamableHTTPClientTransport}=await installedSdk()
 const key='nfm_'+'k'.repeat(43)
 const path='/novaflow/novaflow-image/mcp'
 function deferred(){let resolve;const promise=new Promise(yes=>resolve=yes);return {promise,resolve}}
-async function fixture(t,overrides={}) {
+async function fixture(t,overrides={},resolveContext) {
   const calls=[]
   const service={
     generateImage:async args=>{calls.push(['image',args]);return {status:'completed',files:['/synthetic/image.webp']}},
@@ -35,7 +35,7 @@ async function fixture(t,overrides={}) {
   const server=http.createServer((req,res)=>{void mcp.handler(req,res)})
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
   const origin=`http://127.0.0.1:${server.address().port}`
-  mcp=createMediaMcp({service,origin,key})
+  mcp=createMediaMcp({service,origin,key,resolveContext})
   const clients=[]
   t.after(async()=>{mcp.dispose();for(const client of clients)await client.close().catch(()=>{});server.closeAllConnections();await new Promise(resolve=>server.close(resolve))})
   async function connect() {
@@ -71,6 +71,21 @@ test('SDK image call leaves omitted model selection to the account service',asyn
   assert.deepEqual(f.calls,[['image',{prompt:'synthetic illustration',n:2,reference_images:['/synthetic/reference.png']}]])
   await client.callTool({name:'generate_image',arguments:{prompt:'explicit model',model:'image-original-id',group:'chosen group',quality:'high'}})
   assert.equal(f.calls[1][1].model,'image-original-id');assert.equal(f.calls[1][1].group,'chosen group')
+})
+test('real SDK transmits per-call metadata outside model arguments', async t => {
+  const context = { workspace: '/test/project' }
+  const f = await fixture(t, { generateImage: async (args, received) => {
+    assert.deepEqual(args, {prompt:'edit'})
+    assert.equal(received, context)
+    return {status:'completed'}
+  } }, (tool, meta) => {
+    assert.equal(tool, 'generate_image')
+    assert.equal(meta['novaflow/call-context'], 'lease')
+    return context
+  })
+  const client = await f.connect()
+  const result = await client.callTool({name:'generate_image', arguments:{prompt:'edit'}, _meta:{'novaflow/call-context':'lease'}})
+  assert.equal(text(result).status,'completed')
 })
 test('SDK video accepts a saved model or an explicit original model',async t=>{
   const f=await fixture(t),client=await f.connect()

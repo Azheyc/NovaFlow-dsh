@@ -1,6 +1,6 @@
 # NovaFlow 插件开发手册
 
-适用：插件 2.6.1，DSH 0.2.2-rc.2／0.2.2-rc.3，Node.js ≥24。核对日期：2026-11-17，包含本地尚未发布的模型路由与思考策略修复。本文描述当前源码，功能入口见[使用说明](../README.md)，测试与分发见[测试与发布](RELEASE.md)，现场修复证据见[模型修复记录](MODEL_405_REPAIR.md)。
+桌面内置插件为 2.6.1，当前开发基线为 DSH 0.2.2-rc.5，要求 Node.js ≥24。完整兼容版本见[使用说明](../README.md)，测试与分发见[测试与发布](RELEASE.md)，现场修复证据见[模型修复记录](MODEL_405_REPAIR.md)。
 
 ## 1. 项目边界与依据
 
@@ -105,7 +105,7 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 | 模型桥独立凭据 | 按提供商创建的 Credentials 引用；受管归属记录校验摘要，防止删除用户替换的密钥 |
 | MCP 本机连接凭据 | Credentials 名称 `NOVAFLOW_IMAGE_MCP_KEY` |
 | 首次提醒标记、安装结果与 request ID | StorageDomain `novaflow_plugin_bootstrap`，version 1；含 `loginReminderSeen`，无设备令牌 |
-| 媒体作业元数据 | 默认工作目录的 `.novaflow-media/jobs/`；无平台凭据 |
+| 媒体作业元数据 | 发起调用的会话工作目录下的 `.novaflow-media/jobs/`；无平台凭据 |
 
 仅 `kind=text` 的授权目录进入 DSH 模型提供商。名称默认采用原始模型ID，不加分组后缀；请求继续按授权group路由，不能仅凭显示名判断路由相同。`protocolForModel`不区分大小写地识别原始ID开头及常见vendor前缀后的Claude（支持斜杠、冒号、点等边界）；Claude选择 `anthropic-messages`，其他文本模型选择 `openai-responses`。
 
@@ -157,7 +157,7 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 
 内置服务提供 `generate_image`、`generate_video`、`generation_result`、`list_models`，经官方 MCP 客户端形成 `mcp__novaflow-image__*` 工具名。图片与视频工具均可省略 model 和 group，使用当前设备授权记录内的选择。同名模型跨组时要明确 group，避免擅自选择计费路由。
 
-长任务返回 ID 后查询原作业。提交结果未知时不自动重提；重启恢复依据元数据及结果哈希判断。默认输出到默认工作目录的 `generated-images/` 和 `generated-videos/`；相对 path 和参考图也按默认工作目录解析，不跟随其他会话 cwd。
+长任务返回 ID 后查询原作业。提交结果未知时不自动重提；重启恢复依据元数据及结果哈希判断。会话相对路径使用本次调用时的工作目录。默认输出子目录为 `generated-images/` 和 `generated-videos/`。本机 MCP 通过单次调用标识取得会话目录及其已上传图片的只读访问能力。独立调用 MCP 且没有会话时使用 Host 的默认目录。
 
 路径不得越出该目录或穿过符号链接，提交前检查输出冲突。外部 HTTPS 图像下载校验公共地址并固定已校验 DNS 结果。退出／卸载中止本机工作；这不等于上游已经停止计费任务。
 

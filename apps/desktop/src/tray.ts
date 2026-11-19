@@ -31,11 +31,11 @@ export class DesktopTray {
     const tray = this.tray
     if (tray === undefined) return
     const { messages } = this.options.locale()
-    tray.setToolTip(messages.aboutProduct)
+    tray.setToolTip(messages.welcomeBrand)
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: messages.openApplication, click: () => { this.options.open() } },
+      { label: messages.trayOpenApplication, click: () => { this.options.open() } },
       { type: 'separator' },
-      { label: messages.quitApplication, click: () => { this.options.quit() } },
+      { label: messages.trayQuitApplication, click: () => { this.options.quit() } },
     ]))
   }
 

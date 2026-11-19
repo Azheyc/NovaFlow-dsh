@@ -4,6 +4,7 @@ import { NovaAccount } from './src/account.js'
 import { loadNativeLibraries, createModelBinding } from './src/native-models.js'
 import { randomBytes } from 'node:crypto'
 import { createMediaService } from './src/media-service.js'
+import { createMediaContexts } from './src/media-context.js'
 import { createMediaMcp } from './src/media-mcp.js'
 import { clientDelivery } from './src/release.js'
 
@@ -33,10 +34,13 @@ export async function apply(ctx, rawConfig) {
   ctx.effect(() => () => media.dispose())
   let mediaKey=(await ctx.credentials.resolve('NOVAFLOW_IMAGE_MCP_KEY'))?.value
   if (!mediaKey) { mediaKey='nfm_'+randomBytes(32).toString('base64url');await ctx.credentials.set('NOVAFLOW_IMAGE_MCP_KEY',mediaKey) }
-  const mediaMcp=createMediaMcp({service:media,origin,key:mediaKey})
+  const mediaUrl=origin+'/novaflow/novaflow-image/mcp'
+  const contexts=createMediaContexts(ctx,mediaUrl)
+  ctx.on('mcp-client/call-context',contexts.issue)
+  const mediaMcp=createMediaMcp({service:media,origin,key:mediaKey,resolveContext:contexts.take})
   ctx.effect(() => () => mediaMcp.dispose())
   ctx.effect(() => ctx.webServer.register({kind:'exact',path:'/novaflow/novaflow-image/mcp',handler:mediaMcp.handler}))
-  ctx.mcpManager.register('novaflow-image',{transport:'streamable-http',url:origin+'/novaflow/novaflow-image/mcp',headers:{Authorization:'Bearer ${credential:NOVAFLOW_IMAGE_MCP_KEY}'},startupTimeoutMs:15000,toolCallTimeoutMs:60000,closeTimeoutMs:5000})
+  ctx.mcpManager.register('novaflow-image',{transport:'streamable-http',url:mediaUrl,headers:{Authorization:'Bearer ${credential:NOVAFLOW_IMAGE_MCP_KEY}'},startupTimeoutMs:15000,toolCallTimeoutMs:60000,closeTimeoutMs:5000})
   // Native profile edits take ConfigEditor's HMR lock. Defer initial synchronization
   // until apply has returned so Loader activation never waits on its own lock.
   const ready = new Promise(resolve => setImmediate(resolve)).then(async()=>{

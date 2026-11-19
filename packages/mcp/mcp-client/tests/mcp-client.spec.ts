@@ -391,6 +391,21 @@ describe('tool execution', () => {
     )
   })
 
+  it('carries the Host-provided context on the HTTP call and releases it when the call settles', async () => {
+    const url = 'http://127.0.0.1:12345/mcp'
+    const dispose = vi.fn()
+    ctx.on('mcp-client/call-context', (server, endpoint, name, execution) => {
+      expect([server, endpoint, name, execution.callId]).toEqual(['srv', url, 'echo', 'c1'])
+      return { meta: { 'example/context': 'handle' }, dispose }
+    })
+    const client = createMockClient([{ name: 'echo', inputSchema: { type: 'object' } }])
+    await syncTools(client as never, ctx, { ...defaultOpts, url }, new Map())
+    const result = await executeToolFixture(ctx, { signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__echo', arguments: {} })
+    expect(result.isError).toBe(false)
+    expect(client.callTool).toHaveBeenCalledWith({ name: 'echo', arguments: {}, _meta: { 'example/context': 'handle' } }, expect.anything())
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
   it('sends the raw name for normalized public names', async () => {
     const client = createMockClient(
       [{ name: 'admin.reset', inputSchema: { type: 'object' } }],

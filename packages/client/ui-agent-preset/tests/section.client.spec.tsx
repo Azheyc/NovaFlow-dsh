@@ -13,7 +13,7 @@ const translations: ReadonlyMap<string, string> = new Map(Object.entries(en))
 function unusedHook(): never {
   throw new Error('This section does not read global slot sources')
 }
-function view(partial: Partial<AgentPresetSectionState> = {}, startCreatorDraft?: () => void, outerClose?: () => void, enabled = true) {
+function view(partial: Partial<AgentPresetSectionState> = {}, startCreatorDraft?: () => void, outerClose?: () => void, enabled = true, hiddenPresetChoices: readonly string[] = []) {
   const developerTools = createSnapshotStore(enabled)
   const store = createSnapshotStore<AgentPresetSectionState>({ status: 'ready', error: null,
     saving: false, rows: [{ id: 'standard', isDefault: true }, { id: 'mine', name: 'Mine', isDefault: false }],
@@ -21,6 +21,7 @@ function view(partial: Partial<AgentPresetSectionState> = {}, startCreatorDraft?
   const actions = { load: vi.fn(async () => {}), view: vi.fn(async () => {}), closeView: vi.fn(), makeDefault: vi.fn(async () => {}),
     close: vi.fn() }
   const props: AgentPresetSectionProps = { ...actions,
+    hiddenPresetChoices,
     ...(startCreatorDraft === undefined ? {} : { startCreatorDraft }),
     usePanelInfo: unusedHook, useSessions: unusedHook, useSessionStatus: unusedHook, useSessionRetainInfo: unusedHook,
     useWorkspaces: unusedHook, useResource: unusedHook,
@@ -53,6 +54,22 @@ it.each([false, true])('offers Standard, Creator and custom defaults with Coding
     expect(actions.makeDefault).toHaveBeenLastCalledWith(id)
   }
   expect(screen.getByRole<HTMLButtonElement>('button', { name: en.creatorDraft }).disabled).toBe(false)
+})
+it('omits deployment-hidden cards and the Creator entry while keeping visible presets selectable', () => {
+  const actions = view({ rows: [
+    { id: 'standard', isDefault: false }, { id: 'cordis', isDefault: true },
+    { id: 'ops-ptc', name: 'OPS (PTC)', isDefault: false },
+    { id: 'novaflow-modeling', name: 'Modeling', isDefault: false },
+    { id: 'novaflow-media-creation', name: 'Content platform', isDefault: false },
+  ] }, vi.fn(), undefined, true, ['cordis', 'ops-ptc'])
+  expect(document.querySelector('[data-agent-preset-id="cordis"], [data-agent-preset-id="ops-ptc"]')).toBeNull()
+  expect(screen.queryByRole('button', { name: en.creatorDraft })).toBeNull()
+  expect(screen.getByText(en.sectionIntroWithoutCreator)).toBeTruthy()
+  expect(rowFor('standard')).toBeTruthy()
+  expect(rowFor('novaflow-media-creation')).toBeTruthy()
+  expect(actions.makeDefault).not.toHaveBeenCalled()
+  fireEvent.click(within(rowFor('novaflow-modeling')).getByRole('button', { name: `${en.setDefault}: Modeling` }))
+  expect(actions.makeDefault).toHaveBeenCalledWith('novaflow-modeling')
 })
 it('updates visible settings choices without writing defaults from the renderer', () => {
   const actions = view({ rows: [

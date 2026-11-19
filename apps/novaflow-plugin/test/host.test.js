@@ -12,7 +12,7 @@ test('Host activates against actual installed libraries; management route is own
   const startupEntered=Promise.withResolvers(), startupRelease=Promise.withResolvers()
   t.after(()=>startupRelease.resolve())
   const ctx = {
-    profileContext: {},
+    profileContext: {}, on: () => {},
     get: () => undefined, provide: (name,value) => {if(name==='novaflowAccount')account=value}, emit: () => {},
     pluginManager:{listBundles:async()=>{installationCalls++;return ['dshmarket','dsh-ops','dsh-free-search','@michengai/dsh-archive-manager','dsh-rewind-plugin'].map(name=>({name,installed:true,enabled:true,version:'1.0.0'}))},installBundle:async()=>{throw Error('already installed must not install')}},
     storageDomain:{open:async spec=>{let value=spec.global.initial;return {global:{get:()=>value,set:async next=>{value=spec.global.schema.parse(next)}},close:async()=>{}}}},

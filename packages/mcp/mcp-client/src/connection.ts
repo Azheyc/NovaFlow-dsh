@@ -185,6 +185,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
         // Closure waits for this task to take ownership, even if cancellation rejects its caller first.
         disposers = await syncTools(record.wire.client, ctx, {
           serverName: config.serverName,
+          ...config.transport === 'streamable-http' ? { url: config.url } : {},
           toolCallTimeoutMs: config.toolCallTimeoutMs,
           signal,
           ...config.expandTemplates ? { redact: (text: string) => binding.redact(text) } : {},

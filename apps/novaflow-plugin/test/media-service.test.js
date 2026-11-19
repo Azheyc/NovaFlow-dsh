@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { createMediaService, DEFAULT_IMAGE_MODEL, publicURL } from '../src/media-service.js'
+import { createMediaContexts } from '../src/media-context.js'
 import { ORIGIN, PREFIX, RECORD, tokenPair, NovaError } from '../src/protocol.js'
 
 const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=','base64')
@@ -84,6 +85,82 @@ test('local image references use multipart edits and preserve reference magic an
   assert.equal(req.url,ORIGIN+'/v1/images/edits');assert.ok(req.body instanceof FormData)
   assert.equal(req.headers['content-type'],undefined);assert.equal(req.body.get('model'),DEFAULT_IMAGE_MODEL);assert.equal(req.body.get('quality'),'high')
   const ref=req.body.get('image[]');assert.equal(ref.type,'image/png');assert.deepEqual(Buffer.from(await ref.arrayBuffer()),PNG)
+})
+
+test('default and custom sessions submit their own reference bytes and retain jobs in their own workspace', async t => {
+  const h = await fixture(t)
+  const names = ['默认工作区', 'Client project']
+  const sessions = await Promise.all(names.map(async name => {
+    const directory = join(h.workspace, name)
+    await fs.mkdir(directory)
+    const bytes = Buffer.concat([PNG, Buffer.from(name)])
+    await fs.writeFile(join(directory, 'reference.png'), bytes)
+    return { directory, bytes }
+  }))
+  const url = 'http://127.0.0.1:12345/novaflow/novaflow-image/mcp'
+  const contexts = createMediaContexts({ workingDirectory: { get: session => session.directory }, get: () => undefined }, url)
+  const call = (session, tool) => {
+    const lease = contexts.issue('novaflow-image', url, tool, { agent: { session } })
+    const context = contexts.take(tool, lease.meta)
+    lease.dispose()
+    return context
+  }
+  const results = await Promise.all(sessions.map(session => h.service.generateImage({
+    prompt: session.directory, reference_images: ['reference.png'], path: 'out/result.png',
+  }, call(session, 'generate_image'))))
+  for (const [index, session] of sessions.entries()) {
+    const job = results[index]
+    assert.equal(job.status, 'completed')
+    assert.deepEqual(job.files, [join(session.directory, 'out/result.png')])
+    const body = h.requests.find(req => req.body.get('prompt') === session.directory).body
+    assert.deepEqual(Buffer.from(await body.get('image[]').arrayBuffer()), session.bytes)
+    assert.deepEqual(await h.service.generationResult({ id: job.id }, call(session, 'generation_result')), job)
+    await assert.rejects(h.service.generationResult({ id: job.id }, call(sessions[1-index], 'generation_result')), code('MEDIA_JOB_NOT_FOUND'))
+  }
+  assert.deepEqual((await fs.readdir(h.workspace)).sort(), [...names].sort())
+})
+
+test('a chat image can be referenced by its ID or read-only path only in the calling session', async t => {
+  const h = await fixture(t)
+  const uploaded = { attachmentId: 'sha256:'+'a'.repeat(64) }
+  const stored = join(h.workspace, 'attachments', 'object.png')
+  const session = { deriveMessages: () => [{content:[{type:'image', attachment:uploaded}]}] }
+  const workspace = join(h.workspace,'chat')
+  await fs.mkdir(workspace)
+  const ctx = { workingDirectory: { get: () => workspace }, get: name => name === 'attachments'
+    ? { imageHostPath: () => stored, readImage: async ref => { assert.equal(ref,uploaded); return { data:PNG } } }
+    : undefined }
+  const contexts = createMediaContexts(ctx,'local')
+  const issue = session => contexts.issue('novaflow-image','local','generate_image',{agent:{session}})
+  assert.equal(contexts.issue('another','local','generate_image',{agent:{session}}),undefined)
+  assert.equal(contexts.issue('novaflow-image','foreign','generate_image',{agent:{session}}),undefined)
+  const lease = issue(session)
+  const context = contexts.take('generate_image',lease.meta)
+  assert.throws(() => contexts.take('generate_image',lease.meta),code('MEDIA_CONTEXT_INVALID'))
+  const result = await h.service.generateImage({prompt:'edit',reference_images:[uploaded.attachmentId,stored]},context)
+  assert.equal(result.status,'completed')
+  for (const image of h.requests[0].body.getAll('image[]')) assert.deepEqual(Buffer.from(await image.arrayBuffer()),PNG)
+  const other = contexts.take('generate_image',issue({deriveMessages:()=>[]}).meta)
+  for (const value of [uploaded.attachmentId, stored]) {
+    assert.equal((await h.service.generateImage({prompt:'edit',reference_images:[value]},other)).status,'failed')
+  }
+  assert.equal(h.requests.length,1)
+})
+
+test('a trusted workspace alias accepts both absolute spellings while rejecting child symlinks', async t => {
+  const h = await fixture(t)
+  const root = join(h.workspace,'project'), alias = join(h.workspace,'alias')
+  await fs.mkdir(root)
+  await fs.symlink(root,alias,process.platform === 'win32' ? 'junction' : 'dir')
+  await fs.writeFile(join(root,'ref.png'),PNG)
+  const context = {workspace:alias}
+  const job = await h.service.generateImage({prompt:'edit',reference_images:[join(root,'ref.png'),join(alias,'ref.png')]},context)
+  assert.equal(job.status,'completed')
+  assert.equal(job.files[0],join(root,'generated-images',job.id+'.png'))
+  await fs.symlink(h.workspace,join(root,'link'),process.platform === 'win32' ? 'junction' : 'dir')
+  const denied = await h.service.generateImage({prompt:'edit',reference_images:['link/project/ref.png']},context)
+  assert.equal(denied.error,'MEDIA_PATH_INVALID')
+  assert.equal(h.requests.length,1)
 })
 
 test('invalid image magic is rejected for a reference and for returned base64 data',async t=>{

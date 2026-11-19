@@ -15,9 +15,9 @@ const runtimeRequire=createRequire(join(process.env.DSH_INSTALL_DIR,'package.jso
 const semver=runtimeRequire('semver')
 const runtime=JSON.parse(await readFile(join(process.env.DSH_INSTALL_DIR,'package.json'),'utf8'))
 
-test('DSH compatibility admits verified rc.2 and rc.3 without admitting unverified releases',()=>{
-  for(const version of ['0.2.2-rc.2','0.2.2-rc.3'])assert.equal(semver.satisfies(version,manifest.engines.dsh),true,version)
-  for(const version of ['0.2.2-rc.1','0.2.2-rc.4','0.2.2','0.2.3','0.3.0'])assert.equal(semver.satisfies(version,manifest.engines.dsh),false,version)
+test('DSH compatibility admits the verified desktop runtimes',()=>{
+  for(const version of ['0.2.2-rc.2','0.2.2-rc.3','0.2.2-rc.5'])assert.equal(semver.satisfies(version,manifest.engines.dsh),true,version)
+  for(const version of ['0.2.2-rc.1','0.2.2-rc.4','0.2.2-rc.6','0.2.2','0.2.3','0.3.0'])assert.equal(semver.satisfies(version,manifest.engines.dsh),false,version)
 })
 
 test('the installed DSH and Node satisfy requirements and source lock metadata matches when present',()=>{

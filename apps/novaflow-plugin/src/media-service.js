@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs'
-import { resolve, relative, dirname, extname, join } from 'node:path'
+import { resolve, relative, dirname, extname, isAbsolute, join, sep } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
@@ -81,10 +81,38 @@ async function externalFetch(url,{signal},lookupImpl) {
   })
 }
 
+// Directory authority comes from the Host for this call, never from job JSON.
+const jobWorkspace = Symbol('workspace')
+async function workspacePaths(directory) {
+  if (!isAbsolute(directory)) bad('MEDIA_PATH_INVALID')
+  const root = await fs.realpath(directory)
+  const within = rel => rel && rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel)
+  async function safePath(value) {
+    if (typeof value !== 'string' || value.includes('\0')) bad('MEDIA_PATH_INVALID')
+    const absolute = resolve(directory, value)
+    let rel = relative(directory, absolute)
+    if (!within(rel)) rel = relative(root, absolute)
+    if (!within(rel) || await fs.realpath(root) !== root) bad('MEDIA_PATH_INVALID')
+    let current = root
+    for (const part of rel.split(sep)) {
+      current = join(current, part)
+      try {
+        if ((await fs.lstat(current)).isSymbolicLink()) bad('MEDIA_PATH_INVALID')
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+    return current
+  }
+  return { root, safePath }
+}
+const metadataPath = id => join('.novaflow-media', 'jobs', id + '.json')
+const jobKey = (paths, id) => JSON.stringify([paths.root, id])
+
 /** Media execution independent of Magpie application preferences. Persisted job metadata
  * holds only device identity hash, model/group and result paths, never device tokens. */
 export function createMediaService({account,credentials,api,workspace,fetchImpl=globalThis.fetch,externalFetchImpl,lookupImpl=lookup,waitMs=18000,timeoutMs=300000}) {
-  const root=resolve(workspace), jobsDir=join(root,'.novaflow-media','jobs'), jobs=new Map(), running=new Set(), polling=new Map()
+  const jobs=new Map(), running=new Set(), polling=new Map()
   let disposed=false
   const lifecycle=new AbortController()
   let accountLifetime=new AbortController()
@@ -131,19 +159,6 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     if(rows.length>1&&!group)bad('MEDIA_GROUP_REQUIRED')
     return rows[0]
   }
-  async function safePath(value) {
-    const path=resolve(root,value), rel=relative(root,path)
-    if(!rel || rel.startsWith('..') || rel.startsWith('/') || rel.includes('\0'))bad('MEDIA_PATH_INVALID')
-    // Reject an existing symlink in every path component, including the final file.
-    let current=root
-    const realRoot=await fs.realpath(root)
-    if(realRoot!==root)bad('MEDIA_PATH_INVALID')
-    for(const part of rel.split(/[\\/]/u)) {
-      current=join(current,part)
-      try{if((await fs.lstat(current)).isSymbolicLink())bad('MEDIA_PATH_INVALID')}catch(error){if(error.code!=='ENOENT')throw error}
-    }
-    return path
-  }
   async function download(value,limit,signal) {
     let url=await publicURL(value,lookupImpl)
     for(let count=0;count<4;count++){
@@ -154,11 +169,26 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     }
     bad('MEDIA_DOWNLOAD_FAILED')
   }
-  async function reference(value,signal) {
+  async function reference(value,signal,paths,readAttachment) {
     if(typeof value!=='string'||!value)bad('MEDIA_REFERENCE_INVALID')
     let data
     if(/^https:\/\//.test(value))data=(await download(value,IMAGE_LIMIT,signal)).data
-    else{const path=await safePath(value),stat=await fs.stat(path);if(!stat.isFile()||stat.size>IMAGE_LIMIT)bad('MEDIA_FILE_TOO_LARGE');data=await fs.readFile(path)}
+    else {
+      const attached = await readAttachment?.(value,signal)
+      if (attached) data = Buffer.from(attached)
+      else {
+        if (value.startsWith('sha256:')) bad('MEDIA_REFERENCE_INVALID')
+        const path = await paths.safePath(value)
+        try {
+          const stat = await fs.stat(path)
+          if (!stat.isFile() || stat.size > IMAGE_LIMIT) bad('MEDIA_FILE_TOO_LARGE')
+          data = await fs.readFile(path)
+        } catch (error) {
+          if (error.code === 'ENOENT') bad('MEDIA_REFERENCE_NOT_FOUND')
+          throw error
+        }
+      }
+    }
     if(data.length>IMAGE_LIMIT)bad('MEDIA_FILE_TOO_LARGE')
     const type=imageType(data);if(!type)bad('MEDIA_REFERENCE_INVALID')
     return {data,type}
@@ -180,8 +210,8 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
   }
   async function json(response){try{return JSON.parse((await bytes(response,48*1024*1024)).toString('utf8'))}catch(error){if(error instanceof NovaError)throw error;bad('MEDIA_RESPONSE_INVALID')}}
   async function persist(job) {
-    const target=await safePath(relative(root,join(jobsDir,job.id+'.json')))
-    await fs.mkdir(jobsDir,{recursive:true,mode:0o700})
+    const target=await job[jobWorkspace].safePath(metadataPath(job.id))
+    await fs.mkdir(dirname(target),{recursive:true,mode:0o700})
     await writeFileAtomic(target,JSON.stringify(job),{mode:0o600})
   }
   const view=job=>({id:job.id,status:job.status,model:job.model,group:job.group,...(job.files?{files:job.files}:{}),...(job.error?{error:job.error}:{}),...(job.status==='running'?{message:'Generation is running. Call generation_result with this id; do not submit the same request again.'}:job.status==='unknown'?{message:'The submission outcome is unknown and may already be billed. Do not submit it again. Check NovaFlow generation history before deciding what to do.'}:job.status==='failed'&&job.submissionStarted?{message:'The request was submitted but its output could not be completed. Do not retry automatically; check NovaFlow history first.'}:{})})
@@ -192,7 +222,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     if(!extension)bad('MEDIA_RESPONSE_INVALID')
     if(!extname(target))target+=extension
     if(total>1)target=target.slice(0,-extname(target).length)+'-'+(index+1)+extname(target)
-    const path=await safePath(target);await fs.mkdir(dirname(path),{recursive:true})
+    const path=await job[jobWorkspace].safePath(target);await fs.mkdir(dirname(path),{recursive:true})
     const hash=createHash('sha256').update(data).digest('hex')
     const planned=job.outputPlan?.find(entry=>entry.path===path)
     try {
@@ -221,32 +251,34 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     }
     return files
   }
-  async function runImage(job,args,signal) {
+  async function runImage(job,args,signal,readAttachment) {
     const references=args.reference_images||[], body={model:job.model,prompt:args.prompt,stream:false}
     for(const field of ['size','quality','background','n']) if(args[field]!==undefined)body[field]=args[field]
     let payload
-    if(references.length){const form=new FormData();for(const [key,value] of Object.entries(body))form.set(key,String(value));for(const value of references){const ref=await reference(value,signal);form.append('image[]',new Blob([ref.data],{type:ref.type}),'reference'+imageExt(ref.type))}payload=await json(await platform('/v1/images/edits',{method:'POST',body:form,group:job.group,owner:job.owner,signal,job}))}
+    if(references.length){const form=new FormData();for(const [key,value] of Object.entries(body))form.set(key,String(value));for(const value of references){const ref=await reference(value,signal,job[jobWorkspace],readAttachment);form.append('image[]',new Blob([ref.data],{type:ref.type}),'reference'+imageExt(ref.type))}payload=await json(await platform('/v1/images/edits',{method:'POST',body:form,group:job.group,owner:job.owner,signal,job}))}
     else payload=await json(await platform('/v1/images/generations',{method:'POST',body,group:job.group,owner:job.owner,signal,job}))
     job.files=await imageResults(job,payload,signal);job.status='completed'
   }
-  async function runVideo(job,args,signal) {
+  async function runVideo(job,args,signal,readAttachment) {
     const body={model:job.model,prompt:args.prompt}
     if(args.seconds!==undefined)body.seconds=String(args.seconds)
     if(args.size!==undefined)body.size=args.size
     let requestBody=body
     const refs=[...(args.image?[args.image]:[]),...(args.reference_images||[])]
-    if(refs.length){const form=new FormData();for(const [key,value]of Object.entries(body))form.set(key,String(value));for(const [index,value] of refs.entries()){const ref=await reference(value,signal);form.append(args.image&&index===0?'input_reference':'reference_images[]',new Blob([ref.data],{type:ref.type}),'reference'+imageExt(ref.type))}requestBody=form}
+    if(refs.length){const form=new FormData();for(const [key,value]of Object.entries(body))form.set(key,String(value));for(const [index,value] of refs.entries()){const ref=await reference(value,signal,job[jobWorkspace],readAttachment);form.append(args.image&&index===0?'input_reference':'reference_images[]',new Blob([ref.data],{type:ref.type}),'reference'+imageExt(ref.type))}requestBody=form}
     const payload=await json(await platform('/v1/videos',{method:'POST',body:requestBody,group:job.group,owner:job.owner,signal,job}))
     const id=payload?.id || payload?.task_id || payload?.data?.id || payload?.data?.task_id
     if(typeof id!=='string'||!id||!/^[A-Za-z0-9_-]+$/.test(id))bad('MEDIA_RESPONSE_INVALID')
     job.remoteId=id;job.status='running'
   }
-  async function execute(job,args) {
+  async function execute(job,args,readAttachment) {
     const signal=AbortSignal.any([lifecycle.signal,accountLifetime.signal,AbortSignal.timeout(timeoutMs)])
-    try{if(job.kind==='image')await runImage(job,args,signal);else await runVideo(job,args,signal)}catch(error){job.error=error instanceof NovaError?error.code:'MEDIA_GENERATION_FAILED';job.status=job.submissionStarted&&['MEDIA_NETWORK_ERROR','MEDIA_GENERATION_FAILED'].includes(job.error)?'unknown':'failed'}
+    try{if(job.kind==='image')await runImage(job,args,signal,readAttachment);else await runVideo(job,args,signal,readAttachment)}catch(error){job.error=error instanceof NovaError?error.code:'MEDIA_GENERATION_FAILED';job.status=job.submissionStarted&&['MEDIA_NETWORK_ERROR','MEDIA_GENERATION_FAILED'].includes(job.error)?'unknown':'failed'}
     await persist(job)
   }
-  async function begin(kind,args) {
+  async function begin(kind,args,context) {
+    const paths = await workspacePaths(context?.workspace ?? workspace)
+    const readAttachment = context?.readAttachment
     if(!plain(args)||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>32000)bad('INVALID_REQUEST')
     if(args.model!==undefined&&(typeof args.model!=='string'||!args.model.trim()))bad('MEDIA_MODEL_UNAVAILABLE')
     if(args.group!==undefined&&(typeof args.group!=='string'||!args.group))bad('INVALID_REQUEST')
@@ -257,7 +289,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
         let target=args.path
         if(!extname(target))target+=kind==='image'?'.png':'.mp4'
         if(total>1)target=target.slice(0,-extname(target).length)+'-'+(i+1)+extname(target)
-        const path=await safePath(target)
+        const path=await paths.safePath(target)
         try{await fs.lstat(path);bad('MEDIA_OUTPUT_EXISTS')}catch(error){if(error.code!=='ENOENT')throw error}
       }
     }
@@ -272,20 +304,22 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     if (!model) bad('VIDEO_MODEL_REQUIRED')
     const route = await select(kind,model,choice?.group || args.group)
     await ensureIdentity(owner)
-    const job={id:randomUUID(),kind,status:'running',model,group:route.group,owner,createdAt:Date.now(),...(args.path?{path:args.path}:{})}
-    await persist(job);jobs.set(job.id,job)
-    const work=execute(job,args);running.add(work);work.finally(()=>running.delete(work)).catch(()=>{})
+    const job={[jobWorkspace]:paths,id:randomUUID(),kind,status:'running',model,group:route.group,owner,createdAt:Date.now(),...(args.path?{path:args.path}:{})}
+    await persist(job);jobs.set(jobKey(paths,job.id),job)
+    const work=execute(job,args,readAttachment);running.add(work);work.finally(()=>running.delete(work)).catch(()=>{})
     let timer;await Promise.race([work,new Promise(resolve=>{timer=setTimeout(resolve,waitMs)})]);clearTimeout(timer)
     return view(job)
   }
-  async function generationResult({id}={}) {
+  async function generationResult(id,paths) {
     if(typeof id!=='string'||!/^[a-f0-9-]{36}$/.test(id))bad('MEDIA_JOB_INVALID')
-    let job=jobs.get(id)
-    if(!job){try{job=JSON.parse(await fs.readFile(await safePath(relative(root,join(jobsDir,id+'.json'))),'utf8'))}catch{bad('MEDIA_JOB_NOT_FOUND')}
+    let job=jobs.get(jobKey(paths,id))
+    if(!job){try{job=JSON.parse(await fs.readFile(await paths.safePath(metadataPath(id)),'utf8'))}catch{bad('MEDIA_JOB_NOT_FOUND')}
+      if (job?.id !== id) bad('MEDIA_JOB_INVALID')
+      job[jobWorkspace] = paths
       await ensureIdentity(job.owner)
       if(job.status==='running'&&!job.remoteId){
         let recovered=job.outputPlan?.length===job.expectedOutputCount && job.expectedOutputCount>0
-        if(recovered)for(const output of job.outputPlan){try{const data=await fs.readFile(await safePath(output.path));if(createHash('sha256').update(data).digest('hex')!==output.sha256)recovered=false}catch{recovered=false}}
+        if(recovered)for(const output of job.outputPlan){try{const data=await fs.readFile(await paths.safePath(output.path));if(createHash('sha256').update(data).digest('hex')!==output.sha256)recovered=false}catch{recovered=false}}
         if(recovered){job.status='completed';job.files=job.outputPlan.map(output=>output.path)}
         else{job.status=job.submissionStarted?'unknown':'failed';job.error='MEDIA_JOB_INTERRUPTED'}
         await persist(job)
@@ -300,17 +334,19 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     else if(['completed','succeeded','success'].includes(state)) {
       const response=await platform('/v1/videos/'+job.remoteId+'/content',{group:job.group,owner:job.owner,signal})
       const data=await bytes(response,VIDEO_LIMIT)
-      if(!/^(?:video\/|application\/octet-stream)/i.test(response.headers.get('content-type')||'') || data.length<12 || data.toString('ascii',4,8)!=='ftyp'){job.status='failed';job.error='MEDIA_RESPONSE_INVALID';jobs.set(id,job);await persist(job);return view(job)}
+      if(!/^(?:video\/|application\/octet-stream)/i.test(response.headers.get('content-type')||'') || data.length<12 || data.toString('ascii',4,8)!=='ftyp'){job.status='failed';job.error='MEDIA_RESPONSE_INVALID';jobs.set(jobKey(paths,id),job);await persist(job);return view(job)}
       job.files=[await save(job,data,'video/mp4')];job.status='completed'
     }
-    jobs.set(id,job);await persist(job);return view(job)
+    jobs.set(jobKey(paths,id),job);await persist(job);return view(job)
   }
-  return {generateImage:args=>begin('image',args),generateVideo:args=>begin('video',args),generationResult: args => {
+  return {generateImage:(args,context)=>begin('image',args,context),generateVideo:(args,context)=>begin('video',args,context),generationResult: async (args,context) => {
     const id=args?.id
-    if(polling.has(id))return polling.get(id)
-    const work=generationResult(args)
-    polling.set(id,work);running.add(work)
-    work.finally(()=>{polling.delete(id);running.delete(work)}).catch(()=>{})
+    const paths=await workspacePaths(context?.workspace ?? workspace)
+    const key=jobKey(paths,id)
+    if(polling.has(key))return polling.get(key)
+    const work=generationResult(id,paths)
+    polling.set(key,work);running.add(work)
+    work.finally(()=>{polling.delete(key);running.delete(work)}).catch(()=>{})
     return work
   },listModels,preferences,setModel,clear(){accountLifetime.abort();accountLifetime=new AbortController()},async dispose(){disposed=true;lifecycle.abort();accountLifetime.abort();await Promise.allSettled([...running])}}
 }

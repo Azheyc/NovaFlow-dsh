@@ -14,6 +14,8 @@ import css from './AgentPresetSection.module.css'
 
 /** Settings actions and their shared controller state. */
 export interface AgentPresetSectionInjected {
+  /** Deployment preset IDs omitted from the Settings roster. */
+  readonly hiddenPresetChoices: readonly string[]
   hooks: {
     agentPresetSection: SnapshotStore<AgentPresetSectionState>
     /** Shared Coding Tools preference; off hides the built-in PTC and Minimal cards. */
@@ -63,7 +65,7 @@ function CardDescription({ text }: { text: string }): ReactNode {
  */
 export function AgentPresetSection({
   useAgentPresetSection, load, view, closeView, makeDefault, startCreatorDraft,
-  close: closeSettings, useDeveloperTools, t,
+  close: closeSettings, useDeveloperTools, t, hiddenPresetChoices,
 }: AgentPresetSectionProps) {
   const state = useAgentPresetSection(value => value)
   const developerTools = useDeveloperTools(enabled => enabled)
@@ -80,9 +82,12 @@ export function AgentPresetSection({
   const viewed = state.view
   const viewedRow = viewed === null ? undefined : state.rows.find(row => row.id === viewed.id)
   const viewedTitle = viewed === null ? '' : viewedRow === undefined ? viewed.title : presetDisplayText(viewedRow, t).name
+  const visibleRows = state.rows.filter(row => !hiddenPresetChoices.includes(row.id)
+    && (developerTools || !requiresCodingTools(row)))
+  const creatorHidden = hiddenPresetChoices.includes('cordis')
   // Creator mode authors presets in conversation; it needs the flow to land a
   // session in and the self-referential preset on the roster.
-  const creator = startCreatorDraft !== undefined && state.rows.some(row => row.id === 'cordis') ? startCreatorDraft : undefined
+  const creator = visibleRows.some(row => row.id === 'cordis') ? startCreatorDraft : undefined
   /* The custom group is where a preset of one's own appears, so its entry
      stays on screen even while the group is empty. */
   const creatorButton = creator === undefined
@@ -100,11 +105,10 @@ export function AgentPresetSection({
     )
   return <section className={css.section}>
     <h2 className={css.title}>{t('nav')}</h2>
-    <p className={css.intro}>{t('sectionIntro')}</p>
+    <p className={css.intro}>{t(creatorHidden ? 'sectionIntroWithoutCreator' : 'sectionIntro')}</p>
     {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
     {([true, false] as const).map((builtIn) => {
-      const rows = state.rows.filter(row => isBuiltInPreset(row) === builtIn
-        && (developerTools || !requiresCodingTools(row)))
+      const rows = visibleRows.filter(row => isBuiltInPreset(row) === builtIn)
       const entry = builtIn ? null : creatorButton
       if (rows.length === 0 && entry === null) return null
       return <section key={String(builtIn)} className={css.group}>

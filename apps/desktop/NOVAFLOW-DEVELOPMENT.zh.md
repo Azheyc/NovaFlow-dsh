@@ -2,7 +2,7 @@
 
 [English](NOVAFLOW-DEVELOPMENT.md) | 中文
 
-本文将 NovaFlow 定制功能映射到负责的源码及验证入口。先阅读仓库 AGENTS.md；本工作区优先使用 develop.ps1 与 start-novaflow.ps1。当前二开基于 dsh-v0.2.2-rc.3，源码位于独立的 deepseek-harness 仓库，原始迁移资料保留为参考副本。
+本文列出 NovaFlow 定制功能对应的源码与验证入口。先阅读仓库 AGENTS.md，本工作区优先使用 develop.ps1 与 start-novaflow.ps1。当前客户端基于官方 `dsh-v0.2.2-rc.5`（`9c2670d3bc`），源码位于独立的 deepseek-harness 仓库。
 
 ## 功能归属
 

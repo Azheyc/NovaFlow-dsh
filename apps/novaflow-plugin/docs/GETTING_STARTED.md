@@ -29,7 +29,7 @@ NovaFlow 桌面版内置本扩展，账户与余额属于受保护的客户端�
 
 在「设置 → 模型 → NovaFlow Image」分别选择图片和视频模型。每个选项包含模型名称和计费分组，选择后自动保存。
 
-生成返回作业 ID 后继续查询原作业，不重复提交。默认产物在 DSH 默认工作目录的 `generated-images/` 或 `generated-videos/`。结果未知可能已计费，先检查平台历史。
+生成返回作业 ID 后继续查询原作业，不重复提交。聊天上传的图片可直接作为参考图。默认产物在发起生成的会话工作目录的 `generated-images/` 或 `generated-videos/`。结果未知可能已计费，先检查平台历史。
 
 内置 MCP 使用名称 `novaflow-image`。如果与旧客户端冲突，或仍显示旧 Magpie 选模型说明，按[故障排查](TROUBLESHOOTING.md)核对有效预设及实际工具来源。
 

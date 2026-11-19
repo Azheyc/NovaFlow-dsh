@@ -25,9 +25,18 @@ import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { describeError, McpLocalError } from './diagnostic.ts'
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /** Provide out-of-band context for a call to a specific HTTP endpoint. */
+    'mcp-client/call-context'(server: string, url: string, tool: string, execution: ToolExecution):
+      { meta: Record<string, string>; dispose(): void } | undefined
+  }
+}
+
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
   serverName: string
+  url?: string
   toolCallTimeoutMs: number
   /** Generation cancellation combined with each tool execution's signal. */
   signal: AbortSignal
@@ -150,9 +159,11 @@ export async function syncTools(
       outputSchema: tool.outputSchema,
       taskRequired: tool.execution?.taskSupport === 'required',
       call: async (args, execution) => {
+        const context = opts.url === undefined ? undefined
+          : ctx.bail(ctx, 'mcp-client/call-context', opts.serverName, opts.url, tool.name, execution)
         try {
           const result = await client.callTool(
-            { name: tool.name, arguments: args },
+            { name: tool.name, arguments: args, ...(context ? { _meta: context.meta } : {}) },
             { signal: AbortSignal.any([execution.signal, opts.signal]),
               timeout: opts.toolCallTimeoutMs, toolDefinition: tool },
           )
@@ -161,6 +172,8 @@ export async function syncTools(
         } catch (error) {
           if (opts.redact === undefined) throw error
           throw new Error(opts.redact(describeError(error)))
+        } finally {
+          if (context) context.dispose()
         }
       },
     }))

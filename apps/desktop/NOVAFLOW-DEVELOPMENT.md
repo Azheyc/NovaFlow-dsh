@@ -2,7 +2,7 @@
 
 English | [中文](NOVAFLOW-DEVELOPMENT.zh.md)
 
-This reference maps NovaFlow customization to its owning source and validation. Start with the repository AGENTS.md; use the workspace's develop.ps1 and start-novaflow.ps1 when available. The fork is based on dsh-v0.2.2-rc.3. Source lives in the independent deepseek-harness checkout; original migration materials are reference copies.
+This reference maps NovaFlow customization to its owning source and validation. Start with the repository AGENTS.md and use the workspace's develop.ps1 and start-novaflow.ps1 when available. The fork uses upstream `dsh-v0.2.2-rc.5` (`9c2670d3bc`). Source lives in the independent deepseek-harness checkout.
 
 ## Feature ownership
 
