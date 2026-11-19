@@ -5,8 +5,8 @@ window.__ModuleLoader__.load({
     const { Modal, Button } = require('@deepseek-ai/dsh-client-ui-primitives')
     const h = React.createElement
     const dictionaries = {
-      zh: { title: '选择适合工作的 Agent 模式', description: '进行特定工作时，可以选择适合的 Agent 模式。你可以在会话中临时切换，也可以前往 Agent 预设设置默认模式。', detail: '建模模式和自媒体创作模式目前使用标准模式能力，后续会加入专用插件。', view: '查看 Agent 预设', done: '知道了', close: '关闭', error: '暂时无法保存指引状态，请重试' },
-      en: { title: 'Choose an Agent mode for your work', description: 'For specialized work, choose a suitable Agent mode. Switch temporarily within a conversation, or set the default in Agent presets.', detail: 'Modeling and media creation currently use Standard capabilities. Specialized plugins will be added later.', view: 'View Agent presets', done: 'Got it', close: 'Close', error: 'Could not save this preference. Please try again.' },
+      zh: { title: '选择适合工作的 Agent 模式', description: '进行特定工作时，可以选择适合的 Agent 模式。你可以在会话中临时切换，也可以前往 Agent 预设设置默认模式。', detail: '内容平台模式内置故事创作、资产提取、角色板、场景参考和电影级分镜技能，可在「设置 → 技能」中查看。', view: '查看 Agent 预设', done: '知道了', close: '关闭', error: '暂时无法保存指引状态，请重试' },
+      en: { title: 'Choose an Agent mode for your work', description: 'For specialized work, choose a suitable Agent mode. Switch temporarily within a conversation, or set the default in Agent presets.', detail: 'Content platform mode includes story writing, asset extraction, character boards, scene references, and cinematic storyboarding. Find them in Settings → Skills.', view: 'View Agent presets', done: 'Got it', close: 'Close', error: 'Could not save this preference. Please try again.' },
     }
     return { inject: ['slots', 'locale'], apply(ctx) {
       ctx.effect(() => ctx.locale.register('novaflow.modes', dictionaries))

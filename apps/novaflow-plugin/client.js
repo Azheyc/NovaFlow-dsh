@@ -425,10 +425,8 @@ window.__ModuleLoader__.load({
             const key = row => JSON.stringify([row.group, row.id]);
             const selected = state.media?.selected?.[kind];
             const available = selected && rows.some(row => key(row) === key(selected));
-            const defaultImages = rows.filter(row => row.id === 'gpt-image-2.6');
-            const initial = !selected && kind === 'image' && defaultImages.length === 1 ? key(defaultImages[0]) : '';
             return h('label', {className:'nf-picker'}, h('span', null, t(title)),
-              h('select', {className:'nf-button', value:available ? key(selected) : initial,
+              h('select', {className:'nf-button', value:available ? key(selected) : '',
                 disabled:!!busy || !state.media?.owner || !rows.length,
                 onChange:event => {
                   const row = rows.find(item => key(item) === event.target.value);

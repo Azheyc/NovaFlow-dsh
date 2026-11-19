@@ -44,7 +44,7 @@ export async function apply(ctx, rawConfig) {
     return state
   }).catch(error => account.publish({ error: safeCode(error) })).finally(() => modelStartup.resolve())
   const view=async state=>({...state,delivery:clientDelivery(ctx),media:{
-    ...(state.connected ? await media.preferences() : {owner:null,selected:{}}),
+    ...(state.connected ? await media.preferences(state.mediaModels) : {owner:null,selected:{}}),
     mcp:ctx.mcpManager.list().find(server=>server.name==='novaflow-image')?.status || {state:'connecting'},
   }})
   async function operation(action, input = {}, user = false) {

@@ -51,6 +51,7 @@ async function mockPlatform() {
         if (rejectAuthorization || req.headers.authorization !== `Bearer ${access}`) { res.writeHead(401).end(); return }
         if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: 'personal' }
         else if (req.url === `${prefix}/creator/models`) data = { items: [
+          { model_id: 'gpt-image-2.6', group_id: 'Image group', kind: 'image', supported_endpoint_types: ['image-generation'] },
           { model_id: 'video-fixture', group_id: 'Video group', kind: 'video', supported_endpoint_types: ['openai-video'] },
           { model_id: 'gpt-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai'] },
           { model_id: 'gpt-6.2-sol', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
@@ -133,6 +134,17 @@ globalThis.fetch = (input, init) => {
         expect(roster.presets.find(row => row.id === id), id).toMatchObject({ id, isDefault: false })
         expect(roster.presets.find(row => row.id === id)?.broken, id).toBeUndefined()
       }
+      expect(roster.presets.find(row => row.id === 'novaflow-media-creation')).toMatchObject({ name: '内容平台模式' })
+      const skillResponse = await fetch(`${hostOrigin}/api/michengai/dsh-skills-manager/state`, { headers: { cookie } })
+      expect(skillResponse.status).toBe(200)
+      const { data: { roots } } = await skillResponse.json() as {
+        data: { roots: Array<{ group?: string; skills: Array<{ declaredName: string }> }> }
+      }
+      const content = roots.find(root => root.group === '内容平台模式')
+      expect(content).toMatchObject({ kind: 'preset', mutable: false, toggleable: false })
+      expect(content?.skills.map(skill => skill.declaredName).sort()).toEqual([
+        'laotang-asset-extractor', 'laotang-character-board', 'laotang-cinematic-storyboard-s10-free', 'laotang-scene-reference-zh', 'laotang-storycraft-zh',
+      ])
       const management = await rpc<{ changed: boolean; error?: { code: string } }>('pluginManager/setBundleEnabled', { name: '@local/novaflow-dsh-plugin', enabled: false })
       expect(management.changed).toBe(false)
       expect(management.error).toBeDefined()
@@ -194,11 +206,13 @@ globalThis.fetch = (input, init) => {
       })).json()).value
       const media = await mediaState()
       const video = { id: 'video-fixture', group: 'Video group' }
+      const image = { id: 'gpt-image-2.6', group: 'Image group' }
+      expect(media.media.selected).toEqual({ image })
       expect(media.mediaModels).toContainEqual(expect.objectContaining(video))
       expect((await mediaState('set_media_model', { kind:'video', model:video.id, group:video.group, owner:media.media.owner })).media.selected.video).toEqual(video)
       await restart()
       expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
-      expect((await mediaState()).media.selected.video).toEqual(video)
+      expect((await mediaState()).media.selected).toEqual({ image, video })
       await expect.poll(async () => (await mediaState()).media.mcp, { timeout:15000 }).toMatchObject({ state:'connected', toolCount:4 })
       expect(await guide('state')).toEqual({ seen: true, ready: true })
       await backend!.account.signOut(desktopClientMetadata('en'))

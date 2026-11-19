@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This local development plugin registers `novaflow-modeling` and `novaflow-media-creation` using the shipped Standard preset template. Each adds its own `plugins` array from `modes.js`; both arrays are currently empty. Only session-scoped capabilities belong there. The preset registry reports missing modules, activation failures and leaked root services rather than enabling global plugins. Existing conversation selection and new-task defaults keep their upstream behavior.
+This plugin registers Modeling and Content platform modes using the shipped Standard preset template. Content platform keeps its `novaflow-media-creation` ID for existing conversations and prompt libraries. Its preset adds five bundled skills for story writing, asset extraction, character boards, scene references and S10 cinematic storyboarding. Settings → Skills lists them under the Content platform preset. Each skill ships with its supporting files in `skills/`.
 
 The first-workspace guide contributes to `settings.onboarding` and reuses the shared Modal and Button primitives. It waits for the preset roster, offers View Agent presets or Got it, and treats closing or Escape as dismissal. Navigation opens `agent-presets` without selecting a mode or changing the default. `/api/novaflow-modes` accepts owner-authenticated JSON POST actions `state` and `dismiss`; the state is `{seen, ready}`. No model requests or downloads occur.
 

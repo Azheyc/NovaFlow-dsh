@@ -12,6 +12,7 @@ const originalPromptCatalog = {
 }
 const originalPromptClient = {
   'client.js': [
+    '4f8cb40751e5fc5295aab8d34c3fd11af84aa939633b6a8cf1dd16038640a0b3',
     '944740e50de5b579a9d393c7cb676c56fd4a3163fa63a0cbacfd8d6d9fbae99a',
     '1c4797184a4653f35193eaac812f14265fffc3ffdd12a7c4aeec2082cdd843aa',
     'c09ad42666f1a59de36a8604dd786778d68b25d4da779640a9b5eed042348030',

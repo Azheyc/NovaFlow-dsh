@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本地开发插件使用随产品提供的标准模式模板注册 `novaflow-modeling` 和 `novaflow-media-creation`。每个模式追加 `modes.js` 中独立的 `plugins` 数组；目前两份数组均为空。这里只加入会话范围的能力。预设注册器会报告模块缺失、激活失败和泄漏到根环境的服务，不通过启用全局插件代替。会话临时选择与新任务默认设置沿用上游行为。
+本插件基于标准预设注册建模模式和内容平台模式。内容平台模式沿用 `novaflow-media-creation` 标识，已有会话和提示词库继续使用原有配置。该模式内置故事创作、故事资产提取、角色资产板、全能场景和 S10 电影级分镜五项技能。「设置 → 技能」将它们列在内容平台模式预设下。各技能的正文及配套文件随包保存在 `skills/` 中。
 
 首次工作区指引注册在 `settings.onboarding`，复用共享 Modal 与 Button。指引等待预设列表就绪，提供“查看 Agent 预设”和“知道了”，关闭或 Escape 等同于确认。导航仅打开 `agent-presets` 面板，不选择模式或改变默认值。`/api/novaflow-modes` 接受经过所有者认证的 JSON POST 动作 `state`、`dismiss`，返回 `{seen, ready}`。不发起模型请求或下载。
 

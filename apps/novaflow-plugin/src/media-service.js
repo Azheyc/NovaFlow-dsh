@@ -23,6 +23,16 @@ export function mediaModels(items) {
   }
   return [...models.values()]
 }
+function matchingModels(models, kind, model, group) {
+  return models.filter(row => row.kind === kind && row.id === model && (!group || row.group === group))
+}
+function effectiveSelections(saved, models) {
+  if (saved.image) return saved
+  const defaults = matchingModels(models, 'image', DEFAULT_IMAGE_MODEL)
+  if (defaults.length !== 1) return saved
+  const {id,group} = defaults[0]
+  return {...saved,image:{id,group}}
+}
 const ownerId = grant => createHash('sha256').update(grant.sessionId).digest('hex')
 function publicAddress(address) {
   if (address.includes(':')) return /^[23]/.test(address) && !/^2001:(?:db8|0:|10:|20:)/i.test(address) && !address.toLowerCase().includes('ffff:')
@@ -84,22 +94,26 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     return ownerId(grant)
   }
   async function ensureIdentity(owner) {if(await identity()!==owner)bad('MEDIA_ACCOUNT_CHANGED')}
-  async function catalog(kind) {
+  async function catalog() {
     const token=await account.accessToken()
     const data=await api.request(PREFIX+'/creator/models',{token,signal:lifecycle.signal})
-    return mediaModels(data?.items).filter(row => !kind || row.kind === kind)
+    return mediaModels(data?.items)
   }
-  async function preferences() {
+  async function savedPreferences() {
     const grant = storedGrant(await credentials.readRecord(RECORD))
     return grant ? {owner:ownerId(grant),selected:grant.mediaModels || {}} : {owner:null,selected:{}}
+  }
+  async function preferences(models) {
+    const {owner,selected} = await savedPreferences()
+    return {owner,selected:owner ? effectiveSelections(selected,models) : selected}
   }
   async function listModels({kind}={}) {
     if(kind!==undefined&&!Object.hasOwn(endpoints,kind))bad('INVALID_REQUEST')
     const owner = await identity()
-    const models = await catalog(kind)
-    const prefs = await preferences()
+    const models = await catalog()
+    const prefs = await preferences(models)
     if (prefs.owner !== owner) bad('MEDIA_ACCOUNT_CHANGED')
-    return {models, selected:prefs.selected}
+    return {models:models.filter(row => !kind || row.kind === kind), selected:prefs.selected}
   }
   async function setModel({kind,model,group,owner}) {
     if (!Object.hasOwn(endpoints,kind) || typeof model !== 'string' || !model || typeof group !== 'string' || !group || typeof owner !== 'string') bad('INVALID_REQUEST')
@@ -112,7 +126,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     })
   }
   async function select(kind,model,group) {
-    const rows=(await catalog(kind)).filter(row=>row.id===model && (!group || row.group===group))
+    const rows=matchingModels(await catalog(),kind,model,group)
     if(!rows.length)bad('MEDIA_MODEL_UNAVAILABLE')
     if(rows.length>1&&!group)bad('MEDIA_GROUP_REQUIRED')
     return rows[0]
@@ -250,7 +264,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     if(args.reference_images!==undefined&&(!Array.isArray(args.reference_images)||args.reference_images.length>8||args.reference_images.some(x=>typeof x!=='string')))bad('MEDIA_REFERENCE_INVALID')
     if(kind==='image'&&args.n!==undefined&&(!Number.isInteger(args.n)||args.n<1||args.n>4))bad('INVALID_REQUEST')
     if(kind==='video'&&args.seconds!==undefined&&(!Number.isInteger(args.seconds)||args.seconds<1||args.seconds>60))bad('INVALID_REQUEST')
-    const {owner,selected} = await preferences()
+    const {owner,selected} = await savedPreferences()
     if (!owner) bad('AUTH_REQUIRED')
     const choice = selected[kind]
     if (choice && ((args.model && args.model !== choice.id) || (args.group && args.group !== choice.group))) bad('MEDIA_SELECTION_CONFLICT')

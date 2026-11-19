@@ -5,7 +5,7 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
   const { Modal, Button } = require('@deepseek-ai/dsh-client-ui-primitives')
   const Binding = React.createContext(null)
   const HeroSelection = React.createContext(null)
-  const names = { standard: '标准模式', 'novaflow-modeling': '建模模式', 'novaflow-media-creation': '自媒体创作模式' }
+  const names = { standard: '标准模式', 'novaflow-modeling': '建模模式', 'novaflow-media-creation': '内容平台模式' }
   const move = (items, index, step) => { items.splice(index + step, 0, items.splice(index, 1)[0]) }
 
   async function request(payload) {

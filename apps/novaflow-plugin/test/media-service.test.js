@@ -41,9 +41,14 @@ async function fixture(t,options={}) {
 }
 async function final(service,job){const deadline=Date.now()+2000;while(job.status==='running'&&Date.now()<deadline){await new Promise(resolve=>setTimeout(resolve,5));job=await service.generationResult({id:job.id})}return job}
 
- test('default image model is gpt-image-2.6 and generated PNG is saved with private metadata and no secrets',async t=>{
-  const h=await fixture(t),job=await h.service.generateImage({prompt:'A small test'})
+test('a fresh account lists its effective image model and uses it on the first generation',async t=>{
+  const h=await fixture(t)
+  const listed=await h.service.listModels({kind:'image'})
+  assert.deepEqual(listed.selected,{image:{id:DEFAULT_IMAGE_MODEL,group:'研发 A'}})
+  assert.equal(h.getRecord().payload.mediaModels,undefined)
+  const job=await h.service.generateImage({prompt:'A small test'})
   assert.equal(DEFAULT_IMAGE_MODEL,'gpt-image-2.6');assert.equal(job.model,DEFAULT_IMAGE_MODEL);assert.equal(job.status,'completed')
+  assert.equal(job.group,listed.selected.image.group)
   assert.equal(h.requests.length,1);const req=h.requests[0]
   assert.equal(req.url,ORIGIN+'/v1/images/generations');assert.equal(req.redirect,'error');assert.equal(req.headers.Authorization,'Bearer '+h.getRecord().payload.accessToken)
   assert.equal(req.headers['X-NovaFlow-Group'],encodeURIComponent(job.group));assert.equal(JSON.parse(req.body).model,DEFAULT_IMAGE_MODEL)
@@ -316,7 +321,7 @@ test('dispose aborts running generation, persists failure and disallows new work
 
  test('account settings persist the exact image and video groups and reject revoked or conflicting routes',async t=>{
   const catalog = [...rows]; const h = await fixture(t,{rows:catalog})
-  const {owner} = await h.service.preferences()
+  const {owner} = await h.service.preferences([])
   await h.service.setModel({owner,kind:'image',model:DEFAULT_IMAGE_MODEL,group:'团队 B'})
   await h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'})
   assert.equal((await h.service.generateImage({prompt:'test'})).group,'团队 B')
@@ -326,7 +331,7 @@ test('dispose aborts running generation, persists failure and disallows new work
   catalog.splice(1,1)
   await assert.rejects(h.service.generateImage({prompt:'test'}),code('MEDIA_MODEL_UNAVAILABLE'))
   h.setRecord(grant('x'))
-  assert.deepEqual((await h.service.preferences()).selected,{})
+  assert.deepEqual((await h.service.listModels()).selected,{image:{id:DEFAULT_IMAGE_MODEL,group:'研发 A'}})
   await assert.rejects(h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'}),code('MEDIA_ACCOUNT_CHANGED'))
   assert.equal(h.requests.length,2)
 })
