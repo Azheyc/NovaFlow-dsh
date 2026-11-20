@@ -58,6 +58,31 @@ async function bytes(response,limit) {
 const imageType=data=> data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? 'image/png' : data[0]===255&&data[1]===216 ? 'image/jpeg' : data.toString('ascii',0,4)==='RIFF'&&data.toString('ascii',8,12)==='WEBP' ? 'image/webp' : /^GIF8[79]a/.test(data.toString('ascii',0,6))?'image/gif':null
 const imageExt=type=>({'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp','image/gif':'.gif'}[type])
 
+function downgradedImageSize(size, prompt) {
+  const dimensions = /(?<!\d)(\d{2,5})\s*[x×*]\s*(\d{2,5})(?!\d)/gi
+  const fourK = /(?<![a-z0-9])(?:4\s*k|uhd|2160p)(?![a-z0-9])/i
+  const requested = String(size ?? '').normalize('NFKC').trim()
+  const explicit = requested && requested.toLowerCase() !== 'auto'
+  const text = prompt.normalize('NFKC')
+  const source = explicit && !fourK.test(requested) ? requested : `${requested} ${text}`
+  const pixels = Array.from(source.matchAll(dimensions)).find(match =>
+    [3840, 4096].includes(Math.max(Number(match[1]), Number(match[2]))))
+  if (!pixels && !fourK.test(source)) return undefined
+
+  const ratio = pixels ?? /(?<!\d)(\d{1,2})\s*:\s*(\d{1,2})(?!\d)/.exec(`${requested} ${text}`)
+  let width = 16, height = 9
+  if (ratio && Number(ratio[1]) > 0 && Number(ratio[2]) > 0) {
+    width = Number(ratio[1]); height = Number(ratio[2])
+  } else if (/竖[版幅屏向]|portrait|vertical/i.test(source)) {
+    width = 9; height = 16
+  } else if (/方形|方图|square/i.test(source)) {
+    width = height = 1
+  }
+  const scale = 2048 / Math.max(width, height)
+  const edge = value => Math.max(16, Math.round(value * scale / 16) * 16)
+  return `${edge(width)}x${edge(height)}`
+}
+
 // Validate DNS and pin the exact validated address at socket creation. A second
 // unguarded fetch resolution would permit DNS rebinding into the Host's LAN.
 async function externalFetch(url,{signal},lookupImpl) {
@@ -214,7 +239,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     await fs.mkdir(dirname(target),{recursive:true,mode:0o700})
     await writeFileAtomic(target,JSON.stringify(job),{mode:0o600})
   }
-  const view=job=>({id:job.id,status:job.status,model:job.model,group:job.group,...(job.files?{files:job.files}:{}),...(job.error?{error:job.error}:{}),...(job.status==='running'?{message:'Generation is running. Call generation_result with this id; do not submit the same request again.'}:job.status==='unknown'?{message:'The submission outcome is unknown and may already be billed. Do not submit it again. Check NovaFlow generation history before deciding what to do.'}:job.status==='failed'&&job.submissionStarted?{message:'The request was submitted but its output could not be completed. Do not retry automatically; check NovaFlow history first.'}:{})})
+  const view=job=>({id:job.id,status:job.status,model:job.model,group:job.group,...(job.downgradedSize?{downgradedSize:job.downgradedSize}:{}),...(job.files?{files:job.files}:{}),...(job.error?{error:job.error}:{}),...(job.status==='running'?{message:'Generation is running. Call generation_result with this id; do not submit the same request again.'}:job.status==='unknown'?{message:'The submission outcome is unknown and may already be billed. Do not submit it again. Check NovaFlow generation history before deciding what to do.'}:job.status==='failed'&&job.submissionStarted?{message:'The request was submitted but its output could not be completed. Do not retry automatically; check NovaFlow history first.'}:{})})
   async function save(job,data,type,index=0,total=1) {
     await ensureIdentity(job.owner)
     let target=job.path || (job.kind==='image'?'generated-images/':'generated-videos/')+job.id+(job.kind==='image'?imageExt(type):'.mp4')
@@ -254,6 +279,8 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
   async function runImage(job,args,signal,readAttachment) {
     const references=args.reference_images||[], body={model:job.model,prompt:args.prompt,stream:false}
     for(const field of ['size','quality','background','n']) if(args[field]!==undefined)body[field]=args[field]
+    job.downgradedSize = downgradedImageSize(args.size, args.prompt)
+    if (job.downgradedSize) body.size = job.downgradedSize
     let payload
     if(references.length){const form=new FormData();for(const [key,value] of Object.entries(body))form.set(key,String(value));for(const value of references){const ref=await reference(value,signal,job[jobWorkspace],readAttachment);form.append('image[]',new Blob([ref.data],{type:ref.type}),'reference'+imageExt(ref.type))}payload=await json(await platform('/v1/images/edits',{method:'POST',body:form,group:job.group,owner:job.owner,signal,job}))}
     else payload=await json(await platform('/v1/images/generations',{method:'POST',body,group:job.group,owner:job.owner,signal,job}))

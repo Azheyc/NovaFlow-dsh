@@ -1,0 +1,329 @@
+diff --git a/client/client.js b/client/client.js
+index a3906a4..05269aa 100644
+--- a/client/client.js
++++ b/client/client.js
+@@ -16096,7 +16096,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 				const updatable = isPluginUpdatable(name, spec, status, updatedNames);
+ 				const showExempt = !localDev || exempt || updatable;
+ 				const showBootIgnore = bootId !== null && !exempt && !ignoredUpdateSet.has(name) && updatable;
+-				const showRestore = localDev && !(status?.updateAvailable === true && status.restoreRequired === true);
++				const showRestore = name !== "dshmarket" && name !== "dsh-market" && localDev && !(status?.updateAvailable === true && status.restoreRequired === true);
+ 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+ 					open: installedMenuName === name,
+ 					onClose: () => setInstalledMenuName(null),
+@@ -18006,11 +18006,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 									children: t("tabAdvanced")
+ 								}),
+ 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+-									className: surface === "plugins" ? `${Market_module_css_default.grow} ${Market_module_css_default.sponsorSlot}` : Market_module_css_default.grow,
+-									children: surface === "plugins" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SponsorMark, {
+-										lang,
+-										t
+-									})
++									className: Market_module_css_default.grow
+ 								}),
+ 								surface === "plugins" && batchActions,
+ 								surface === "plugins" && exportLogButton,
+@@ -18056,20 +18052,6 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 								})
+ 							]
+ 						}),
+-						!marketGone && updateCheckFailed && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+-							className: Market_module_css_default.updateCheckNotice,
+-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+-								role: "status",
+-								children: t("updateCheckFailed")
+-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+-								variant: "ghost",
+-								size: "sm",
+-								"aria-label": t("updateCheckRetry"),
+-								disabled: checkingUpdates,
+-								onClick: () => refreshInstalled(true),
+-								children: t("loadRetry")
+-							})]
+-						}),
+ 						!marketGone && restartHold !== null && restartHold.boot === bootId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+ 							className: Market_module_css_default.updateCheckNotice,
+ 							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+diff --git a/lib/drain.js b/lib/drain.js
+index 86abef2..fe409aa 100644
+--- a/lib/drain.js
++++ b/lib/drain.js
+@@ -17,6 +17,7 @@
+  * carries counts and ids only — never prompts, transcripts, tool input, or
+  * paths (FR-11).
+  */
++import { randomUUID } from 'node:crypto';
+ import { drainableAgent } from './agents.js';
+ import { redactHomePaths } from './log-redaction.js';
+ /** A probe (or an ordinary route replay) refused the request before mutation. */
+@@ -52,10 +53,11 @@ function record(value) {
+ function text(value) {
+     return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+ }
+-/** True when the executor reported a completed change. */
+-function landed(result) {
++/** Whether the executor was able to verify an outcome despite an unload. */
++function settledOnUnload(result) {
+     const payload = record(result.payload);
+-    return result.status >= 200 && result.status < 300 && payload?.ok !== false && payload?.cancelled !== true;
++    return payload?.marketReloaded === true
++        || (result.status >= 200 && result.status < 300 && payload?.ok !== false && payload?.cancelled !== true);
+ }
+ /** Mark a finished result as having outlived its market instance. */
+ function markReloaded(result) {
+@@ -109,7 +111,6 @@ export class DrainCoordinator {
+     subscriptions = [];
+     activityWaiters = new Set();
+     subscribed;
+-    sequence = 0;
+     active = null;
+     disposeRequested = false;
+     barrierBroken = false;
+@@ -121,6 +122,7 @@ export class DrainCoordinator {
+         this.maxRetained = options.maxRetained ?? MAX_RETAINED;
+         this.log = options.log ?? (() => { });
+         this.abortMutation = options.abortMutation;
++        this.operations = options.operations ?? this.operations;
+         // Subscribe before the first inventory snapshot (FR-4). A host without
+         // both events cannot close the creation race, so drain stays unsupported.
+         const created = this.host.onCreated(agent => this.onAgentCreated(agent));
+@@ -136,7 +138,7 @@ export class DrainCoordinator {
+     }
+     /** Whether one deferred or running operation owns the lane. */
+     hasActive() {
+-        return this.active !== null && !this.active.settled;
++        return [...this.operations.values()].some(operation => !operation.settled);
+     }
+     /**
+      * Whether the executor may still change files right now.
+@@ -333,6 +335,8 @@ export class DrainCoordinator {
+         const operation = this.operations.get(operationId);
+         if (operation === undefined || operation.settled)
+             return false;
++        if (operation !== this.active)
++            return operation.cancel();
+         operation.cancelRequested = true;
+         this.notifyActivity();
+         if (operation.state === 'running' || operation.state === 'verifying') {
+@@ -373,7 +377,7 @@ export class DrainCoordinator {
+      * subscriptions. Called from the market's mount disposer; the second half of
+      * the "finally + disposer" guarantee that no Agent is left parked.
+      */
+-    dispose() {
++    dispose({ abortRunning = true } = {}) {
+         if (this.disposeRequested)
+             return;
+         this.disposeRequested = true;
+@@ -390,12 +394,11 @@ export class DrainCoordinator {
+             this.notifyActivity();
+         };
+         if (executing) {
+-            // The executor is already inside a package command. Stop that command,
+-            // stop any later runPlugin through the pre-command gate, and leave the
+-            // holds and the Agent subscription in place until the drain loop's
+-            // finally runs: releasing or detaching now would leave a live command
+-            // changing files with nobody watching the Agents.
+-            this.abortMutation?.();
++            // Stop commands owned by this mount. The Desktop manager owns its own
++            // writes and may be reconciling this very unload. In either case block
++            // new commands and keep the Agent holds until the executor settles.
++            if (abortRunning)
++                this.abortMutation?.();
+             return;
+         }
+         if (active !== null && !active.settled) {
+@@ -440,13 +443,12 @@ export class DrainCoordinator {
+             if (this.disposeRequested)
+                 this.detach();
+         }
+-        if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken && landed(result)) {
+-            // The executor returned success: the package is on disk. The market being
+-            // unloaded afterwards does not make that a cancellation (#1151).
++        if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken && settledOnUnload(result)) {
++            // The market being unloaded does not invalidate a verified result.
+             result = markReloaded(result);
+             this.finishFromResult(operation, result);
+         }
+-        else if (this.disposeRequested) {
++        else if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken) {
+             result = {
+                 status: 503,
+                 payload: {
+@@ -562,11 +564,11 @@ export class DrainCoordinator {
+             // A cancel wins over a late success: the user asked to stop. An unload
+             // does not: a success result means the package command finished and the
+             // files are on disk, so it is recorded as done (#1151).
+-            if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken && landed(result)) {
++            if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken && settledOnUnload(result)) {
+                 this.finishFromResult(operation, markReloaded(result));
+                 return;
+             }
+-            if (this.disposeRequested) {
++            if (this.disposeRequested && !operation.cancelRequested && !this.barrierBroken) {
+                 this.finish(operation, 'cancelled', {
+                     code: 'MARKET_UNLOADED',
+                     message: 'the market was unloaded before this operation finished',
+@@ -874,7 +876,7 @@ export class DrainCoordinator {
+     }
+     // ------------------------------------------------------------- operations
+     createOperation(request) {
+-        const operationId = `${this.bootId}-drain-${String(++this.sequence)}`;
++        const operationId = `${this.bootId}-drain-${randomUUID()}`;
+         const createdAt = this.now();
+         let resolveSettled = () => { };
+         const operation = {
+@@ -896,6 +898,7 @@ export class DrainCoordinator {
+             cancelRequested: false,
+             settled: false,
+             resolveSettled,
++            cancel: () => this.cancel(operationId),
+             execute: request.execute,
+             onPhase: phase => {
+                 if (operation.settled || operation.state !== 'running')
+@@ -969,6 +972,12 @@ export class DrainCoordinator {
+         this.log(state === 'succeeded' ? 'info' : state === 'cancelled' ? 'info' : 'warn', 'drain', `${operation.kind} ${operation.name}: ${state}${failure === null ? '' : ` (${failure.code})`}`);
+         this.notify(operation);
+         operation.resolveSettled(this.view(operation));
++        // Terminal records outlive a route mount. Release the request and its coordinator.
++        delete operation.execute;
++        delete operation.onPhase;
++        delete operation.onUpdate;
++        delete operation.cancel;
++        delete operation.resolveSettled;
+     }
+     view(operation) {
+         return {
+diff --git a/lib/official-desktop.js b/lib/official-desktop.js
+index 5984ded..8fda453 100644
+--- a/lib/official-desktop.js
++++ b/lib/official-desktop.js
+@@ -642,6 +642,9 @@ packageManager) {
+                 stdout: output,
+                 stderr: message,
+                 cancelled: current.cancelled || result.application === 'cancelled',
++                ...(command === 'add' && ok && typeof result.bundle === 'string'
++                    ? { installation: { name: result.bundle, version: result.version, application: result.application } }
++                    : {}),
+                 // No package result means the manager stopped before it ran pnpm: the
+                 // profile is untouched, and the route must not try to "restore" it.
+                 // A pre-install host check (#912) is the same shape even when the
+@@ -700,6 +703,8 @@ packageManager) {
+     };
+     return {
+         runPlugin,
++        // The Host can remount the market while applying its own package change.
++        preservesManagerOperationOnUnload: true,
+         repairPendingUpdates,
+         busy,
+         packageWritesSettled: () => pendingManagerWrites().size === 0,
+diff --git a/lib/routes.js b/lib/routes.js
+index 5b9e085..badc2bf 100644
+--- a/lib/routes.js
++++ b/lib/routes.js
+@@ -490,6 +490,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+     // re-applies the same choice on every boot (ported from dsh-plugin-hub).
+     const userPatchPath = findUserPatchPath(host, activeProfileDir);
+     const commands = commandRuntime ?? { runPlugin: runDshPlugin, probePnpm, provisionPnpm, cancelActive };
++    const preservesManagerOperation = commands.preservesManagerOperationOnUnload === true;
++    const drainSlot = Symbol.for('novaflow.market.drainByProfile');
++    const drainByProfile = preservesManagerOperation ? (globalThis[drainSlot] ??= new Map()) : undefined;
++    let operations = drainByProfile?.get(activeProfileDir);
++    if (drainByProfile !== undefined && operations === undefined) {
++        operations = new Map();
++        drainByProfile.set(activeProfileDir, operations);
++    }
+     const checkoutLinks = new PendingCheckoutLinks(activeProfileDir);
+     const drainCalls = new WeakMap();
+     const drainCallOf = (request) => drainCalls.get(request);
+@@ -534,6 +542,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+             }) ?? null,
+         },
+         journal: drainJournal,
++        operations,
+         bootId: BOOT_ID,
+         log: (level, event, detail) => logEvent(level, event, detail),
+         abortMutation: () => commands.cancelActive(),
+@@ -1576,9 +1585,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+      * the source of truth for verifyActivation's `live` state — without the
+      * loader side, every boot-loaded bundle plugin would read as "restart".
+      */
+-    function liveNames() {
++    function liveNames(loader = host.loader) {
+         const live = new Set(listLiveHotMounts());
+-        for (const entry of host.loader.entries()) {
++        for (const entry of loader.entries()) {
+             if (entry.fiber === undefined)
+                 continue;
+             if (entry.options.name !== undefined) {
+@@ -5244,7 +5253,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+                     // Same door, one notch wider for the desktop proxy (#903): the
+                     // card hides a remove button that could only ever answer 403.
+                     selfUninstallReachable: selfUninstallReachableFrom(request),
+-                    selfManaged: installed.dshmarket !== undefined || installed['dsh-market'] !== undefined,
++                    selfManaged: false,
+                     // Whether the host took the market's settings namespace (#677).
+                     // `unsupported-by-host` is 0.1.7 and newer, where settings come from
+                     // a plugin's Config schema and no third-party namespace is served —
+@@ -5720,6 +5729,10 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+                 try {
+                     const body = (await readJsonBody(request));
+                     const name = typeof body.name === 'string' ? body.name : '';
++                    if (SELF_NAMES.has(name)) {
++                        sendJson(response, 400, { error: 'NovaFlow manages the installed market version.' });
++                        return;
++                    }
+                     const drainCall = drainCallOf(request);
+                     if (drainCall === undefined && body.busyPolicy === 'drain') {
+                         if (body.restore === true) {
+@@ -8704,6 +8717,28 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+                         }
+                         drainPhaseOf(request)?.('verifying');
+                         const cancelled = result.cancelled;
++                        if (disposed && !cancelled && result.installation !== undefined) {
++                            // Desktop already ran bundle validation and reconciliation. The old
++                            // route cannot run another mutation or mount another copy after unload.
++                            const { name, version, application } = result.installation;
++                            const installed = readInstalled(config.profile, activeProfileDir);
++                            if (!Object.hasOwn(installed, name)
++                                || !readProfileBundles(activeProfileDir).includes(name)
++                                || (version !== undefined && readInstalledVersion(config.profile, name, activeProfileDir) !== version)) {
++                                sendJson(response, 409, { ok: false, marketReloaded: true, failureCode: 'INSTALL_STATE_CHANGED',
++                                    error: '安装后的插件状态已变化，请刷新已安装列表。 / The installed plugin state changed. Refresh the Installed list.' });
++                                return;
++                            }
++                            const activation = verifyActivation(config.profile, name, liveNames(host.root.loader), activeProfileDir);
++                            if (application === 'restart-required') {
++                                activation.state = 'restart';
++                                activation.hot = false;
++                            }
++                            recordInstalled(activeProfileDir, [name]);
++                            sendJson(response, 200, { ok: true, hot: activation.hot, needsRefresh: true,
++                                activation: { [name]: activation }, marketReloaded: true });
++                            return;
++                        }
+                         const portCollisionLanded = !cancelled
+                             && isHostPortCollision(result)
+                             && installApplied(config.profile, before, activeProfileDir);
+@@ -9061,7 +9096,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+         // Release Agent maintenance holds before the routes disappear. This is the
+         // disposer half of the single-finally + disposer guarantee (#411): an
+         // unloaded market must never leave an Agent parked behind a hold.
+-        drainCoordinator.dispose();
++        drainCoordinator.dispose({ abortRunning: !preservesManagerOperation });
+         setBuildEnvSource(previousBuildEnvSource);
+         configurePersistentLog(null);
+         for (const dispose of disposers)
+diff --git a/lib/updates.js b/lib/updates.js
+index 461faa5..096c91c 100644
+--- a/lib/updates.js
++++ b/lib/updates.js
+@@ -805,6 +805,8 @@ options = {}) {
+     const result = {};
+     let nextCandidateMaturityAt = Infinity;
+     await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
++        if (name === 'dshmarket' || name === 'dsh-market')
++            return;
+         const version = readInstalledVersion(profile, name, activeProfileDir);
+         const normalizedSpec = spec.toLowerCase();
+         if (normalizedSpec.startsWith('file:')) {

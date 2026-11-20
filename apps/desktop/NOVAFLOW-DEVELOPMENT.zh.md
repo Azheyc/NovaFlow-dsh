@@ -12,7 +12,7 @@
 | 账户、余额、模型同步 | apps/novaflow-plugin；[整合说明](../novaflow-plugin/INTEGRATION.zh.md)优先于历史独立插件说明 |
 | 离线预装 | preinstalled/package.json、scripts/prepare-novaflow-preinstalled.ts、src/novaflow-preinstalled.ts |
 | 会话模式与首次指引 | [模式扩展](../novaflow-modes/README.zh.md)、apps/novaflow-modes/modes.js |
-| 首页提示词与设置 | [提示词插件](../../plugins/prompt-presets/README.md)；`catalog.js` 定义默认内容，`client.jsx` 和 `style.css` 控制界面，`index.js` 在当前 profile 中保存修改 |
+| 首页提示词与设置 | [提示词插件](../../plugins/prompt-presets/README.md)。维护所有模式共用的内置预设时编辑 `catalog.js`。`index.js` 只保存用户自定义库，`client.jsx` 提供只读浏览与自定义编辑。 |
 | 模型地址与请求 | [模型同步](../novaflow-plugin/src/native-models.js)负责受管地址迁移；[请求鉴权](../novaflow-plugin/src/model-bridge.js)负责平台令牌和分组头；[适配器入口](../../packages/llm/llm-pi-ai/src/index.ts)接入推理与发现 |
 | Logo 与首页动画 | resources/novaflow、scripts/render-novaflow-brand.ts、scripts/render-novaflow-animation.ts、packages/client/ui-brand-official |
 | Windows 安装及镜像更新 | [发布手册](novaflow-release/README.zh.md)、scripts/novaflow-distribution.mjs |
@@ -24,6 +24,8 @@
 使用仓库固定的 pnpm 和要求的 Node 版本。工作区脚本提供 install、build、check 命令；build 生成 Host、Client、Desktop 产物并检查类型。按改动运行测试，产物过期时重新构建，然后只重启本工作区的开发进程，确认新 Host 就绪。
 
 工作区 review 启动脚本保留 .desktop-build/novaflow-review，调试端口为 9329、9322、9330。上游普通开发入口使用 .desktop-build/development，端口为 9229、9222、9230。首次安装测试使用独立 home，不能清空已有用户的登录、会话或模型设置。日志可能含本地认证令牌，必须保留在私有本机目录。
+
+macOS 的 NovaFlow 开发版快捷方式会在启动 Electron 前从仓库执行 `node --import tsx apps/desktop/scripts/prepare-novaflow-preinstalled.ts apps/desktop/.desktop-build/novaflow-review/project`。该命令按当前锁文件同步 review 运行时的预装资源，保留独立的用户配置和会话目录。
 
 ## 按改动选择验证
 
@@ -40,7 +42,7 @@ npm.cmd pack (Join-Path $seed 'node_modules/novaflow-dsh-prompt-presets') --pack
 | 改动 | 针对性验证 |
 | --- | --- |
 | 账户 | 账户 Node 测试；桌面 welcome/account 渲染测试；模拟平台传输的真实 Host welcome-flow.e2e.ts |
-| 提示词 | `node --test plugins/prompt-presets/catalog.test.mjs`；分别在原版 DSH 与 NovaFlow 的新会话验证切换类型、悬停预览、确认替换和设置重载 |
+| 提示词 | `node --test plugins/prompt-presets/catalog.test.mjs` 验证内置写入拒绝、跨模式旧数据迁移和并发保存。`novaflow-preinstalled.spec.ts` 验证更新预装包后保留自定义文件；`welcome-flow.e2e.ts` 核对首次启动的共享库。 |
 | 模型地址 | `native-models.test.js` 验证旧地址迁移和手工修改保留；`model-bridge.test.js` 验证请求目的地、动态鉴权及分组头；`welcome-flow.e2e.ts` 验证 Host 登录和分组模型发现 |
 | 预装 | novaflow-preinstalled.spec.ts、project-manager.spec.ts、runtime-manifests.spec.ts；实际安装包的离线首次配置初始化 |
 | 模式隔离 | novaflow-mode-isolation.spec.ts 与真实 Host 预设列表；检查临时选择不改变默认值或丢失草稿 |

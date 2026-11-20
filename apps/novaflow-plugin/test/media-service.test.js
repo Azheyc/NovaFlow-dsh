@@ -59,6 +59,32 @@ test('a fresh account lists its effective image model and uses it on the first g
   if (process.platform !== 'win32') assert.equal((await fs.stat(job.files[0])).mode&0o777,0o600)
 })
 
+test('only 4K image requests are submitted at 2K, including multipart edits and prompt-only sizes', async t => {
+  const h = await fixture(t)
+  await fs.writeFile(join(h.workspace, 'reference.png'), PNG)
+  for (const [size, prompt, expected, edit] of [
+    ['3840x2160', 'floor plan', '2048x1152'],
+    ['2160 × 3840', 'edit', '1152x2048', true],
+    ['4096x2160', 'wide', '2048x1088'],
+    ['４Ｋ', 'square portrait of a cat, 1:1', '2048x2048'],
+    [undefined, '生成一张建筑设计图，4k', '2048x1152'],
+    ['auto', '生成一张 4K 竖版海报', '1152x2048'],
+    ['2560x1440', 'an ad for a 4K TV', '2560x1440'],
+    ['2048x1152', 'floor plan', '2048x1152'],
+    ['7680x4320', '8K', '7680x4320'],
+    [undefined, 'floor plan', undefined],
+  ]) {
+    const job = await h.service.generateImage({size, prompt, ...(edit ? {reference_images:['reference.png']} : {})})
+    assert.equal(job.status, 'completed')
+    const body = h.requests.at(-1).body
+    assert.equal(edit ? body.get('size') : JSON.parse(body).size, expected)
+    const polled = await h.service.generationResult({id:job.id})
+    assert.equal(polled.downgradedSize, size !== expected ? expected : undefined)
+  }
+  await h.service.generateVideo({model:'video-test',prompt:'4K',size:'3840x2160'})
+  assert.equal(JSON.parse(h.requests.at(-1).body).size, '3840x2160')
+})
+
 test('video model is mandatory and rejects before catalog, token or fetch calls',async t=>{
   const h=await fixture(t)
   await assert.rejects(h.service.generateVideo({prompt:'test'}),code('VIDEO_MODEL_REQUIRED'))

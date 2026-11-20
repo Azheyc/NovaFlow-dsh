@@ -275,7 +275,7 @@ export const zh = {
   welcomeTaglineBefore: '欢迎使用 ',
   welcomeTaglineBrand: 'NovaFlow',
   welcomeTaglineAfter: '',
-  welcomeDescription: '连接你的创作工作区',
+  welcomeDescription: '从今天起，与 AI 同行',
   welcomeAuthStarting: '正在打开 NovaFlow…',
   welcomeAuthWaiting: '请在浏览器中完成授权',
   welcomeAuthWaitingDescription: '登录 NovaFlow 并确认授权后，将自动进入工作区。浏览器未打开时，可复制下方链接',

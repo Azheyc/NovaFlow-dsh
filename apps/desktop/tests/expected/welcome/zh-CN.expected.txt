@@ -1,6 +1,5 @@
 NovaFlow
 NovaFlow
 欢迎使用 NovaFlow
-连接你的创作工作区
+从今天起，与 AI 同行
 使用 NovaFlow 登录
-添加 API Key

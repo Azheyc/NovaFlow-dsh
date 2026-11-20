@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { prepareDevelopmentProject } from '../scripts/development-project.ts'
+import { syncDevelopmentPreinstalled } from '../scripts/prepare-novaflow-preinstalled.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
 import { resolveDesktopPaths } from '../src/paths.ts'
@@ -31,6 +32,25 @@ afterEach(() => {
 })
 
 describe('desktop development project', () => {
+  it('refreshes a legacy market seed before reusing the development project', async () => {
+    const root = temporaryRoot()
+    const project = join(root, 'project')
+    const seed = join(project, 'novaflow-preinstalled')
+    const profile = join(root, 'home', 'profiles', 'desktop')
+    mkdirSync(seed, { recursive: true })
+    mkdirSync(profile, { recursive: true })
+    writeFileSync(join(project, 'desktop-runtime.json'), '{}\n')
+    writeFileSync(join(seed, '.prepared'), 'legacy')
+    writeFileSync(join(profile, 'cordis.patch.yml'), '[]\n')
+
+    await syncDevelopmentPreinstalled(project)
+    const identity = readFileSync(join(seed, 'market-build.sha256'), 'utf8')
+    expect(identity).toMatch(/^[a-f0-9]{64}$/)
+    expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).toBe('[]\n')
+    await syncDevelopmentPreinstalled(project)
+    expect(readFileSync(join(seed, 'market-build.sha256'), 'utf8')).toBe(identity)
+  })
+
   it('includes declared workspace packages missing from the hoist directory in the runtime inventory', () => {
     const root = temporaryRoot()
     const cli = join(root, 'cli')

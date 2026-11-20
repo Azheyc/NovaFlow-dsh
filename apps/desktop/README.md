@@ -412,7 +412,11 @@ NovaFlow brand assets use the supplied black-and-white mark. Run `pnpm run rende
 
 NovaFlow application, tray, favicon and welcome artwork uses rounded black tiles; web installation icons retain opaque corners for platform masking. Saved authorization is validated silently at startup: success opens the workspace, while failure clears local authorization and shows the first-time login entry without recovery copy or an expiry notification. See the bundled plugin integration reference for permanent-token and legacy-recovery server requirements.
 
-NovaFlow Desktop carries a separately locked community-plugin seed under `novaflow-preinstalled`: archive-manager 1.3.6, dsh-ops 0.5.5, dsh-rewind-plugin 0.22.2 and dshmarket 1.73.20. Packaging prepares its complete dependency tree without package scripts; first launch copies missing packages offline and selects new additions. Existing dependencies and disabled selections are retained, and `.novaflow-preinstalled-v1.json` prevents subsequent reinstalls after user removal. New profiles receive the optional mode guide; upgrades suppress it. The local `@local/novaflow-modes` bundle supplies Modeling and Content platform modes. The Content platform preset enables five creative skills for its sessions and lists them under Settings → Skills.
+NovaFlow Desktop pins its bundled community plugins in `preinstalled/package.json`. The installer carries their locked dependencies for offline setup and retains existing plugin selections. `.novaflow-preinstalled-v1.json` prevents subsequent reinstalls after user removal. New profiles receive the optional mode guide. The local `@local/novaflow-modes` bundle supplies Content platform mode, with five session skills listed under Settings → Skills.
+
+NovaFlow ships a patched local `dshmarket` without the sponsor strip. Desktop startup replaces existing market installations with this copy and retains the profile settings and enabled selection. The market itself updates through NovaFlow releases. Catalog requests, installations and updates for other plugins use the online sources.
+
+The market hides the banner for temporary failures when checking for updates.
 
 ## NovaFlow release distribution
 

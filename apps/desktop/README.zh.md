@@ -412,7 +412,11 @@ NovaFlow 品牌资源使用用户提供的黑白标识。在 `apps/desktop` 运�
 
 NovaFlow 应用、托盘、favicon 和开屏标识使用圆角黑底；Web 安装图标保留不透明边角供平台裁切。启动时后台校验已有授权：成功则进入工作区，失败则清除本地授权并显示新用户登录首页，不显示恢复文案或过期通知。永久凭据和旧授权恢复的服务端要求见内置插件整合说明。
 
-NovaFlow Desktop 在 `novaflow-preinstalled` 中携带独立锁定的社区插件预装资源：archive-manager 1.3.6、dsh-ops 0.5.5、dsh-rewind-plugin 0.22.2、dshmarket 1.73.20。构建时准备完整依赖树，不执行包脚本；首次启动离线复制缺失包并启用新增项，保留已有依赖及停用选择。`.novaflow-preinstalled-v1.json` 防止用户卸载后被反复补装。新 profile 显示可跳过的模式指引，已有用户升级不弹出。本地 `@local/novaflow-modes` bundle 提供建模模式和内容平台模式。内容平台模式的五个创作技能随会话预设启用，可在「设置 → 技能」中查看。
+NovaFlow Desktop 在 `preinstalled/package.json` 固定预装社区插件的版本。安装包携带锁定的依赖树，客户端离线预装并保留已有插件的启用选择。`.novaflow-preinstalled-v1.json` 防止卸载后重新补装。新配置会显示可跳过的模式指引。本地 `@local/novaflow-modes` 提供内容平台模式及五项会话技能，可在「设置 → 技能」查看。
+
+NovaFlow 随包提供移除赞助栏的本地 `dshmarket`。客户端启动时替换已有市场插件，保留配置和启用状态。市场本身随 NovaFlow 版本维护，目录查询及其他插件的安装和更新继续使用在线来源。
+
+插件市场隐藏「暂时无法检查更新」提示条。
 
 ## NovaFlow 发行渠道
 

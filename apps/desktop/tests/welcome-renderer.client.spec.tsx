@@ -46,7 +46,12 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
       '',
     ].join('\n')
   }
-  return { document, api, input, button, enterKey, submit, copy, unmount: mounted.unmount, stopAccount }
+  const openRecoveryKey = () => {
+    act(() => { api.onAccountState.mock.calls[0]![0]({ status: 'signed-out', links: { usageUrl: '', topUpUrl: '' },
+      attempt: { id: 'expired' as NonNullable<AccountView['attempt']>['id'], phase: 'expired' } }) })
+    fireEvent.click(screen.getByRole('button', { name: api.messages.welcomeApiKey }))
+  }
+  return { document, api, input, button, enterKey, submit, copy, openRecoveryKey, unmount: mounted.unmount, stopAccount }
 }
 
 describe('desktop welcome presentation', () => {
@@ -76,7 +81,7 @@ describe('desktop welcome presentation', () => {
     expect(view.document.documentElement.lang).toBe(language)
     expect(view.document.querySelector('img')!.getAttribute('src')).toBe('assets/novaflow.svg')
     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${language}.expected.txt`)
-    fireEvent.click(view.button('#api-key'))
+    view.openRecoveryKey()
     expect(view.document.activeElement).toBe(view.input)
     expect(view.input.type).toBe('password')
     await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/${language}-api-key.expected.txt`)
@@ -86,7 +91,7 @@ describe('desktop welcome presentation', () => {
     const view = mount()
     const saved = Promise.withResolvers<WelcomeSaveResult>()
     view.api.saveApiKey.mockReturnValue(saved.promise)
-    fireEvent.click(view.button('#api-key'))
+    view.openRecoveryKey()
     view.enterKey('  sk-desktop-example  ')
     view.submit()
     view.submit()
@@ -106,7 +111,7 @@ describe('desktop welcome presentation', () => {
   it.each(['', 'bad key', '密钥', 'DEEPSEEK_API_KEY=sk-example', '"sk-example"', '`sk-example`'])(
     'rejects invalid input before sending it: %s', (value) => {
       const view = mount()
-      fireEvent.click(view.button('#api-key'))
+      view.openRecoveryKey()
       view.enterKey(value)
       view.submit()
       expect(view.api.saveApiKey).not.toHaveBeenCalled()
@@ -118,7 +123,7 @@ describe('desktop welcome presentation', () => {
   it('retains an unsaved draft and allows retry after a refused save', async () => {
     const view = mount()
     view.api.saveApiKey.mockResolvedValue({ ok: false })
-    fireEvent.click(view.button('#api-key'))
+    view.openRecoveryKey()
     view.enterKey('sk-retry')
     view.submit()
     await vi.waitFor(() => { expect(view.button('#save-key').disabled).toBe(false) })
@@ -133,7 +138,7 @@ describe('desktop welcome presentation', () => {
     const view = mount()
     const skipped = Promise.withResolvers<undefined>()
     view.api.skip.mockReturnValue(skipped.promise)
-    fireEvent.click(view.button('#api-key'))
+    view.openRecoveryKey()
     view.enterKey('sk-not-saved')
     fireEvent.click(view.button('#skip-key'))
     try {
@@ -157,16 +162,16 @@ describe('desktop welcome presentation', () => {
 
   it('returns to the entry without saving and clears the draft and validation error', () => {
     const view = mount()
-    fireEvent.click(view.button('#api-key'))
+    view.openRecoveryKey()
     view.enterKey('invalid key')
     view.submit()
     fireEvent.click(view.button('#back-to-login'))
     expect(view.document.querySelector<HTMLElement>('#key-form')!.hidden).toBe(true)
-    expect(view.document.activeElement).toBe(view.button('#api-key'))
+    expect(view.document.activeElement).toBe(view.button('#sign-in'))
     expect(view.input.value).toBe('')
     expect(view.api.saveApiKey).not.toHaveBeenCalled()
     expect(view.api.skip).not.toHaveBeenCalled()
-    fireEvent.click(view.button('#api-key'))
+    view.openRecoveryKey()
     expect(view.input.value).toBe('')
     expect(view.document.querySelector<HTMLElement>('#key-error')!.hidden).toBe(true)
     expect(view.button('#save-key').disabled).toBe(true)
@@ -246,7 +251,7 @@ it('does not restore a copied-link status after leaving the waiting phase', asyn
 
 it('keeps the key draft while account notifications arrive and releases the subscription on unmount', () => {
   const view = mount()
-  fireEvent.click(view.button('#api-key'))
+  view.openRecoveryKey()
   view.enterKey('sk-draft')
   act(() => { view.api.onAccountState.mock.calls[0]![0]({ status: 'signed-out', links: { usageUrl: '', topUpUrl: '' },
     attempt: { id: 'expired' as NonNullable<AccountView['attempt']>['id'], phase: 'expired' } }) })
@@ -325,8 +330,8 @@ it('keeps the entry usable when notification IPC fails', async () => {
   const view = mount('en', vi.fn<() => Promise<WelcomeNotice | undefined>>().mockRejectedValue(new Error('closed')))
   await act(async () => {})
   expect(screen.queryByRole('alert')).toBeNull()
-  fireEvent.click(view.button('#api-key'))
-  expect(view.input.closest('[hidden]')).toBeNull()
+  await act(async () => { fireEvent.click(view.button('#sign-in')) })
+  expect(view.api.startSignIn).toHaveBeenCalledOnce()
 })
 
 it('ignores a notification received after its renderer unmounts', async () => {
@@ -355,7 +360,7 @@ it.each(['zh-CN', 'en'])('returns from completed sign-in to the initial page aft
 it('reports each return to the welcome entry once, including account cancellation', async () => {
   const view = mount()
   expect(view.api.analytics).not.toHaveBeenCalled()
-  fireEvent.click(view.button('#api-key'))
+  view.openRecoveryKey()
   fireEvent.click(view.button('#back-to-login'))
   expect(view.api.analytics.mock.calls.map(([action]) => action)).toEqual(['auth_page_click', 'auth_page_view'])
   const pending = Promise.withResolvers<AccountView>()

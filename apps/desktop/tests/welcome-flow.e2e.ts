@@ -124,17 +124,41 @@ globalThis.fetch = (input, init) => {
         }, { timeout: 15_000 }).toBe(200)
       }
       await restart()
-      const bundles = await rpc<Array<{ name: string; enabled: boolean; installed: boolean; removable: boolean }>>('pluginManager/listBundles')
-      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', 'novaflow-dsh-prompt-presets']) {
+      const bundles = await rpc<Array<{ name: string; version?: string; update?: string; enabled: boolean; installed: boolean; removable: boolean }>>('pluginManager/listBundles')
+      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', 'novaflow-dsh-prompt-presets', '@tonydua/dsh-web-search-exa']) {
         expect(bundles.find(row => row.name === name), name).toMatchObject({ enabled: true, installed: true, removable: true })
       }
+      const seedManifest = JSON.parse(readFileSync(join(project, 'novaflow-preinstalled', 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
+      const market = bundles.find(row => row.name === 'dshmarket')
+      expect(market?.version).toBe(seedManifest.dependencies.dshmarket)
+      expect(market?.update).toBeUndefined()
+      for (const name of ['@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager']) {
+        expect(bundles.find(row => row.name === name)?.version).toBe(seedManifest.dependencies[name])
+      }
+      const marketUpdate = await fetch(`${hostOrigin}/dsh-market/update`, {
+        method: 'POST', headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'dshmarket', restore: true }),
+      })
+      expect(marketUpdate.status).toBe(400)
+      await expect(marketUpdate.json()).resolves.toMatchObject({ error: 'NovaFlow manages the installed market version.' })
+      const providers = await rpc<{ search: Array<{ id: string }> }>('web/listProviders')
+      expect(providers.search.map(provider => provider.id)).toContain('exa')
+      const settings = await rpc<{ namespaces: Array<{ ns: string; value: unknown }> }>('settings/describe')
+      expect(settings.namespaces.find(namespace => namespace.ns === 'web')?.value)
+        .toMatchObject({ searchProvider: 'exa', fetchProvider: 'http' })
       expect(bundles.some(row => row.name === '@local/novaflow-dsh-plugin')).toBe(false)
       const roster = await rpc<{ presets: Array<{ id: string; broken?: string; isDefault: boolean }> }>('agentPresets/list')
-      for (const id of ['novaflow-modeling', 'novaflow-media-creation']) {
-        expect(roster.presets.find(row => row.id === id), id).toMatchObject({ id, isDefault: false })
-        expect(roster.presets.find(row => row.id === id)?.broken, id).toBeUndefined()
-      }
-      expect(roster.presets.find(row => row.id === 'novaflow-media-creation')).toMatchObject({ name: '内容平台模式' })
+      expect(roster.presets.find(row => row.id === 'novaflow-modeling')).toBeUndefined()
+      const contentPreset = roster.presets.find(row => row.id === 'novaflow-media-creation')
+      expect(contentPreset).toMatchObject({ name: '内容平台模式', isDefault: false })
+      expect(contentPreset?.broken).toBeUndefined()
+      const promptResponse = await fetch(`${hostOrigin}/api/novaflow-prompt-presets`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{"action":"read"}',
+      })
+      expect(promptResponse.status).toBe(200)
+      const { builtIn, custom } = await promptResponse.json() as { builtIn: { categories: { name: string }[] }; custom: unknown }
+      expect(builtIn.categories.map(group => group.name)).toEqual(['Excel 表格', 'Word 文档', 'PPT 汇报', '内容平台', 'CAD 与建模', '数据调研'])
+      expect(custom).toEqual({ categories: [], featured: [] })
       const skillResponse = await fetch(`${hostOrigin}/api/michengai/dsh-skills-manager/state`, { headers: { cookie } })
       expect(skillResponse.status).toBe(200)
       const { data: { roots } } = await skillResponse.json() as {

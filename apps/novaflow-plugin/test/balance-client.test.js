@@ -24,7 +24,7 @@ function text(tree) {
   if (typeof tree !== 'object') return String(tree)
   return text(tree.children)
 }
-async function mount(initialState, language = 'en', intl = Intl) {
+async function mount(initialState, language = 'en') {
   let currentState = initialState
   let dictionaries
   let plugin
@@ -51,7 +51,7 @@ async function mount(initialState, language = 'en', intl = Intl) {
   const eventTarget = {addEventListener(name, callback) {events.set(name, callback)}, removeEventListener(name) {events.delete(name)}}
   const sandbox = {
     window:{...eventTarget, open() {assert.fail('Balance must not open an authorization window')}, __ModuleLoader__:{load(module) {plugin = module.factory(name => {required.push(name); assert.equal(name, 'react'); return React})}}},
-    document:{...eventTarget, hidden:false}, URL, AbortController, Date, Intl:intl,
+    document:{...eventTarget, hidden:false}, URL, AbortController, Intl,
     setTimeout(callback, delay) {const id = ++nextTimer; timers.set(id, {callback, delay}); return id},
     clearTimeout(id) {timers.delete(id)},
     async fetch(url, options) {
@@ -68,11 +68,11 @@ async function mount(initialState, language = 'en', intl = Intl) {
       bind:() => key => dictionaries[language][key],
       subscribe:() => () => {}, getSnapshot:() => language,
     },
-    slots:{inject(_name, effect) {effect()}, register(metadata, component) {slots.set(metadata.id || metadata.name, component)}},
+    slots:{spec(name) {return name === 'settings.models.header' ? {kind:'list',scope:'root'} : undefined}, inject(_name, effect) {effect()}, register(metadata, component) {slots.set(metadata.id || metadata.name, component)}},
   })
   await flush()
   const view = () => slots.get('account')()
-  const card = () => nodes(view(), node => node.type === 'section' && node.props['aria-label'] === locales[language].balance)[0]
+  const card = () => nodes(view(), node => node.type === 'section' && node.props['aria-label'] === locales[language].balanceAvailable)[0]
   return {
     card, view, requests, queued, timers, required, dictionaries,
     dialog:()=>slots.get('novaflow-plugin-install-confirmation')?.() ?? null,
@@ -94,10 +94,13 @@ test('real account slot keeps the inline locale contract and only requires React
   try {
     for (const language of ['en', 'zh']) assert.deepEqual(JSON.parse(JSON.stringify(client.dictionaries[language])), locales[language])
     assert.deepEqual(client.required, ['react'])
-    assert.match(text(client.card()), /Available balance 10\.3400 CNY/)
-    assert.match(text(client.card()), /Total balance 12\.3400 CNY/)
-    assert.match(text(client.card()), /Frozen balance 2\.0000 CNY/)
-    assert.match(text(client.card()), /Personal balance/)
+    const cards = nodes(client.view(), node => node.props.className === 'nf-card')
+    assert.equal(cards.length, 1)
+    assert.match(text(cards[0]), /Test account Available balance 10\.34 CNY/)
+    const [wallet] = nodes(client.card(), node => node.type === 'a' && text(node) === 'Top up')
+    assert.equal(wallet.props.href, 'https://www.ycnovaflow.vip/wallet')
+    assert.equal(wallet.props.target, '_blank')
+    assert.doesNotMatch(text(cards[0]), /Total balance|Frozen balance|Personal balance|Model configuration/)
   } finally {client.dispose()}
 })
 
@@ -115,38 +118,35 @@ test('null, absent and unavailable balances never manufacture a zero', async () 
       const content = text(client.card())
       assert.doesNotMatch(content, /0 CNY|10\.3400|12\.3400/)
       if (!state.connected) {
-        assert.match(content, /Sign in to NovaFlow to view your balance/)
+        assert.equal(client.card(), undefined)
         assert.equal(client.button(), undefined)
       } else if (state.balance?.status === 'error') assert.match(content, /Could not refresh the balance/)
-      else assert.match(content, /Balance is currently unavailable/)
+      else assert.match(content, /Unavailable/)
     } finally {client.dispose()}
   }
 })
 
-test('zero and huge decimal strings retain all digits without conversion', async () => {
-  const value = '900719925474099312345678901234567890.00000000012345678900'
-  const client = await mount(account(ready(personal({wallet:{balance:value, frozen:'0.0000', available:'0',unit:'CNY'}}))))
+test('available CNY rounds decimal strings to two places without losing large digits', async () => {
+  const client = await mount(account(null))
   try {
-    assert.match(text(client.card()), /Available balance 0 CNY/)
-    assert.ok(text(client.card()).includes(`${value} CNY`))
-    assert.match(text(client.card()), /Frozen balance 0\.0000 CNY/)
+    for (const [available, expected] of [['0','0.00'], ['-0.001','0.00'], ['-1.005','-1.01'], ['9.999','10.00'], ['900719925474099312345678901234567890.125','900719925474099312345678901234567890.13']]) {
+      await client.setState(account(ready(personal({wallet:{available,unit:'CNY'}}))))
+      assert.ok(text(client.card()).includes(`Available balance ${expected} CNY`))
+    }
   } finally {client.dispose()}
 })
 
-test('enterprise limits distinguish null, zero, unset and future modes; canUse false blocks positive balance', async () => {
+test('enterprise accounts show the available balance and signal restricted use', async () => {
   const limits = {dailyMode:'unlimited', dailyLimit:null, dailyUsed:'1', dailyRemaining:null, monthlyMode:'limited',monthlyLimit:'5',monthlyUsed:'5',monthlyRemaining:'0',canUse:false,blockReason:'insufficient_company_quota_or_limit'}
   const client = await mount(account(ready(personal({mode:'enterprise',limits}))))
   try {
     const content = text(client.card())
-    assert.match(content, /Enterprise balance/)
-    assert.match(content, /Available balance 10\.3400 CNY/)
-    assert.match(content, /Remaining today Unlimited/)
-    assert.match(content, /Remaining this month 0 CNY/)
-    assert.match(content, /Usage is restricted by quota or spending limits/)
+    assert.match(content, /Available balance 10\.34 CNY/)
+    assert.doesNotMatch(content, /Remaining today|Remaining this month|Frozen balance|Total balance/)
+    assert.match(content, /Usage is restricted/)
     assert.doesNotMatch(content, /insufficient_company_quota_or_limit/)
     for (const mode of ['inherit', 'limited', 'blocked', 'server_future_mode']) {
       await client.setState(account(ready(personal({mode:'enterprise',limits:{...limits,dailyMode:mode,canUse:true}}))))
-      assert.match(text(client.card()), /Remaining today Not set/)
       assert.doesNotMatch(text(client.card()), /Usage is restricted|server_future_mode/)
     }
   } finally {client.dispose()}
@@ -155,12 +155,9 @@ test('enterprise limits distinguish null, zero, unset and future modes; canUse f
 test('an error with old data explicitly marks stale and does not expose server codes', async () => {
   const client = await mount(account({status:'error', data:personal(), error:'SAFE_UNKNOWN_CODE',refreshing:false}))
   try {
-    assert.match(text(client.card()), /Last updated data/)
-    assert.match(text(client.card()), /Could not refresh the balance/)
-    assert.match(text(client.card()), /10\.3400 CNY/)
+    assert.match(text(client.card()), /last known balance/)
+    assert.match(text(client.card()), /10\.34 CNY/)
     assert.doesNotMatch(text(client.card()), /SAFE_UNKNOWN_CODE/)
-    const time = nodes(client.card(), node => node.type === 'time')[0]
-    assert.equal(time.props.dateTime, '2026-11-16T01:20:00.000Z')
   } finally {client.dispose()}
 })
 
@@ -180,8 +177,8 @@ test('refresh uses the same-origin action, disables all action buttons, and fail
     assert.deepEqual(refresh.body, {action:'refresh_balance'})
     reject(new Error('secret raw transport failure'))
     await flush()
-    assert.match(text(client.card()), /Last updated data/)
-    assert.match(text(client.card()), /10\.3400 CNY/)
+    assert.match(text(client.card()), /last known balance/)
+    assert.match(text(client.card()), /10\.34 CNY/)
     assert.doesNotMatch(text(client.card()), /secret raw transport failure/)
     assert.equal(client.button().props.disabled, false)
     assert.equal(client.card().props['aria-busy'], false)
@@ -199,7 +196,7 @@ test('loading and background refreshing remain busy, poll Host state, and settle
     await client.poll(account({...ready(personal()),refreshing:true}))
     assert.deepEqual(client.requests.at(-1).body, {action:'state'})
     assert.match(text(client.card()), /Refreshing balance/)
-    assert.match(text(client.card()), /10\.3400 CNY/)
+    assert.match(text(client.card()), /10\.34 CNY/)
     assert.equal(client.button().props.disabled, true)
     await client.poll(account(ready(personal())))
     assert.equal(client.card().props['aria-busy'], false)
@@ -218,8 +215,8 @@ test('successful refresh accepts Host loading state and renders the polled balan
     assert.match(text(client.card()), /Refreshing balance/)
     assert.equal(client.button().props.disabled, true)
     await client.poll(account(ready(personal({wallet:{balance:'20',frozen:'0',available:'20',unit:'CNY'}}))))
-    assert.match(text(client.card()), /Available balance 20 CNY/)
-    assert.doesNotMatch(text(client.card()), /Last updated data|Refreshing balance/)
+    assert.match(text(client.card()), /Available balance 20\.00 CNY/)
+    assert.doesNotMatch(text(client.card()), /last known balance|Refreshing balance/)
     assert.equal(client.button().props.disabled, false)
   } finally {client.dispose()}
 })
@@ -229,8 +226,9 @@ test('another account action disables balance refresh without changing its loadi
   try {
     let resolve
     client.queued.push(() => new Promise(resolveRequest => {resolve = resolveRequest}))
-    const refreshAccount = nodes(client.view(), node => node.type === 'button' && text(node) === 'Refresh account and models')[0]
+    const refreshAccount = nodes(client.view(), node => node.type === 'button' && text(node) === 'Refresh model settings')[0]
     refreshAccount.props.onClick()
+    assert.equal(client.requests.at(-1).body.action, 'refresh_models')
     assert.equal(client.button().props.disabled, true)
     assert.equal(client.card().props['aria-busy'], false)
     assert.doesNotMatch(text(client.card()), /Refreshing balance/)
@@ -240,18 +238,13 @@ test('another account action disables balance refresh without changing its loadi
   } finally {client.dispose()}
 })
 
-test('Chinese copy and safe Intl formatting handle invalid dates and unsupported Intl', async () => {
+test('Chinese account summary uses yuan and omits the model guidance', async () => {
   const client = await mount(account(ready(personal())), 'zh')
   try {
-    assert.match(text(client.card()), /个人余额/)
-    assert.match(text(client.card()), /10\.3400 人民币（CNY）/)
-    const expected = new Intl.DateTimeFormat('zh-CN', {dateStyle:'medium',timeStyle:'short'}).format(new Date(personal().asOf))
-    assert.ok(text(client.card()).includes(expected))
-    await client.setState(account(ready(personal({asOf:'invalid-date'}))))
-    assert.match(text(client.card()), /更新时间暂不可用/)
+    assert.match(text(client.card()), /可用余额 10\.34 元/)
+    assert.match(text(client.view()), /刷新模型配置/)
+    assert.doesNotMatch(text(client.view()), /刷新账户与模型|设置 → 模型|冻结金额|总余额|更新时间/)
   } finally {client.dispose()}
-  const unsupported = await mount(account(ready(personal())), 'en', {DateTimeFormat() {throw new RangeError('unsupported')}})
-  try {assert.match(text(unsupported.card()), /Update time unavailable/)} finally {unsupported.dispose()}
 })
 
 test('legacy installation state cannot open an installer or send installation requests',async()=>{

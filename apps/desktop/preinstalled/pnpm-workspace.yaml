@@ -4,3 +4,8 @@ nodeLinker: hoisted
 autoInstallPeers: false
 enableGlobalVirtualStore: false
 ignoreScripts: true
+patchedDependencies:
+  dshmarket@1.73.24: patches/dshmarket@1.73.24.patch
+minimumReleaseAgeExclude:
+  - '@michengai/dsh-archive-manager@1.4.1'
+  - dshmarket@1.73.24

@@ -56,7 +56,7 @@ flowchart TD
 
 Host 必需注入 `credentials`、`connection`、`webServer`、`llm`、`agentDefaultModel`、`tools`、`configEditor`、`mcpManager`、`workingDirectory`、`pluginManager`、`storageDomain`。可选的 `clientModules` 用于分发诊断，不应作为登录前置条件。
 
-Client 使用 `window.__ModuleLoader__.load` 注册动态模块，注入 `slots`、`locale`，通过运行时加载 React。主要 Slot 为 `settings.section`、`settings.launcher`、`settings.models.sign-in`、`settings.models.footer` 与 `shell.overlay`；安装弹窗 ID 是 `novaflow-plugin-install-confirmation`。
+Client 使用 `window.__ModuleLoader__.load` 注册动态模块，注入 `slots`、`locale`，通过运行时加载 React。媒体模型选择使用 `settings.models.header`。未声明该插槽的旧版本通过 `settings.models.footer` 展示。
 
 ## 4. 本机接口与调用权限
 
@@ -81,7 +81,7 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 |---|---|---|---|
 | `state` | 是 | 是 | 脱敏账户、余额、原生配置摘要、媒体状态与分发信息；只读 Host 当前状态 |
 | `refresh` | 是 | 是 | 同步会话与授权目录，保留本地模型编辑，随后刷新余额 |
-| `refresh_models` | 是 | 否 | 「刷新账户与模型」按钮使用当前授权目录重建 NovaFlow 受管模型配置，随后刷新余额 |
+| `refresh_models` | 是 | 否 | 「刷新模型配置」按钮使用当前授权目录重建 NovaFlow 受管模型配置，随后刷新余额 |
 | `refresh_balance` | 是 | 是 | 单独发起平台余额读取，不刷新模型目录或触发安装 |
 | `cancel` | 是，可带 `attemptId` | 是，无 attempt 参数 | 取消当前待授权过程；交互侧用 attempt ID 防止取消错代次 |
 | `signout` | 是 | 是 | 清理本机登录及受管模型配置，尝试撤销当前设备 |

@@ -10,7 +10,7 @@ Model refresh migrates managed loopback URLs to the platform. Claude uses `https
 
 The client provisions one managed provider per platform group ID and effective request protocol. Refresh consolidates eligible duplicate providers under the existing provider with the most models. Platform-synced models use a 512,000-token context window and a 128,000-token maximum output in saved profiles and discovery. These values set the client budget. The platform still handles requests according to the selected model's capabilities.
 
-Explicit sign-out removes NovaFlow-managed provider and model settings. Signing in or choosing **Refresh account and models** rebuilds those settings from the current authorized catalog, including deleted groups and edited models. Background synchronization preserves edits and deletions. Independently configured providers and connections repurposed with a custom endpoint or key remain outside this cleanup.
+Explicit sign-out removes NovaFlow-managed provider and model settings. Signing in or choosing **Refresh model settings** rebuilds those settings from the current authorized catalog, including deleted groups and edited models. Background synchronization preserves edits and deletions. Independently configured providers and connections repurposed with a custom endpoint or key remain outside this cleanup.
 
 Desktop adds the NovaFlow bundle after the standard Web bundles and before user bundles. Existing profile dependencies and user patches remain intact. Native recovery retains the built-in NovaFlow bundle. The CLI dependency closure carries its code for runtime resolution, while ordinary CLI profiles do not activate it.
 

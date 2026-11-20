@@ -10,6 +10,7 @@ import { modes, composeModes } from './modes.js'
 export const name = 'novaflow-modes'
 export const inject = ['agentPresets', 'profileContext', 'connection', 'systemPrompt', 'webServer']
 export async function apply(ctx) {
+  ctx.effect(() => ctx.agentPresets.registerAlias('novaflow-modeling', 'standard'))
   ctx.on('webserver/index-inject', table => {
     table.push({ kind: 'global', name: '__DSH_HIDDEN_PRESET_CHOICES__', value: ['cordis', 'ops-ptc'] })
   })

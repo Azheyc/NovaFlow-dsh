@@ -669,10 +669,9 @@ describe('ModelsSection', () => {
     const cards = cardSeatCalls(renderSlot)
     expect(cards).toContainEqual(['openai', true, true, 'llm-pi-ai'])
     expect(cards).toContainEqual(['deepseek-official', true, false, 'llm-deepseek'])
-    // The footer seat renders once below the rows and the add controls.
-    expect(renderSlot.mock.calls.filter(call => call[0] === 'settings.models.footer')).toEqual([
-      ['settings.models.footer', {}],
-    ])
+    const slots = renderSlot.mock.calls.map(call => call[0])
+    expect(slots[0]).toBe('settings.models.header')
+    expect(slots.at(-1)).toBe('settings.models.footer')
   })
 
   it('omits hidden routes without hiding other provider cards', async () => {

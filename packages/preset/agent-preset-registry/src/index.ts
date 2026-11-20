@@ -60,6 +60,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
   private agentPresetProjectionHandle!: ProjectionHandle<string | null>
   private readonly owner: Context
   private readonly definitions = new Map<string, Definition>()
+  private readonly aliases = new Map<string, string>()
   private readonly generations = new Map<ScopeKey, Generation>()
   private readonly bindings = new WeakMap<ScopeKey, Binding>()
   private readonly switches = new Map<string, Promise<unknown>>()
@@ -71,7 +72,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
 
   protected async [Service.init](): Promise<void> {
     const ctx = this.owner
-    this.agentPresetProjectionHandle = await ctx.sessionProjections.register(agentPresetProjectionDefinition)
+    const definition = agentPresetProjectionDefinition
+    this.agentPresetProjectionHandle = await ctx.sessionProjections.register({
+      ...definition,
+      wire: { ...definition.wire, view: id => this.canonicalId(id) },
+    })
     ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
     ctx.on('session/event', (session, event) => {
       if (event.type === 'agent-preset/selected') ctx.emit('agent-preset/selected', session.id, event.data.agentPreset)
@@ -79,15 +84,35 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   /** Default preset for a subsequently created session. */
-  get defaultId(): string { return this.config.selectedDefault.get() ?? this.config.default }
+  get defaultId(): string { return this.canonicalId(this.config.selectedDefault.get() ?? this.config.default) }
+
+  private canonicalId(id: string): string
+  private canonicalId(id: string | null): string | null
+  private canonicalId(id: string | null): string | null {
+    return id === null ? null : this.aliases.get(id) ?? id
+  }
+
+  /** Redirect a retired preset ID to a declared preset without adding a roster entry.
+   * @param retired - The retired ID recorded in sessions or settings.
+   * @param target - The replacement preset ID. Aliases cannot chain.
+   * @returns The disposer for this alias.
+   */
+  registerAlias(retired: string, target: string): () => void {
+    if (!retired.trim() || !target.trim() || retired === target || this.definitions.has(retired)
+      || this.aliases.has(retired) || this.aliases.has(target) || [...this.aliases.values()].includes(retired)) {
+      throw new Error(`Invalid agent preset alias: ${retired} -> ${target}`)
+    }
+    this.aliases.set(retired, target)
+    return () => { if (this.aliases.get(retired) === target) this.aliases.delete(retired) }
+  }
 
   /**
-   * Read the preset recorded for a Session, including selections no longer in the roster.
+   * Read the preset recorded for a Session, resolving registered aliases.
    * @param session - Session whose committed preset selection is read.
    * @returns the recorded preset, or null when none was selected.
    */
   presetForSession(session: Session): string | null {
-    return this.agentPresetProjectionHandle.stateOf(session)
+    return this.canonicalId(this.agentPresetProjectionHandle.stateOf(session))
   }
 
   /** Register and eagerly load a definition; activation failure remains visible in the roster.
@@ -97,7 +122,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
   async register(definition: PresetDefinition): Promise<() => Promise<void>> {
     const context = this.ctx
     if (!definition.id.trim()) throw new Error('Preset id must not be empty')
-    if (this.definitions.has(definition.id)) throw new Error(`Duplicate agent preset: ${definition.id}`)
+    if (this.definitions.has(definition.id) || this.aliases.has(definition.id)) throw new Error(`Duplicate agent preset: ${definition.id}`)
     const record: Definition = { config: definition, context, ready: Promise.resolve() }
     this.definitions.set(definition.id, record)
     let disposed = false
@@ -218,7 +243,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
    * @returns Current metadata, including failure when activation failed.
    */
   async resolve(id?: string): Promise<AgentPreset> {
-    const wanted = id ?? this.defaultId
+    const wanted = this.canonicalId(id ?? this.defaultId)
     const record = this.definitions.get(wanted)
     if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
       { agentPreset: wanted, available: [...this.definitions.keys()] })
@@ -232,7 +257,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
    */
   @Remote('read')
   readDocument(agentPreset: string): Promise<AgentPresetDocument> {
-    const record = this.definitions.get(agentPreset)
+    const record = this.definitions.get(this.canonicalId(agentPreset))
     if (record === undefined) {
       return Promise.reject(new RemoteError('agent-preset/not-found', `Unknown agent preset: ${agentPreset}`,
         { agentPreset, available: [...this.definitions.keys()] }))
@@ -246,7 +271,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   private async retain(id?: string): Promise<Generation> {
-    const wanted = id ?? this.defaultId
+    const wanted = this.canonicalId(id ?? this.defaultId)
     while (true) {
       const record = this.definitions.get(wanted)
       if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
@@ -368,10 +393,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
       if (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0) {
         throw new RemoteError('agent-preset/locked', 'This session has already started', { sessionId: agent.id, agentPreset })
       }
-      const current = this.definitions.get(agentPreset)?.generation
+      const canonical = this.canonicalId(agentPreset)
+      const current = this.definitions.get(canonical)?.generation
       if (current !== undefined && this.generationFor(agent.ctx) === current
-        && this.agentPresetProjectionHandle.stateOf(agent.session) === agentPreset) return agentPreset
-      const preset = await this.recompose(agent.ctx, agentPreset)
+        && this.presetForSession(agent.session) === canonical) return canonical
+      const preset = await this.recompose(agent.ctx, canonical)
       agent.session.append('agent-preset/selected', { agentPreset: preset.id })
       return preset.id
     })

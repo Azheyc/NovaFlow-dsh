@@ -12,7 +12,7 @@ This reference maps NovaFlow customization to its owning source and validation. 
 | Account, balance, model synchronization | apps/novaflow-plugin; [integration](../novaflow-plugin/INTEGRATION.md) takes precedence over historical standalone-plugin instructions |
 | Offline plugin seeding | preinstalled/package.json, scripts/prepare-novaflow-preinstalled.ts, src/novaflow-preinstalled.ts |
 | Session modes and first guide | [mode extension](../novaflow-modes/README.md), apps/novaflow-modes/modes.js |
-| Home prompts and settings | [Prompt presets](../../plugins/prompt-presets/README.md). `catalog.js` supplies the defaults, `client.jsx` and `style.css` render the interface, and `index.js` saves changes in the current profile. |
+| Home prompts and settings | [Prompt presets](../../plugins/prompt-presets/README.md). Edit `catalog.js` to release built-ins shared by every mode. `index.js` saves only the custom library. `client.jsx` provides read-only browsing and custom editing. |
 | Model endpoints and requests | [Model synchronization](../novaflow-plugin/src/native-models.js) migrates managed URLs, [request authentication](../novaflow-plugin/src/model-bridge.js) supplies the platform token and group header, and the [adapter entry](../../packages/llm/llm-pi-ai/src/index.ts) connects inference and discovery. |
 | Logo and home animation | resources/novaflow, scripts/render-novaflow-brand.ts, scripts/render-novaflow-animation.ts, packages/client/ui-brand-official |
 | Windows installer and mirrored updates | [release manual](novaflow-release/README.md), scripts/novaflow-distribution.mjs |
@@ -24,6 +24,8 @@ Paths in the table are relative to apps/desktop unless prefixed with apps/ or pa
 Use the repository's pinned pnpm and Node version requirements. The workspace wrapper provides install, build and check commands. build produces Host, Client and Desktop artifacts and checks their types. Run tests for the affected feature, rebuild stale artifacts, then restart only this workspace's development processes and confirm the new Host is ready.
 
 The workspace review launcher preserves .desktop-build/novaflow-review and uses debugger ports 9329, 9322 and 9330. Ordinary upstream development uses .desktop-build/development and ports 9229, 9222 and 9230. Test fresh installation with a separate home, never by clearing an existing user's login, conversations or model settings. Logs can contain local authentication tokens and must remain private.
+
+On macOS, the NovaFlow development shortcut runs `node --import tsx apps/desktop/scripts/prepare-novaflow-preinstalled.ts apps/desktop/.desktop-build/novaflow-review/project` from the repository before opening Electron. The command refreshes the review runtime's preinstalled resources with the current lockfile and leaves the review profile and session directories in place.
 
 ## Validation by change
 
@@ -40,7 +42,7 @@ Run commands from the repository root. Prefix Vitest commands with node node_mod
 | Change | Targeted validation |
 | --- | --- |
 | Account | Account Node tests; desktop welcome/account renderer tests; built welcome-flow.e2e.ts with synthetic platform transport |
-| Prompt presets | Run `node --test plugins/prompt-presets/catalog.test.mjs`. In a new conversation on upstream DSH and NovaFlow, check category switching, hover preview, replacement confirmation and settings persistence. |
+| Prompt presets | `node --test plugins/prompt-presets/catalog.test.mjs` covers read-only built-ins, migration across modes and concurrent saves. `novaflow-preinstalled.spec.ts` checks that seed upgrades preserve custom files. `welcome-flow.e2e.ts` checks the shared library on first launch. |
 | Model URLs | `native-models.test.js` covers migration and user edits. `model-bridge.test.js` covers destinations, dynamic authentication and group headers. `welcome-flow.e2e.ts` covers Host login and discovery for each group. |
 | Preinstallation | novaflow-preinstalled.spec.ts, project-manager.spec.ts, runtime-manifests.spec.ts; actual packaged first-profile initialization offline |
 | Mode isolation | novaflow-mode-isolation.spec.ts and real Host preset list; check temporary selection leaves defaults and drafts intact |

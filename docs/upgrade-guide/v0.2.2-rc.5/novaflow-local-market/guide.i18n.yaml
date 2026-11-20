@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.5/novaflow-local-market/guide.md
+/:
+  en: 937be7963d12b70d
+  zh: 3e95be7bd9572449
+/novaflow-managed-plugin-market:
+  en: c7ea453e7244f424
+  zh: e10779cdefc85880
+/novaflow-managed-plugin-market/change:
+  en: 1988c16610f71bff
+  zh: 2bc3ac7c90332615
+/novaflow-managed-plugin-market/migration:
+  en: 717ce53331d4e7c4
+  zh: 4a07ddba4abbb9d4

@@ -44,7 +44,7 @@ function project(value: unknown): DesktopAccountView {
     attempt = { id: 'novaflow-restore' as SignInAttemptId, phase: 'failed' }
   }
   return { status: value.connected ? 'credential-stored' : 'signed-out', requiresSignOut,
-    links: { usageUrl: `${PLATFORM}/dashboard`, topUpUrl: `${PLATFORM}/dashboard` }, attempt }
+    links: { usageUrl: `${PLATFORM}/dashboard`, topUpUrl: `${PLATFORM}/wallet` }, attempt }
 }
 
 /**
