@@ -14,4 +14,4 @@ NovaFlow Desktop removes Modeling from the preset roster. Existing Modeling sess
 ## Migration
 
 1. Open an existing Modeling conversation and continue it under Standard. If you maintain an overlay that names `novaflow-modeling`, update the reference to `standard`.
-2. Open CAD and modeling in any new session. Find previously added or edited prompts in Settings → Prompt presets → Custom presets, where they can also be selected as homepage recommendations.
+2. Open CAD and modeling in any new session. Find previously added or edited prompts in Settings → Prompt presets.

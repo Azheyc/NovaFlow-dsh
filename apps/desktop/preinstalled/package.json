@@ -6,6 +6,8 @@
     "@michengai/dsh-archive-manager": "1.4.1",
     "@michengai/dsh-skills-manager": "1.5.0",
     "@tonydua/dsh-web-search-exa": "0.2.3",
+    "@xmanrui/dsh-im": "5.10.0",
+    "dsh-mcp-connector": "0.2.119",
     "dsh-ops": "0.5.5",
     "dsh-rewind-plugin": "0.22.2",
     "dshmarket": "1.73.24"

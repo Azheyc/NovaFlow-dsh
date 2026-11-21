@@ -1,9 +1,11 @@
-# NovaFlow 提示词预设
+# NovaFlow prompt presets
 
-所有会话模式共用一套预设。新会话首页可按工作类别选择任务，悬停预览，点击后把提示词填入草稿。已有草稿时会先确认替换。
+English | [中文](README.zh.md)
 
-「设置 → 提示词预设 → 内置预设」提供 Excel、Word、PPT、内容平台、CAD 与建模、数据调研六类工作模板。维护者编辑 `catalog.js` 后随客户端发布，用户升级即可获得新版。
+All session modes share the same library. On the new-conversation page, choose a task by category, hover to preview it, and select it to fill the draft. NovaFlow asks before replacing an existing draft.
 
-在「自定义预设」中添加提示词，填写标题和正文后点击「保存修改」。可以管理分类、调整顺序，或指定最多四条首页推荐。剩余推荐位由内置预设补齐。
+The home page includes eight categories of built-in work templates. They cover office documents (Excel, Word and PPT), data research, content platforms, sales and customers, purchasing and contracts, projects, HR and administration, and CAD and modeling. Maintain these templates in `catalog.js`. Desktop updates deliver the revised library.
 
-自定义内容单独保存在当前 profile 的 `.novaflow-prompt-presets.json`。旧版按模式保存的新增或改写提示词会进入共享自定义库，首次保存时写入新版格式。
+Settings → Prompt presets opens the custom editor. Add a prompt, enter its title and text, and save your changes. You can also manage categories and reorder prompts. Existing homepage recommendations stay available. Removing a recommended prompt leaves room for a built-in recommendation.
+
+Custom presets are stored in `.novaflow-prompt-presets.json` in the current profile. Added or edited presets from older per-mode libraries appear in the shared custom library. The first save writes the new format.

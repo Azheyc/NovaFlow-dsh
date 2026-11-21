@@ -5,8 +5,8 @@ window.__ModuleLoader__.load({
     const { Modal, Button } = require('@deepseek-ai/dsh-client-ui-primitives')
     const h = React.createElement
     const dictionaries = {
-      zh: { title: '选择适合工作的 Agent 模式', description: '进行特定工作时，可以选择适合的 Agent 模式。你可以在会话中临时切换，也可以前往 Agent 预设设置默认模式。', detail: '内容平台模式内置故事创作、资产提取、角色板、场景参考和电影级分镜技能，可在「设置 → 技能」中查看。', view: '查看 Agent 预设', done: '知道了', close: '关闭', error: '暂时无法保存指引状态，请重试' },
-      en: { title: 'Choose an Agent mode for your work', description: 'For specialized work, choose a suitable Agent mode. Switch temporarily within a conversation, or set the default in Agent presets.', detail: 'Content platform mode includes story writing, asset extraction, character boards, scene references, and cinematic storyboarding. Find them in Settings → Skills.', view: 'View Agent presets', done: 'Got it', close: 'Close', error: 'Could not save this preference. Please try again.' },
+      zh: { title: '在会话中使用内置技能', description: '直接在会话中说明你要完成的工作，助手可以按需加载相关技能。', detail: '内置技能包括故事创作、资产提取、角色板、场景参考和电影级分镜。', done: '知道了', close: '关闭', error: '暂时无法保存指引状态，请重试' },
+      en: { title: 'Use built-in skills in a conversation', description: 'Describe what you want to do, and the assistant can load the relevant skills as needed.', detail: 'Built-in skills include story writing, asset extraction, character boards, scene references, and cinematic storyboarding.', done: 'Got it', close: 'Close', error: 'Could not save this preference. Please try again.' },
     }
     return { inject: ['slots', 'locale'], apply(ctx) {
       ctx.effect(() => ctx.locale.register('novaflow.modes', dictionaries))
@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({
         if (!response.ok) throw new Error('Mode guide request failed')
         return response.json()
       }
-      function Guide({ complete, openSection }) {
+      function Guide({ complete }) {
         const [visible, setVisible] = React.useState(false)
         const [busy, setBusy] = React.useState(false)
         const [error, setError] = React.useState(false)
@@ -36,19 +36,17 @@ window.__ModuleLoader__.load({
           void load()
           return () => { controller.abort(); clearTimeout(timer) }
         }, [complete])
-        const dismiss = async view => {
+        const dismiss = async () => {
           if (busy || finished.current) return
           setBusy(true); setError(false)
           try {
             await call('dismiss')
             finished.current = true; setVisible(false); complete()
-            if (view) openSection('agent-presets')
           } catch { setError(true) }
           finally { setBusy(false) }
         }
-        return h(Modal, { open: visible, title: t('title'), description: t('description'), closeLabel: t('close'), onClose: () => { void dismiss(false) }, footer: h(React.Fragment, null,
-          h(Button, { disabled: busy, onClick: () => { void dismiss(false) } }, t('done')),
-          h(Button, { variant: 'primary', disabled: busy, onClick: () => { void dismiss(true) } }, t('view'))) },
+        return h(Modal, { open: visible, title: t('title'), description: t('description'), closeLabel: t('close'), onClose: () => { void dismiss() },
+          footer: h(Button, { variant: 'primary', disabled: busy, onClick: () => { void dismiss() } }, t('done')) },
           h('p', null, t('detail')), error && h('p', { role: 'alert' }, t('error')))
       }
       ctx.slots.inject('settings.onboarding', () => ctx.slots.register({ name: 'settings.onboarding', id: 'novaflow-modes', order: 50 }, Guide))

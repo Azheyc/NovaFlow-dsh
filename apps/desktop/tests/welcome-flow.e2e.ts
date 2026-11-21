@@ -23,6 +23,7 @@ async function mockPlatform() {
   let failExchange = false
   let rejectAuthorization = false
   let exchanged = false
+  const imageRequests: Array<{ group: string | undefined; model: string; size: string }> = []
   const server = createServer((req, res) => {
     req.setEncoding('utf8')
     let body = ''
@@ -49,6 +50,18 @@ async function mockPlatform() {
         res.writeHead(503).end(); return
       } else {
         if (rejectAuthorization || req.headers.authorization !== `Bearer ${access}`) { res.writeHead(401).end(); return }
+        if (req.url?.startsWith('/v1/videos')) {
+          if (decodeURIComponent(String(req.headers['x-novaflow-group'])) !== 'Video group') { res.writeHead(403).end(); return }
+          if (req.url.endsWith('/content')) { res.writeHead(200, { 'content-type': 'video/mp4' }).end(Buffer.from('000000146674797069736f6d', 'hex')); return }
+          res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(req.method === 'POST' ? { id: 'video-job' } : { status: 'completed' })); return
+        }
+        if (req.url === '/v1/images/generations' && req.method === 'POST') {
+          const group = req.headers['x-novaflow-group']
+          imageRequests.push({ group: typeof group === 'string' ? decodeURIComponent(group) : undefined, model: input.model!, size: input.size! })
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ data: [{ b64_json: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=' }] }))
+          return
+        }
         if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: 'personal' }
         else if (req.url === `${prefix}/creator/models`) data = { items: [
           { model_id: 'gpt-image-2.6', group_id: 'Image group', kind: 'image', supported_endpoint_types: ['image-generation'] },
@@ -70,6 +83,7 @@ async function mockPlatform() {
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('missing mock listener')
   return {
+    imageRequests,
     origin: `http://127.0.0.1:${String(address.port)}`,
     failExchange: (value: boolean) => { failExchange = value },
     rejectAuthorization: (value: boolean) => { rejectAuthorization = value },
@@ -125,14 +139,39 @@ globalThis.fetch = (input, init) => {
       }
       await restart()
       const bundles = await rpc<Array<{ name: string; version?: string; update?: string; enabled: boolean; installed: boolean; removable: boolean }>>('pluginManager/listBundles')
-      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', 'novaflow-dsh-prompt-presets', '@tonydua/dsh-web-search-exa']) {
+      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', 'novaflow-dsh-prompt-presets', '@tonydua/dsh-web-search-exa', '@xmanrui/dsh-im', 'novaflow-media-desk', 'dsh-mcp-connector']) {
         expect(bundles.find(row => row.name === name), name).toMatchObject({ enabled: true, installed: true, removable: true })
       }
       const seedManifest = JSON.parse(readFileSync(join(project, 'novaflow-preinstalled', 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
       const market = bundles.find(row => row.name === 'dshmarket')
       expect(market?.version).toBe(seedManifest.dependencies.dshmarket)
+      const marketClient = readFileSync(join(paths.profile, 'node_modules', 'dshmarket/client/client.js'), 'utf8')
+      expect(marketClient).not.toMatch(/\(SponsorMark\s*,/)
+      expect(marketClient).not.toMatch(/t\("updateCheckFailed"\)/)
+      expect(bundles.find(row => row.name === 'dsh-mcp-connector')?.version).toBe(seedManifest.dependencies['dsh-mcp-connector'])
+      const connector = await fetch(`${hostOrigin}/mcp-connector/api`, {
+        method: 'POST', headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' }, body: '{"method":"governance"}',
+      })
+      expect(connector.status).toBe(200)
+      await expect(connector.json()).resolves.toMatchObject({ ok: true })
+      expect(bundles.some(row => row.name === 'dsh-media-desk')).toBe(false)
+      const deskVersion = await fetch(`${hostOrigin}/media-desk/version`, { headers: { cookie } })
+      expect(deskVersion.status).toBe(200)
+      await expect(deskVersion.json()).resolves.toMatchObject({ current: seedManifest.dependencies['novaflow-media-desk'], ready: true, updateAvailable: false, failed: false })
+      const deskSettings = await fetch(`${hostOrigin}/media-desk/settings`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ exportDir: root, resolution: '2048×1152', imageCount: 1, shotCount: 3, generateImages: false, language: 'en', image: { baseUrl: 'https://example.invalid', apiKey: 'fixture' } }),
+      })
+      expect(deskSettings.status).toBe(200)
+      const savedDeskSettings = await deskSettings.json()
+      expect(savedDeskSettings).toMatchObject({ resolution: '2048x1152', imageCount: 1, shotCount: 3, generateImages: false, language: 'auto', imageReady: false })
+      expect(savedDeskSettings).not.toHaveProperty('image')
+      const drawTest = await fetch(`${hostOrigin}/media-desk/settings/test`, {
+        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{}',
+      })
+      expect(drawTest.status).toBe(404)
       expect(market?.update).toBeUndefined()
-      for (const name of ['@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager']) {
+      for (const name of ['@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', '@xmanrui/dsh-im']) {
         expect(bundles.find(row => row.name === name)?.version).toBe(seedManifest.dependencies[name])
       }
       const marketUpdate = await fetch(`${hostOrigin}/dsh-market/update`, {
@@ -141,6 +180,19 @@ globalThis.fetch = (input, init) => {
       })
       expect(marketUpdate.status).toBe(400)
       await expect(marketUpdate.json()).resolves.toMatchObject({ error: 'NovaFlow manages the installed market version.' })
+      const imClient = readFileSync(join(paths.profile, 'node_modules', '@xmanrui/dsh-im/lib/client.js'), 'utf8')
+      expect(imClient).toContain('pageCtx.locale.bind(IM_LOCALE_NAMESPACE)("连接手机")')
+      expect(imClient).toContain('h2("p", null, "让NovaFlow触手可及")')
+      expect(imClient).toContain('sidebarVisible = true')
+      expect(imClient).not.toContain('"im-settings: sidebar visibility"')
+      expect(imClient).not.toContain('className: "dim-githubLink"')
+      expect(imClient).not.toContain('h2(SidebarSettings, { rpcCall })')
+      const imUpdate = await fetch(`${hostOrigin}/dsh-market/update`, {
+        method: 'POST', headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '@xmanrui/dsh-im', restore: true }),
+      })
+      expect(imUpdate.status).toBe(400)
+      await expect(imUpdate.json()).resolves.toMatchObject({ error: 'NovaFlow manages the installed DSH-IM version.' })
       const providers = await rpc<{ search: Array<{ id: string }> }>('web/listProviders')
       expect(providers.search.map(provider => provider.id)).toContain('exa')
       const settings = await rpc<{ namespaces: Array<{ ns: string; value: unknown }> }>('settings/describe')
@@ -149,26 +201,21 @@ globalThis.fetch = (input, init) => {
       expect(bundles.some(row => row.name === '@local/novaflow-dsh-plugin')).toBe(false)
       const roster = await rpc<{ presets: Array<{ id: string; broken?: string; isDefault: boolean }> }>('agentPresets/list')
       expect(roster.presets.find(row => row.id === 'novaflow-modeling')).toBeUndefined()
-      const contentPreset = roster.presets.find(row => row.id === 'novaflow-media-creation')
-      expect(contentPreset).toMatchObject({ name: '内容平台模式', isDefault: false })
-      expect(contentPreset?.broken).toBeUndefined()
+      expect(roster.presets.find(row => row.id === 'novaflow-media-creation')).toBeUndefined()
+      expect(roster.presets.find(row => row.id === 'standard')).toMatchObject({ isDefault: true })
       const promptResponse = await fetch(`${hostOrigin}/api/novaflow-prompt-presets`, {
         method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{"action":"read"}',
       })
       expect(promptResponse.status).toBe(200)
       const { builtIn, custom } = await promptResponse.json() as { builtIn: { categories: { name: string }[] }; custom: unknown }
-      expect(builtIn.categories.map(group => group.name)).toEqual(['Excel 表格', 'Word 文档', 'PPT 汇报', '内容平台', 'CAD 与建模', '数据调研'])
+      expect(builtIn.categories.map(group => group.name)).toEqual(['办公文档', '数据调研', '内容平台', '销售与客户', '采购与合同', '项目管理', '人事行政', 'CAD 与建模'])
       expect(custom).toEqual({ categories: [], featured: [] })
       const skillResponse = await fetch(`${hostOrigin}/api/michengai/dsh-skills-manager/state`, { headers: { cookie } })
       expect(skillResponse.status).toBe(200)
       const { data: { roots } } = await skillResponse.json() as {
-        data: { roots: Array<{ group?: string; skills: Array<{ declaredName: string }> }> }
+        data: { roots: Array<{ group?: string }> }
       }
-      const content = roots.find(root => root.group === '内容平台模式')
-      expect(content).toMatchObject({ kind: 'preset', mutable: false, toggleable: false })
-      expect(content?.skills.map(skill => skill.declaredName).sort()).toEqual([
-        'laotang-asset-extractor', 'laotang-character-board', 'laotang-cinematic-storyboard-s10-free', 'laotang-scene-reference-zh', 'laotang-storycraft-zh',
-      ])
+      expect(roots.some(root => root.group === '内容平台模式')).toBe(false)
       const management = await rpc<{ changed: boolean; error?: { code: string } }>('pluginManager/setBundleEnabled', { name: '@local/novaflow-dsh-plugin', enabled: false })
       expect(management.changed).toBe(false)
       expect(management.error).toBeDefined()
@@ -233,8 +280,37 @@ globalThis.fetch = (input, init) => {
       const image = { id: 'gpt-image-2.6', group: 'Image group' }
       expect(media.media.selected).toEqual({ image })
       expect(media.mediaModels).toContainEqual(expect.objectContaining(video))
+      const deskRequest = (path: string, body?: object) => fetch(`${hostOrigin}/media-desk/${path}`, {
+        headers: { cookie, 'content-type': 'application/json' },
+        ...body && { method: 'POST', body: JSON.stringify(body) },
+      })
+      await expect(deskRequest('settings').then(response => response.json())).resolves.toMatchObject({ imageReady: true })
+      expect((await deskRequest('settings', { imageCount: 0, shotCount: 0 })).status).toBe(200)
+      const ideaResponse = await deskRequest('ops', { ops: [{ op: 'add_item', kind: 'idea', title: 'NovaFlow fixture cover' }] })
+      expect(ideaResponse.status).toBe(200)
+      const { state: deskState } = await ideaResponse.json() as { state: { items: Array<{ title: string; id: string }> } }
+      const idea = deskState.items.find(item => item.title === 'NovaFlow fixture cover')
+      expect(idea).toBeDefined()
+      expect((await deskRequest('produce', { id: idea?.id, withImages: true })).status).toBe(200)
+      await expect.poll(() => deskRequest(`production?id=${idea?.id}`).then(response => response.json()), { timeout: 15_000 })
+        .toMatchObject({ production: { status: 'done', cover: { src: expect.stringMatching(/^media-desk\/files\//) } } })
+      expect(platform.imageRequests).toEqual([{ model: image.id, group: image.group, size: '2048x1152' }])
       expect((await mediaState('set_media_model', { kind:'video', model:video.id, group:video.group, owner:media.media.owner })).media.selected.video).toEqual(video)
+      const { canvas } = await (await deskRequest('canvas/create', { name: '试拍' })).json()
+      const document = { ...canvas, nodes: [{ id: 'picture', type: 'imageGen', data: { prompt: 'test', tier: '1K', ratio: '1:1' } }, { id: 'movie', type: 'videoGen', data: { prompt: 'test' } }] }
+      expect((await deskRequest('canvas/save', document)).status).toBe(200)
+      const generate = (nodeId: string) => deskRequest('canvas/generate', { id: canvas.id, nodeId }).then(response => response.json())
+      expect((await generate('picture')).job).toMatchObject({ status: 'completed' })
+      expect(platform.imageRequests.at(-1)).toEqual({ model: image.id, group: image.group, size: '1024x1024' })
+      const videoResult = await generate('movie')
+      expect(videoResult.job).toMatchObject({ status: 'running' })
+      expect((await deskRequest('settings', { exportDir: project })).status).toBe(200)
       await restart()
+      const recovered = await (await deskRequest('canvas/generation/status', { id: canvas.id, nodeId: 'movie' })).json()
+      expect(recovered.job).toMatchObject({ id: videoResult.job.id, status: 'completed' })
+      const asset = await fetch(`${hostOrigin}/${recovered.job.files[0]}`, { headers: { cookie } })
+      expect(asset.status).toBe(200)
+      expect(Buffer.from(await asset.arrayBuffer()).toString('ascii', 4, 8)).toBe('ftyp')
       expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
       expect((await mediaState()).media.selected).toEqual({ image, video })
       await expect.poll(async () => (await mediaState()).media.mcp, { timeout:15000 }).toMatchObject({ state:'connected', toolCount:4 })

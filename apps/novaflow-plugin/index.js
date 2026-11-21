@@ -32,6 +32,18 @@ export async function apply(ctx, rawConfig) {
   ctx.effect(() => () => account.dispose(false))
   media = createMediaService({account,credentials:ctx.credentials,api:new NovaApi(),workspace:ctx.workingDirectory.defaultDirectory})
   ctx.effect(() => () => media.dispose())
+  ctx.provide('novaflowImage', { available: media.imageAvailable, generate: media.renderSelectedImage })
+  // Canvas jobs reuse the MCP job service; the caller supplies its own trusted storage root.
+  ctx.provide('novaflowMedia', {
+    async selections() {
+      const models = account.snapshot().mediaModels
+      const { selected } = await media.preferences(models)
+      return Object.fromEntries(Object.entries(selected).map(([kind, choice]) => [kind, models.find(row => row.kind === kind && row.id === choice.id && row.group === choice.group) ?? null]))
+    },
+    generateImage: (args, workspace, onPrepared) => media.generateImage(args, { workspace, onPrepared }),
+    generateVideo: (args, workspace, onPrepared) => media.generateVideo(args, { workspace, onPrepared }),
+    result: (id, workspace) => media.generationResult({ id }, { workspace }),
+  })
   let mediaKey=(await ctx.credentials.resolve('NOVAFLOW_IMAGE_MCP_KEY'))?.value
   if (!mediaKey) { mediaKey='nfm_'+randomBytes(32).toString('base64url');await ctx.credentials.set('NOVAFLOW_IMAGE_MCP_KEY',mediaKey) }
   const mediaUrl=origin+'/novaflow/novaflow-image/mcp'

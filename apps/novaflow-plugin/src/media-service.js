@@ -19,7 +19,12 @@ export function mediaModels(items) {
   for (const row of items) {
     if (!plain(row) || !Object.hasOwn(endpoints, row.kind) || !Array.isArray(row.supported_endpoint_types) || !row.supported_endpoint_types.includes(endpoints[row.kind])) continue
     if (typeof row.model_id !== 'string' || !row.model_id || typeof row.group_id !== 'string' || !row.group_id) continue
-    models.set(JSON.stringify([row.kind,row.group_id,row.model_id]), {id:row.model_id,group:row.group_id,kind:row.kind,endpoints:row.supported_endpoint_types})
+    const capabilities = {}
+    for (const key of ['modes','ratios','durations','tiers']) {
+      const choices = row.capabilities?.[key]
+      if (Array.isArray(choices)) capabilities[key] = choices.filter(value => key === 'durations' ? Number.isSafeInteger(value) : typeof value === 'string')
+    }
+    models.set(JSON.stringify([row.kind,row.group_id,row.model_id]), {id:row.model_id,group:row.group_id,kind:row.kind,endpoints:row.supported_endpoint_types,...(Object.keys(capabilities).length ? { capabilities } : {})})
   }
   return [...models.values()]
 }
@@ -260,27 +265,61 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     await fs.writeFile(path,data,{flag:'wx',mode:0o600})
     return path
   }
-  async function imageResults(job,payload,signal) {
+  function imageEntries(payload) {
     const entries=Array.isArray(payload?.data) ? payload.data : plain(payload?.data) ? [payload.data] : null
     if(!Array.isArray(entries)||!entries.length||entries.length>4)bad('MEDIA_RESPONSE_INVALID')
+    return entries
+  }
+  async function readImageResult(entry,signal) {
+    let data,type
+    if(typeof entry?.b64_json==='string') {if(entry.b64_json.length>IMAGE_LIMIT*1.4)bad('MEDIA_FILE_TOO_LARGE');if(!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(entry.b64_json))bad('MEDIA_RESPONSE_INVALID');data=Buffer.from(entry.b64_json,'base64');type=imageType(data)}
+    else if(typeof entry?.url==='string'){({data}=await download(entry.url,IMAGE_LIMIT,signal));type=imageType(data)}
+    else bad('MEDIA_RESPONSE_INVALID')
+    if(!type || data.length>IMAGE_LIMIT)bad('MEDIA_RESPONSE_INVALID')
+    return {data,type}
+  }
+  async function imageResults(job,payload,signal) {
+    const entries=imageEntries(payload)
     const files=[]
     job.expectedOutputCount=entries.length
     await persist(job)
     for(const [i,entry] of entries.entries()){
-      let data,type
-      if(typeof entry?.b64_json==='string') {if(entry.b64_json.length>IMAGE_LIMIT*1.4)bad('MEDIA_FILE_TOO_LARGE');if(!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(entry.b64_json))bad('MEDIA_RESPONSE_INVALID');data=Buffer.from(entry.b64_json,'base64');type=imageType(data)}
-      else if(typeof entry?.url==='string'){({data}=await download(entry.url,IMAGE_LIMIT,signal));type=imageType(data)}
-      else bad('MEDIA_RESPONSE_INVALID')
-      if(!type || data.length>IMAGE_LIMIT)bad('MEDIA_RESPONSE_INVALID')
+      const {data,type}=await readImageResult(entry,signal)
       files.push(await save(job,data,type,i,entries.length))
     }
     return files
   }
-  async function runImage(job,args,signal,readAttachment) {
-    const references=args.reference_images||[], body={model:job.model,prompt:args.prompt,stream:false}
+  function imageRequest(args,model,downgradedSize) {
+    const body={model,prompt:args.prompt,stream:false}
     for(const field of ['size','quality','background','n']) if(args[field]!==undefined)body[field]=args[field]
+    if(downgradedSize)body.size=downgradedSize
+    return body
+  }
+  async function imageAvailable() {
+    if (disposed || !account.state.connected) return false
+    const models = account.state.mediaModels ?? []
+    const {owner,selected}=await preferences(models)
+    return Boolean(owner && selected.image && matchingModels(models,'image',selected.image.id,selected.image.group).length===1)
+  }
+  async function renderSelectedImage({prompt,size,signal:callerSignal}) {
+    if(typeof prompt!=='string'||!prompt.trim()||prompt.length>32000)bad('INVALID_REQUEST')
+    const signal=AbortSignal.any([lifecycle.signal,accountLifetime.signal,AbortSignal.timeout(timeoutMs),...(callerSignal?[callerSignal]:[])])
+    signal.throwIfAborted()
+    const {owner,selected}=await savedPreferences()
+    if(!owner)bad('AUTH_REQUIRED')
+    const route=await select('image',selected.image?.id ?? DEFAULT_IMAGE_MODEL,selected.image?.group)
+    signal.throwIfAborted()
+    const body=imageRequest({prompt,size,n:1},route.id,downgradedImageSize(size,prompt))
+    const payload=await json(await platform('/v1/images/generations',{method:'POST',body,group:route.group,owner,signal}))
+    const {data,type}=await readImageResult(imageEntries(payload)[0],signal)
+    await ensureIdentity(owner)
+    signal.throwIfAborted()
+    return {buffer:data,ext:imageExt(type)}
+  }
+  async function runImage(job,args,signal,readAttachment) {
+    const references=args.reference_images||[]
     job.downgradedSize = downgradedImageSize(args.size, args.prompt)
-    if (job.downgradedSize) body.size = job.downgradedSize
+    const body=imageRequest(args,job.model,job.downgradedSize)
     let payload
     if(references.length){const form=new FormData();for(const [key,value] of Object.entries(body))form.set(key,String(value));for(const value of references){const ref=await reference(value,signal,job[jobWorkspace],readAttachment);form.append('image[]',new Blob([ref.data],{type:ref.type}),'reference'+imageExt(ref.type))}payload=await json(await platform('/v1/images/edits',{method:'POST',body:form,group:job.group,owner:job.owner,signal,job}))}
     else payload=await json(await platform('/v1/images/generations',{method:'POST',body,group:job.group,owner:job.owner,signal,job}))
@@ -333,6 +372,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     await ensureIdentity(owner)
     const job={[jobWorkspace]:paths,id:randomUUID(),kind,status:'running',model,group:route.group,owner,createdAt:Date.now(),...(args.path?{path:args.path}:{})}
     await persist(job);jobs.set(jobKey(paths,job.id),job)
+    await context?.onPrepared?.(job.id)
     const work=execute(job,args,readAttachment);running.add(work);work.finally(()=>running.delete(work)).catch(()=>{})
     let timer;await Promise.race([work,new Promise(resolve=>{timer=setTimeout(resolve,waitMs)})]);clearTimeout(timer)
     return view(job)
@@ -366,7 +406,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
     }
     jobs.set(jobKey(paths,id),job);await persist(job);return view(job)
   }
-  return {generateImage:(args,context)=>begin('image',args,context),generateVideo:(args,context)=>begin('video',args,context),generationResult: async (args,context) => {
+  return {imageAvailable,renderSelectedImage,generateImage:(args,context)=>begin('image',args,context),generateVideo:(args,context)=>begin('video',args,context),generationResult: async (args,context) => {
     const id=args?.id
     const paths=await workspacePaths(context?.workspace ?? workspace)
     const key=jobKey(paths,id)

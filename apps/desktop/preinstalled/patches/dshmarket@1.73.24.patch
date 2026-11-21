@@ -7,7 +7,7 @@ index a3906a4..05269aa 100644
  				const showExempt = !localDev || exempt || updatable;
  				const showBootIgnore = bootId !== null && !exempt && !ignoredUpdateSet.has(name) && updatable;
 -				const showRestore = localDev && !(status?.updateAvailable === true && status.restoreRequired === true);
-+				const showRestore = name !== "dshmarket" && name !== "dsh-market" && localDev && !(status?.updateAvailable === true && status.restoreRequired === true);
++				const showRestore = name !== "dshmarket" && name !== "dsh-market" && name !== "@xmanrui/dsh-im" && localDev && !(status?.updateAvailable === true && status.restoreRequired === true);
  				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
  					open: installedMenuName === name,
  					onClose: () => setInstalledMenuName(null),
@@ -269,14 +269,32 @@ index 5b9e085..badc2bf 100644
                  try {
                      const body = (await readJsonBody(request));
                      const name = typeof body.name === 'string' ? body.name : '';
-+                    if (SELF_NAMES.has(name)) {
-+                        sendJson(response, 400, { error: 'NovaFlow manages the installed market version.' });
++                    if (SELF_NAMES.has(name) || name === '@xmanrui/dsh-im') {
++                        sendJson(response, 400, { error: SELF_NAMES.has(name) ? 'NovaFlow manages the installed market version.' : 'NovaFlow manages the installed DSH-IM version.' });
 +                        return;
 +                    }
                      const drainCall = drainCallOf(request);
                      if (drainCall === undefined && body.busyPolicy === 'drain') {
                          if (body.restore === true) {
-@@ -8704,6 +8717,28 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -6995,7 +7008,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+                             if (wasLive)
+                                 replacedWhileLive.add(name);
+                             activation = {
+-                                [name]: activationAfterReplace(verifyActivation(config.profile, name, liveNames(), activeProfileDir, disabled.has(name)), wasLive),
++                                [name]: activationAfterReplace(verifyActivation(config.profile, name,
++                                    liveNames(disposed && preservesManagerOperation ? host.root.loader : undefined), activeProfileDir, disabled.has(name)), wasLive),
+                             };
+                             const after = assessProfile(config.profile, activeProfileDir);
+                             const risks = introducedRisks(compatibilityBefore, after);
+@@ -7175,6 +7189,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+                         // A user-cancelled run is a quiet outcome, not an error.
+                         sendJson(response, ok || cancelled ? 200 : result.busy === true ? 409 : 502, {
+                             ok,
++                            ...(disposed && preservesManagerOperation ? { marketReloaded: true } : {}),
+                             cancelled: cancelled || undefined,
+                             busy: result.busy || undefined,
+                             stale: stale || undefined,
+@@ -8704,6 +8719,28 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
                          }
                          drainPhaseOf(request)?.('verifying');
                          const cancelled = result.cancelled;
@@ -305,7 +323,7 @@ index 5b9e085..badc2bf 100644
                          const portCollisionLanded = !cancelled
                              && isHostPortCollision(result)
                              && installApplied(config.profile, before, activeProfileDir);
-@@ -9061,7 +9096,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -9061,7 +9098,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
          // Release Agent maintenance holds before the routes disappear. This is the
          // disposer half of the single-finally + disposer guarantee (#411): an
          // unloaded market must never leave an Agent parked behind a hold.

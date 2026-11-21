@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/desktop/preinstalled/media-desk/source/README.md
+/novaflow-media-desk:
+  en: 3dcd0ce826a5c4f5
+  zh: bb48bd1fb33d1cc4
+/novaflow-media-desk/infinite-canvas:
+  en: e820cfcd20c3dad4
+  zh: ea2d278d5381d0ae
+/novaflow-media-desk/file-storage:
+  en: 968da366b2c68359
+  zh: 037a5ac0a10ad6e2
+/novaflow-media-desk/local-maintenance:
+  en: e9c12466dc1539f6
+  zh: 65612b6c9c3cc9cb

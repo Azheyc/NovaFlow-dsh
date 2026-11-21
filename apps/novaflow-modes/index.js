@@ -1,16 +1,17 @@
-/** NovaFlow modes are ordinary isolated presets, independent of account login or package installation. */
 import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import yaml from 'js-yaml'
-import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { fileURLToPath } from 'node:url'
 import { writeFileAtomic, withFileLock } from '@deepseek-ai/dsh-atomic-write'
-import { modes, composeModes } from './modes.js'
+import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
+
+const bundledSkillDir = fileURLToPath(new URL('./skills/', import.meta.url)).replace(/([/\\])app\.asar([/\\])/, '$1app.asar.unpacked$2')
 
 export const name = 'novaflow-modes'
-export const inject = ['agentPresets', 'profileContext', 'connection', 'systemPrompt', 'webServer']
-export async function apply(ctx) {
+export const inject = ['agentPresets', 'profileContext', 'connection', 'skills', 'systemPrompt', 'webServer']
+export function apply(ctx) {
   ctx.effect(() => ctx.agentPresets.registerAlias('novaflow-modeling', 'standard'))
+  ctx.effect(() => ctx.agentPresets.registerAlias('novaflow-media-creation', 'standard'))
+  ctx.plugin(SkillFileSystem, { providerName: 'novaflow-content-platform', includeDefaultRoots: false, watch: false, bundledSkillDir })
   ctx.on('webserver/index-inject', table => {
     table.push({ kind: 'global', name: '__DSH_HIDDEN_PRESET_CHOICES__', value: ['cordis', 'ops-ptc'] })
   })
@@ -19,15 +20,6 @@ export async function apply(ctx) {
     order: ctx.systemPrompt.getSectionOrder('HARNESS_IDENTITY') + 1,
     text: '用户正在 NovaFlow 客户端中与你对话。提及当前应用或会话时，使用「NovaFlow 客户端」或「当前 NovaFlow 客户端会话」，其他语言使用对应的自然表达。DeepSeek Harness（DSH）是底层框架。讲解底层实现、引用文档或给出操作步骤时，保留 `dsh-doc`、`dsh`、包名、命令和路径的原名。',
   })
-  const require = createRequire(import.meta.url)
-  const template = yaml.load(await readFile(require.resolve('@deepseek-ai/dsh-web-app/presets/standard.patch.yml'), 'utf8'), { schema: entryListSchema })
-  const standard = template.flatMap(patch => patch.insert ?? []).find(row => row.config?.id === 'standard')?.config
-  if (!standard) throw new Error('NovaFlow modes: standard preset template is unavailable')
-  for (const mode of composeModes(standard.plugins)) {
-    // The preset registry audits isolation and exposes missing or failed modules as a broken mode.
-    const dispose = await ctx.agentPresets.register(mode)
-    ctx.effect(() => dispose)
-  }
   const statePath = join(ctx.profileContext.dir, '.novaflow-mode-guide.json')
   const response = (data, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store, private' } })
   const readState = async () => {
@@ -50,7 +42,7 @@ export async function apply(ctx) {
         })
         const state = await readState()
         const roster = await ctx.agentPresets.list()
-        return response({ seen: state.seen === true, ready: modes.every(mode => roster.some(row => row.id === mode.id && !row.broken)) })
+        return response({ seen: state.seen === true, ready: roster.some(row => row.id === 'standard' && !row.broken) })
       } catch { return response({ error: 'MODE_GUIDE_UNAVAILABLE' }, 503) }
     },
   }))

@@ -47,7 +47,7 @@
 
 当前桌面版从随包资源一次性初始化四个社区插件，无需登录后下载。版本与迁移规则见[桌面整合说明](INTEGRATION.zh.md)。账户插件不再提供推荐清单、安装弹窗、进度、运行时预检或安装动作；旧安装状态不参与登录。旧 confirm_plugins、dismiss_plugins、retry_plugins 请求返回 UNSUPPORTED_ACTION。
 
-内容平台模式由 [NovaFlow 模式扩展](../novaflow-modes/README.zh.md) 提供。账户与余额为客户端核心功能，不能通过插件管理关闭、卸载、独立更新或编辑配置。
+全局内置技能由 [NovaFlow 技能与预设扩展](../novaflow-modes/README.zh.md) 提供。账户与余额为客户端核心功能，不能通过插件管理关闭、卸载、独立更新或编辑配置。
 
 ## 配置思考深度
 

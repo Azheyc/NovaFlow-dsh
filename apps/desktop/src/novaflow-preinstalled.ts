@@ -1,12 +1,18 @@
 /** Offline community-plugin seeding and the desktop-owned market installation. */
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { isMap, isSeq, parseDocument } from 'yaml'
 
 const exaBundle = '@tonydua/dsh-web-search-exa'
 const officialExaBundle = '@deepseek-ai/dsh-web-search-exa'
 const market = 'dshmarket'
 const promptPresets = 'novaflow-dsh-prompt-presets'
+/** Package identity retained by the desktop-managed IM bundle. */
+export const imBundle = '@xmanrui/dsh-im'
+/** Package identity of the desktop-owned content workbench. */
+export const novaFlowMediaDesk = 'novaflow-media-desk'
+/** Upstream package identity used to build and migrate the content workbench. */
+export const upstreamMediaDesk = 'dsh-media-desk'
 const promptLocation = `.novaflow-bundled/${promptPresets}`
 const promptSpec = `link:./${promptLocation}`
 /** Electron can read ASAR directories but cannot pass them to the native recursive copy operation. */
@@ -40,7 +46,7 @@ function prepareBundledPackage(profile: string, seed: string, name: string): str
   const existing = lstatSync(installed, { throwIfNoEntry: false })
   if (existing?.isSymbolicLink() && existsSync(installed) && realpathSync(installed) === realpathSync(local)) return `link:./${location}`
   const staging = mkdtempSync(join(dirname(installed), '.novaflow-package-'))
-  const backup = join(staging, name)
+  const backup = join(staging, basename(installed))
   if (existing !== undefined) renameSync(installed, backup)
   try {
     symlinkSync(local, installed, process.platform === 'win32' ? 'junction' : 'dir')
@@ -112,7 +118,18 @@ export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boo
   const marketSpec = seeded.dependencies[market] !== undefined && (missing.has(market) || existingMarket !== undefined)
     ? prepareBundledPackage(profile, seed, market)
     : existingMarket
-  if (pending.length === 0 && nextPromptSpec === existingPrompt && marketSpec === existingMarket) return
+  const existingDesk = dependencies[novaFlowMediaDesk]
+  const existingIm = dependencies[imBundle]
+  const imSpec = seeded.dependencies[imBundle] !== undefined && (missing.has(imBundle) || existingIm !== undefined)
+    ? prepareBundledPackage(profile, seed, imBundle)
+    : existingIm
+  const migrateDesk = seeded.dependencies[novaFlowMediaDesk] !== undefined && Object.hasOwn(dependencies, upstreamMediaDesk)
+    && (existingDesk !== undefined || missing.has(novaFlowMediaDesk))
+  const deskSpec = seeded.dependencies[novaFlowMediaDesk] !== undefined && (missing.has(novaFlowMediaDesk) || existingDesk !== undefined)
+    ? prepareBundledPackage(profile, seed, novaFlowMediaDesk)
+    : existingDesk
+  if (pending.length === 0 && nextPromptSpec === existingPrompt && marketSpec === existingMarket
+    && deskSpec === existingDesk && imSpec === existingIm && !migrateDesk) return
   const modules = join(profile, 'node_modules')
   mkdirSync(modules, { recursive: true })
   const names = missing.size === 0 ? [] : readdirSync(join(seed, 'node_modules'), { withFileTypes: true }).flatMap((entry) => {
@@ -123,20 +140,26 @@ export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boo
   })
   // Never merge into an existing package: its files must all belong to the same version.
   for (const name of names) {
-    if (name === promptPresets || name === market) continue
+    if (name === promptPresets || name === market || name === novaFlowMediaDesk || name === imBundle) continue
     if (Object.hasOwn(seeded.dependencies, name) && !missing.has(name)) continue
     const destination = join(modules, name)
     if (!existsSync(destination)) placeSeedDirectory(join(seed, 'node_modules', name), destination)
   }
   for (const [name, version] of missing) {
     dependencies[name] = version
-    if (!bundles.includes(name)) bundles.push(name)
+    if (!bundles.includes(name) && !(migrateDesk && name === novaFlowMediaDesk)) bundles.push(name)
   }
   if (pending.some(([name]) => name === exaBundle) && bundles.includes(exaBundle) && !bundles.includes(officialExaBundle)) {
     seedExaSearchDefault(profile)
   }
   if (nextPromptSpec !== undefined) dependencies[promptPresets] = nextPromptSpec
   if (marketSpec !== undefined) dependencies[market] = marketSpec
+  if (deskSpec !== undefined) dependencies[novaFlowMediaDesk] = deskSpec
+  if (imSpec !== undefined) dependencies[imBundle] = imSpec
+  if (migrateDesk) {
+    delete dependencies['dsh-media-desk']
+    manifest.dsh.profile.bundles = [...new Set(bundles.map(name => name === upstreamMediaDesk ? novaFlowMediaDesk : name))]
+  }
   const temporary = `${manifestPath}.novaflow-tmp`
   writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`)
   renameSync(temporary, manifestPath)

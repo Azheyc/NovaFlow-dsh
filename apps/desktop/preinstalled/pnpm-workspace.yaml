@@ -9,3 +9,4 @@ patchedDependencies:
 minimumReleaseAgeExclude:
   - '@michengai/dsh-archive-manager@1.4.1'
   - dshmarket@1.73.24
+  - dsh-mcp-connector@0.2.119

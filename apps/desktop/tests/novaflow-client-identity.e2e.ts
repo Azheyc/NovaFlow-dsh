@@ -12,6 +12,8 @@ import { prepareDesktopHome } from './harness.ts'
 const skillsQuestion = '当我让你配置你的 skills 技能或者插件时你会读取哪些内置技能'
 const frameworkQuestion = 'NovaFlow 基于什么框架？请保留技能、命令和路径的原名。'
 const identity = '用户正在 NovaFlow 客户端中与你对话。'
+const storyboardQuestion = '请读取电影级分镜技能'
+const contentSkills = ['laotang-asset-extractor', 'laotang-character-board', 'laotang-cinematic-storyboard-s10-free', 'laotang-scene-reference-zh', 'laotang-storycraft-zh']
 
 interface ModelRequest {
   system: string
@@ -29,14 +31,23 @@ it('delivers the client identity across presets, skill reads and resumed session
     request.on('data', (chunk: Buffer) => { chunks.push(chunk) })
     request.on('end', () => {
       const body = JSON.parse(Buffer.concat(chunks).toString()) as ModelRequest
-      const last = body.messages.at(-1)
+      const currentTurn: ModelRequest['messages'][number]['content'] = []
+      for (const message of [...body.messages].reverse()) {
+        if (message.role === 'system') continue
+        if (message.role !== 'user') break
+        currentTurn.push(...message.content)
+      }
       const isAgent = Boolean(body.tools?.length)
       if (isAgent) requests.push(body)
-      const readSkill = isAgent && last?.content.some(block => block.text === skillsQuestion)
+      const requestedSkill = !currentTurn.some(block => block.type === 'tool_result')
+        ? [skillsQuestion, storyboardQuestion].find(question => currentTurn.some(block => block.text?.includes(question)))
+        : undefined
+      const readSkill = isAgent && requestedSkill !== undefined
+      const skillName = requestedSkill === storyboardQuestion ? 'laotang-cinematic-storyboard-s10-free' : 'dsh-doc'
       const events = [
         { type: 'message_start', message: { id: randomUUID(), model: 'deepseek-flash', usage: { input_tokens: 5, output_tokens: 0 } } },
         { type: 'content_block_start', index: 0, content_block: readSkill ? { type: 'tool_use', id: randomUUID(), name: 'skill', input: {} } : { type: 'text', text: 'OK' } },
-        ...(readSkill ? [{ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"name":"dsh-doc"}' } }] : []),
+        ...(readSkill ? [{ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify({ name: skillName }) } }] : []),
         { type: 'content_block_stop', index: 0 },
         { type: 'message_delta', delta: { stop_reason: readSkill ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 1 } },
         { type: 'message_stop' },
@@ -75,11 +86,11 @@ it('delivers the client identity across presets, skill reads and resumed session
     const patch = parseDocument(await readFile(patchPath, 'utf8'))
     if (!isSeq(patch.contents)) throw new Error('Expected a profile patch sequence')
     patch.contents.flow = false
-    patch.add({ id: 'agent-preset-registry', config: { default: 'standard', selectedDefault: 'novaflow-modeling' } })
+    patch.add({ id: 'agent-preset-registry', config: { default: 'standard', selectedDefault: 'novaflow-media-creation' } })
     const upgradedPatch = String(patch)
     patch.add({ id: 'novaflow-modes', disabled: true })
     const template = await readFile(new URL('../../../packages/bundle/web-app/presets/standard.patch.yml', import.meta.url), 'utf8')
-    const legacyPreset = template.replace('id: preset-standard', 'id: legacy-modeling').replace('id: standard\n', 'id: novaflow-modeling\n')
+    const legacyPreset = template.replace('id: preset-standard', 'id: legacy-content').replace('id: standard\n', 'id: novaflow-media-creation\n')
     await writeFile(patchPath, String(patch) + legacyPreset)
     let rpc = await restart()
     const prompt = (sessionId: string, text: string) => rpc('session/prompt', {
@@ -89,7 +100,7 @@ it('delivers the client identity across presets, skill reads and resumed session
       cwd: root, ...(agentPreset !== undefined ? { agentPreset } : {}),
     })
     const legacy = await create()
-    expect(legacy.agentPreset).toBe('novaflow-modeling')
+    expect(legacy.agentPreset).toBe('novaflow-media-creation')
     await prompt(legacy.sessionId, skillsQuestion)
     await expect.poll(() => requests.length, { timeout: 15000 }).toBe(2)
     await host?.stop()
@@ -101,27 +112,40 @@ it('delivers the client identity across presets, skill reads and resumed session
       kind: 'sequenced', values: { agentPreset: 'standard' },
     })
     const sessions: string[] = [legacy.sessionId]
-    for (const agentPreset of ['standard', 'novaflow-media-creation']) {
-      const created = await create(agentPreset === 'standard' ? undefined : agentPreset)
-      expect(created.agentPreset).toBe(agentPreset)
+    for (const agentPreset of [undefined, 'novaflow-modeling']) {
+      const created = await create(agentPreset)
+      expect(created.agentPreset).toBe('standard')
       sessions.push(created.sessionId)
       const before = requests.length
       await prompt(created.sessionId, skillsQuestion)
       await expect.poll(() => requests.length, { timeout: 15000 }).toBe(before + 2)
       expect(JSON.stringify(requests[before + 1]?.messages.flatMap(message => message.content).filter(block => block.type === 'tool_result'))).toContain(skillHeading)
     }
+    const legacyRequests = new Set<ModelRequest>()
+    for (const sessionId of [legacy.sessionId, sessions[1]!]) {
+      const before = requests.length
+      await prompt(sessionId, storyboardQuestion)
+      await expect.poll(() => requests.length, { timeout: 15000 }).toBe(before + 2)
+      const result = requests[before + 1]?.messages.flatMap(message => message.content).filter(block => block.type === 'tool_result')
+      expect(JSON.stringify(result)).toContain('s10至臻版')
+      if (sessionId === legacy.sessionId) {
+        for (const request of requests.slice(before)) legacyRequests.add(request)
+      } else {
+        const request = JSON.stringify(requests[before])
+        for (const name of contentSkills) expect(request).toContain(name)
+      }
+    }
     rpc = await restart()
-    let legacyRequest: ModelRequest | undefined
     for (const sessionId of sessions) {
       const before = requests.length
       await prompt(sessionId, frameworkQuestion)
       await expect.poll(() => requests.length, { timeout: 15000 }).toBe(before + 1)
       expect(JSON.stringify(requests[before]?.messages)).toContain(skillsQuestion)
       expect(JSON.stringify(requests[before]?.messages)).toContain(frameworkQuestion)
-      if (sessionId === legacy.sessionId) legacyRequest = requests[before]
+      if (sessionId === legacy.sessionId) legacyRequests.add(requests[before]!)
     }
     // The legacy fixture predates the NovaFlow system prompt and retains its original prefix.
-    for (const request of requests.filter(request => request !== legacyRequest)) {
+    for (const request of requests.filter(request => !legacyRequests.has(request))) {
       expect(request.system.split(identity)).toHaveLength(2)
       expect(request.system).toContain(`You are an AI agent powered by DeepSeek Harness.\n\n${identity}`)
       expect(request.system).toContain('DeepSeek Harness（DSH）是底层框架')

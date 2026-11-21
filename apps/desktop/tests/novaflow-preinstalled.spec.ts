@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { loadOptionalPatches } from '@deepseek-ai/dsh-app-boot'
-import { seedNovaFlowPlugins } from '../src/novaflow-preinstalled.ts'
+import { imBundle, novaFlowMediaDesk, seedNovaFlowPlugins, upstreamMediaDesk } from '../src/novaflow-preinstalled.ts'
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
@@ -175,6 +175,49 @@ it('replaces an online market with the local build while preserving its disabled
   }
   writeFileSync(manifest, JSON.stringify({ dependencies: {}, dsh: { profile: { bundles: [] } } }))
   rmSync(join(f.profile, 'node_modules', market), { recursive: true, force: true })
+  seedNovaFlowPlugins(f.profile, f.runtime, false)
+  expect(f.read().dependencies).toEqual({})
+})
+
+it('converts an existing scoped IM package to the offline bundle and preserves disabled state', () => {
+  const f = fixture(true, imBundle)
+  const seed = join(f.runtime, 'novaflow-preinstalled')
+  const patch = join(f.profile, 'cordis.patch.yml')
+  writeFileSync(patch, '- id: xmanrui-dsh-im\n  disabled: true\n')
+  writeFileSync(join(f.profile, '.novaflow-preinstalled-v1.json'), JSON.stringify({ version: 1, packages: { [imBundle]: '2.0.0' } }))
+  writeFileSync(join(seed, 'market-build.sha256'), 'a'.repeat(64))
+  seedNovaFlowPlugins(f.profile, f.runtime, false)
+  expect(f.read().dependencies[imBundle]).toBe(`link:./.novaflow-bundled/${imBundle}/${'a'.repeat(64)}`)
+  expect(f.read().dsh.profile.bundles).toEqual([])
+  expect(readFileSync(patch, 'utf8')).toContain('disabled: true')
+  expect(JSON.parse(readFileSync(join(f.profile, 'node_modules', imBundle, 'package.json'), 'utf8'))).toMatchObject({ name: imBundle, version: '1.0.0' })
+})
+
+it.each(['fresh', 'enabled', 'disabled'] as const)('installs the desktop-owned media desk offline (%s)', (state) => {
+  const f = fixture(false, novaFlowMediaDesk)
+  const manifestPath = join(f.profile, 'package.json')
+  const seed = join(f.runtime, 'novaflow-preinstalled')
+  const patch = join(f.profile, 'cordis.patch.yml')
+  const overlay = '- id: media-desk\n  disabled: true\n'
+  if (state !== 'fresh') {
+    const manifest = f.read()
+    manifest.dependencies[upstreamMediaDesk] = '2.7.2'
+    if (state === 'enabled') manifest.dsh.profile.bundles.push(upstreamMediaDesk)
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    if (state === 'disabled') writeFileSync(patch, overlay)
+  }
+  const packageFile = join(seed, 'node_modules', novaFlowMediaDesk, 'package.json')
+  for (const [build, version] of [['a', '2.7.2'], ['b', '2.7.3']] as const) {
+    writeFileSync(join(seed, 'market-build.sha256'), build.repeat(64))
+    writeFileSync(packageFile, JSON.stringify({ name: novaFlowMediaDesk, version }))
+    seedNovaFlowPlugins(f.profile, f.runtime, state === 'fresh' && build === 'a')
+    seedNovaFlowPlugins(f.profile, f.runtime, false)
+    expect(f.read().dependencies).toEqual({ [novaFlowMediaDesk]: `link:./.novaflow-bundled/${novaFlowMediaDesk}/${build.repeat(64)}` })
+    expect(f.read().dsh.profile.bundles).toEqual(state === 'disabled' ? [] : [novaFlowMediaDesk])
+    expect(readFileSync(join(f.profile, 'node_modules', novaFlowMediaDesk, 'package.json'), 'utf8')).toBe(readFileSync(packageFile, 'utf8'))
+    if (state === 'disabled') expect(readFileSync(patch, 'utf8')).toBe(overlay)
+  }
+  writeFileSync(manifestPath, JSON.stringify({ dependencies: {}, dsh: { profile: { bundles: [] } } }))
   seedNovaFlowPlugins(f.profile, f.runtime, false)
   expect(f.read().dependencies).toEqual({})
 })

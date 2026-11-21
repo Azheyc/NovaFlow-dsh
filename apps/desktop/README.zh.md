@@ -412,7 +412,7 @@ NovaFlow 品牌资源使用用户提供的黑白标识。在 `apps/desktop` 运�
 
 NovaFlow 应用、托盘、favicon 和开屏标识使用圆角黑底；Web 安装图标保留不透明边角供平台裁切。启动时后台校验已有授权：成功则进入工作区，失败则清除本地授权并显示新用户登录首页，不显示恢复文案或过期通知。永久凭据和旧授权恢复的服务端要求见内置插件整合说明。
 
-NovaFlow Desktop 在 `preinstalled/package.json` 固定预装社区插件的版本。安装包携带锁定的依赖树，客户端离线预装并保留已有插件的启用选择。`.novaflow-preinstalled-v1.json` 防止卸载后重新补装。新配置会显示可跳过的模式指引。本地 `@local/novaflow-modes` 提供内容平台模式及五项会话技能，可在「设置 → 技能」查看。
+NovaFlow Desktop 在 `preinstalled/package.json` 固定预装社区插件的版本。安装包携带锁定的依赖树，客户端离线预装并保留已有插件的启用选择。`.novaflow-preinstalled-v1.json` 防止卸载后重新补装。新配置会显示可跳过的内置技能指引。本地 `@local/novaflow-modes` 提供五项全局内容技能，并将已有内容平台会话解析为标准模式。
 
 NovaFlow 随包提供移除赞助栏的本地 `dshmarket`。客户端启动时替换已有市场插件，保留配置和启用状态。市场本身随 NovaFlow 版本维护，目录查询及其他插件的安装和更新继续使用在线来源。
 

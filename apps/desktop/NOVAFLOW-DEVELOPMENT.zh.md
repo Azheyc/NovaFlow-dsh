@@ -2,7 +2,7 @@
 
 [English](NOVAFLOW-DEVELOPMENT.md) | 中文
 
-本文列出 NovaFlow 定制功能对应的源码与验证入口。先阅读仓库 AGENTS.md，本工作区优先使用 develop.ps1 与 start-novaflow.ps1。当前客户端基于官方 `dsh-v0.2.2-rc.5`（`9c2670d3bc`），源码位于独立的 deepseek-harness 仓库。
+本文列出 NovaFlow 定制功能对应的源码与验证入口。先阅读仓库 AGENTS.md，本工作区优先使用 develop.ps1 与 start-novaflow.ps1。当前客户端基于官方 [`dsh-v0.2.2-rc.5`](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.5)，源码位于独立的 deepseek-harness 仓库。
 
 ## 功能归属
 
@@ -11,11 +11,14 @@
 | 开屏、自动校验授权 | src/novaflow-account-backend.ts、src/client/WelcomePage.tsx；[账户整合](../novaflow-plugin/INTEGRATION.zh.md) |
 | 账户、余额、模型同步 | apps/novaflow-plugin；[整合说明](../novaflow-plugin/INTEGRATION.zh.md)优先于历史独立插件说明 |
 | 离线预装 | preinstalled/package.json、scripts/prepare-novaflow-preinstalled.ts、src/novaflow-preinstalled.ts |
-| 会话模式与首次指引 | [模式扩展](../novaflow-modes/README.zh.md)、apps/novaflow-modes/modes.js |
-| 首页提示词与设置 | [提示词插件](../../plugins/prompt-presets/README.md)。维护所有模式共用的内置预设时编辑 `catalog.js`。`index.js` 只保存用户自定义库，`client.jsx` 提供只读浏览与自定义编辑。 |
+| MCP 连接器 | [`dsh-mcp-connector`](https://github.com/duhu2000/dsh-mcp-connector) 由桌面预装清单锁定版本，首次安装即可使用。用户在连接器中自行配置服务和授权。 |
+| 连接手机 | `prepareLocalIm()` 将 [`@xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) 的客户端适配纳入离线预装。插件启用时始终注册「连接手机」入口。客户端更新替换本地插件文件，沿用现有包名和机器人配置。 |
+| 自媒体工作台 | 从 `preinstalled/media-desk/source/` 编译 `novaflow-media-desk`，随客户端离线预装。该目录基于 [dsh-media-desk v2.7.2](https://github.com/woniuniuniu/dsh-media-desk/tree/v2.7.2)，MIT 许可随包保留。 |
+| 全局技能、旧预设兼容与首次指引 | [NovaFlow 技能与预设](../novaflow-modes/README.zh.md) |
+| 首页提示词与设置 | [提示词插件](../../plugins/prompt-presets/README.zh.md)。维护所有模式共用的内置预设时编辑 `catalog.js`。`index.js` 保存自定义库，`client.jsx` 在新会话展示预设，并在设置中直接打开自定义编辑器。 |
 | 模型地址与请求 | [模型同步](../novaflow-plugin/src/native-models.js)负责受管地址迁移；[请求鉴权](../novaflow-plugin/src/model-bridge.js)负责平台令牌和分组头；[适配器入口](../../packages/llm/llm-pi-ai/src/index.ts)接入推理与发现 |
 | Logo 与首页动画 | resources/novaflow、scripts/render-novaflow-brand.ts、scripts/render-novaflow-animation.ts、packages/client/ui-brand-official |
-| Windows 安装及镜像更新 | [发布手册](novaflow-release/README.zh.md)、scripts/novaflow-distribution.mjs |
+| macOS、Windows 安装及镜像更新 | [发布手册](novaflow-release/README.zh.md)、scripts/novaflow-distribution.mjs |
 
 表中路径默认相对于 apps/desktop；以 apps/ 或 packages/ 开头的路径相对于仓库根目录。账户扩展是受保护的客户端功能，社区插件管理保持独立。登录不安装插件。会话内的模式选择仅影响当前会话，设置中的选择决定新会话默认值。
 
@@ -26,6 +29,23 @@
 工作区 review 启动脚本保留 .desktop-build/novaflow-review，调试端口为 9329、9322、9330。上游普通开发入口使用 .desktop-build/development，端口为 9229、9222、9230。首次安装测试使用独立 home，不能清空已有用户的登录、会话或模型设置。日志可能含本地认证令牌，必须保留在私有本机目录。
 
 macOS 的 NovaFlow 开发版快捷方式会在启动 Electron 前从仓库执行 `node --import tsx apps/desktop/scripts/prepare-novaflow-preinstalled.ts apps/desktop/.desktop-build/novaflow-review/project`。该命令按当前锁文件同步 review 运行时的预装资源，保留独立的用户配置和会话目录。
+
+## 预装插件升级
+
+以 [预装清单](preinstalled/package.json) 和 [锁文件](preinstalled/pnpm-lock.yaml) 为版本依据。`prepareNovaFlowPreinstalled()` 应用市场补丁、生成连接手机及自媒体工作台的本地版，并编译提示词插件。最终发货清单读取构建产物 `novaflow-preinstalled/package.json`。
+
+| 插件 | 合并上游时保留的行为与源码 |
+| --- | --- |
+| 插件市场 | `preinstalled/patches/dshmarket@<version>.patch`。在线目录继续更新，隐藏赞助区及顶部检查失败提示，市场自身随客户端更新。市场因 Host 重载时正常返回插件安装和更新结果。 |
+| 连接手机 | `prepareLocalIm()`。保留包名和机器人配置，隐藏 GitHub 和插件自身更新入口，启用插件时始终显示「连接手机」。页面副标题为「让NovaFlow触手可及」。 |
+| 自媒体工作台 | 保留独立「无限画布」入口、每张画布独立的 DSH 会话和 NovaFlow Image 接入。默认目录是 `$DSH_HOME/media-desk/files`，用户可修改或恢复默认，旧文件按原目录读取。图像节点支持 1K、2K，使用客户端模型页选中的生图模型。 |
+| 提示词预设 | `plugins/prompt-presets/`。所有模式共用内置库，设置只开放自定义预设，客户端升级替换内置库并保留用户自定义内容。 |
+| Exa 与 Agent 预设 | `seedExaSearchDefault()` 为未配置的搜索提供方默认选 Exa。NovaFlow 模式筛选继续隐藏 OPS 和创造模式。 |
+
+自媒体工作台首次进入「灵感」。点击独立的「无限画布」入口会直接打开上次使用的画布，找不到时打开列表首项。`POST /media-desk/canvas/open` 在保存队列中检查画布列表，列表为空时只创建一张「未命名」。合并上游时在 `preinstalled/media-desk/source/client/board/` 保留节点编辑与工具栏交互，在 `src/canvas*.js` 保留画布会话、生成任务和存储流程。
+
+1. 更新第三方版本时同时更新清单与锁文件。将市场补丁移植至新包，并核对连接手机与自媒体工作台的构建适配。重新生成预装资源，任何补丁或适配失败均须修复后再打包。
+2. 打包前运行 `novaflow-preinstalled.spec.ts`、`welcome-flow.e2e.ts` 和 `novaflow-market-install.e2e.ts`。验证全新 profile 的离线预装、旧 profile 的配置与启停状态保留，以及市场重载后的操作结果。涉及提示词或生图时，同时运行对应插件测试。
 
 ## 按改动选择验证
 
@@ -45,7 +65,9 @@ npm.cmd pack (Join-Path $seed 'node_modules/novaflow-dsh-prompt-presets') --pack
 | 提示词 | `node --test plugins/prompt-presets/catalog.test.mjs` 验证内置写入拒绝、跨模式旧数据迁移和并发保存。`novaflow-preinstalled.spec.ts` 验证更新预装包后保留自定义文件；`welcome-flow.e2e.ts` 核对首次启动的共享库。 |
 | 模型地址 | `native-models.test.js` 验证旧地址迁移和手工修改保留；`model-bridge.test.js` 验证请求目的地、动态鉴权及分组头；`welcome-flow.e2e.ts` 验证 Host 登录和分组模型发现 |
 | 预装 | novaflow-preinstalled.spec.ts、project-manager.spec.ts、runtime-manifests.spec.ts；实际安装包的离线首次配置初始化 |
-| 模式隔离 | novaflow-mode-isolation.spec.ts 与真实 Host 预设列表；检查临时选择不改变默认值或丢失草稿 |
+| 插件市场 | `novaflow-market-install.e2e.ts` 使用本地测试仓库验证安装和更新。市场重载后由当前 Host 提供加载状态，原请求继续完成版本校验并返回结果。 |
+| 全局技能与旧预设兼容 | `novaflow-mode-isolation.spec.ts`、`novaflow-client-identity.e2e.ts` 和 Host 预设列表 |
+| 无限画布 | 工作台插件的 `test/*.test.js` 覆盖文档和节点。`novaflow-board-interaction.spec.tsx` 覆盖节点和工具栏交互，`novaflow-board.e2e.ts` 验证默认存储、并发首次打开、助手修改及重启复用。 |
 | 更新 | novaflow-distribution.spec.ts、desktop-auto-update-environment.spec.ts、desktop-policy-environment.spec.ts；包内 app-update.yml 和镜像资产 |
 | 安装器 | scripts/test-windows-installer.mjs；完整 package-target 构建及其打包运行时检查 |
 
@@ -53,9 +75,9 @@ ASAR 中的预装包必须递归读取并写出，不能使用原生 cpSync。�
 
 ## 发布与交接
 
-遵循 [Windows 发布手册](novaflow-release/README.zh.md)。源码发布到 Azheyc/NovaFlow-dsh 的 main，本地定制分支可保留独立名称。上游 origin 仅供参考，novaflow remote 指向个人仓库。不得复用已发布版本或覆盖资产。当前未签名发行不声称具备已验证发布者身份，两个更新频道目前通过 gh-proxy.com 接收同一版本。
+遵循 [NovaFlow 发布手册](novaflow-release/README.zh.md)。源码发布到 Azheyc/NovaFlow-dsh 的 main，本地定制分支可保留独立名称。上游 origin 仅供参考，novaflow remote 指向个人仓库。不得复用已发布版本或覆盖资产。当前未签名发行不声称具备已验证发布者身份，两个更新频道目前通过 gh-proxy.com 接收同一版本。
 
-后续专用插件加入 modes.js 的两份清单，同时纳入离线发行资源。只允许会话隔离能力，缺失或不支持隔离的插件必须明确显示不可用。模式和预装不需要服务端变更；长期授权仍取决于平台接受文档约定的凭据协议。
+五项内容技能随 `apps/novaflow-modes/skills/` 打包，由 Host 注册到全局技能目录。已有内容平台会话及默认预设按标准模式运行。长期授权取决于平台接受文档约定的凭据协议。
 
 ## 文档维护
 

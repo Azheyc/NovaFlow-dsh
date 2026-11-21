@@ -59,6 +59,27 @@ test('a fresh account lists its effective image model and uses it on the first g
   if (process.platform !== 'win32') assert.equal((await fs.stat(job.files[0])).mode&0o777,0o600)
 })
 
+test('workbench image generation follows the current client model and group on every request', async t => {
+  const workbenchModel={model_id:'image-workbench',group_id:'团队 B',kind:'image',supported_endpoint_types:['image-generation']}
+  const catalog=[rows[0],workbenchModel]
+  const h=await fixture(t,{rows:catalog})
+  const {models,selected}=await h.service.listModels({kind:'image'})
+  h.account.state={connected:true,mediaModels:models}
+  assert.equal(await h.service.imageAvailable(),true)
+  assert.deepEqual(await h.service.renderSelectedImage({prompt:'Cover',size:'1536x1024'}),{buffer:PNG,ext:'.png'})
+  assert.equal(JSON.parse(h.requests[0].body).model,selected.image.id)
+  const {owner}=await h.service.preferences(models)
+  await h.service.setModel({kind:'image',model:workbenchModel.model_id,group:workbenchModel.group_id,owner})
+  await h.service.renderSelectedImage({prompt:'Storyboard',size:'3840x2160'})
+  assert.equal(h.requests[1].headers['X-NovaFlow-Group'],encodeURIComponent(workbenchModel.group_id))
+  assert.deepEqual(JSON.parse(h.requests[1].body),{model:workbenchModel.model_id,prompt:'Storyboard',stream:false,size:'2048x1152',n:1})
+  await assert.rejects(h.service.renderSelectedImage({prompt:'Cancelled',signal:AbortSignal.abort()}),{name:'AbortError'})
+  h.setRecord(undefined)
+  assert.equal(await h.service.imageAvailable(),false)
+  await assert.rejects(h.service.renderSelectedImage({prompt:'Signed out'}),code('AUTH_REQUIRED'))
+  assert.equal(h.requests.length,2)
+})
+
 test('only 4K image requests are submitted at 2K, including multipart edits and prompt-only sizes', async t => {
   const h = await fixture(t)
   await fs.writeFile(join(h.workspace, 'reference.png'), PNG)

@@ -1,6 +1,6 @@
 {
   "name": "novaflow-dsh-prompt-presets",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "NovaFlow 企业工作提示词与个人自定义预设，所有模式共用",
   "license": "MIT",
   "type": "module",

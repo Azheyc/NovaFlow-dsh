@@ -1,4 +1,4 @@
-/** The market must return the Host's install result when profile reconciliation remounts it. */
+/** Market operations must finish when Host reconciliation remounts the market. */
 import { execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -11,7 +11,7 @@ import { authenticateWebHost } from '../src/web-document.ts'
 import { builtHost, prepareDesktopHome, repository } from './harness.ts'
 
 describe.skipIf(!existsSync(builtHost))('bundled NovaFlow market', () => {
-  it('settles a successful installation after Host reconciliation unloads the market', async () => {
+  it('reports successful installs and updates across market remounts', async () => {
     const root = mkdtempSync(join(tmpdir(), 'novaflow-market-install-'))
     onTestFinished(() => {
       vi.unstubAllEnvs()
@@ -31,37 +31,47 @@ describe.skipIf(!existsSync(builtHost))('bundled NovaFlow market', () => {
     writeFileSync(profileManifest, JSON.stringify(profile))
     // The fresh profile's default Exa selection needs the excluded Exa bundle.
     writeFileSync(join(paths.profile, 'cordis.patch.yml'), '[]\n')
-    const name = 'dsh-market-install-fixture'
-    const version = `1.0.0-${randomUUID()}`
+    const name = `dsh-market-fixture-${randomUUID()}`
+    const version = '1.0.0'
+    const updatedVersion = '1.1.0'
     const url = `https://github.com/fixture/${name}`
     const manifest = { name, version, type: 'module', main: './index.js', dsh: { bundle: { patch: 'cordis.patch.yml' } } }
     const source = join(root, 'fixture')
     mkdirSync(source)
-    writeFileSync(join(source, 'package.json'), JSON.stringify(manifest))
     writeFileSync(join(source, 'index.js'), 'export const name = "market-install-fixture"; export function apply() {}\n')
     writeFileSync(join(source, 'cordis.patch.yml'), `- insert:\n    - id: ${name}\n      name: ${name}\n`)
     const pnpm = join(repository, 'node_modules/pnpm/bin/pnpm.mjs')
-    execFileSync(process.execPath, [pnpm, 'pack', '--out', 'fixture.tgz'], { cwd: source })
-    const bytes = readFileSync(join(source, 'fixture.tgz'))
-    const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`
+    const builds = new Map([version, updatedVersion].map((releaseVersion) => {
+      writeFileSync(join(source, 'package.json'), JSON.stringify({ ...manifest, version: releaseVersion }))
+      const file = `${releaseVersion}.tgz`
+      execFileSync(process.execPath, [pnpm, 'pack', '--out', file], { cwd: source })
+      const bytes = readFileSync(join(source, file))
+      return [releaseVersion, { file, bytes, integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}` }]
+    }))
     const marketEntry = join(paths.profile, 'node_modules/dshmarket/lib/index.js')
-    let tarballs = 0
+    let latest = version
+    const tarballs: string[] = []
     const server = createServer((request, response) => {
-      if (request.url === '/fixture.tgz') {
-        tarballs++
-        // Force the real Host to remount the market while applying this install.
-        appendFileSync(marketEntry, '\n// Changed during the fixture package download.\n')
-        response.end(bytes)
+      const download = [...builds.values()].find(build => request.url === `/${build.file}`)
+      if (download !== undefined) {
+        tarballs.push(download.file)
+        // Force the real Host to remount the market when reconciling either build.
+        appendFileSync(marketEntry, '\n// Changed during fixture download.\n')
+        response.end(download.bytes)
         return
       }
       response.setHeader('Content-Type', 'application/json')
       if (request.url === '/catalog.json') {
         response.end(JSON.stringify({ plugins: [{ name, url, npm: name, category: ['tools'] }] }))
       } else if (request.url === `/${name}` || request.url === `/${name}/latest`) {
-        const release = { ...manifest, dist: { tarball: `http://${request.headers.host}/fixture.tgz`, integrity } }
-        response.end(JSON.stringify(request.url.endsWith('/latest') ? release : {
-          name, 'dist-tags': { latest: version }, versions: { [version]: release },
-          time: { [version]: '2020-01-01T00:00:00Z' },
+        const available = latest === version ? [version] : [version, updatedVersion]
+        const versions = Object.fromEntries(available.map((releaseVersion) => {
+          const build = builds.get(releaseVersion)!
+          return [releaseVersion, { ...manifest, version: releaseVersion, dist: { tarball: `http://${request.headers.host}/${build.file}`, integrity: build.integrity } }]
+        }))
+        response.end(JSON.stringify(request.url.endsWith('/latest') ? versions[latest] : {
+          name, 'dist-tags': { latest }, versions,
+          time: Object.fromEntries(available.map(releaseVersion => [releaseVersion, '2020-01-01T00:00:00Z'])),
         }))
       } else response.writeHead(404).end()
     })
@@ -88,13 +98,28 @@ describe.skipIf(!existsSync(builtHost))('bundled NovaFlow market', () => {
     const history = join(paths.profile, '.dsh-market', 'log.ndjson')
     expect(result.status, `${JSON.stringify(outcome)}\n${existsSync(history) ? readFileSync(history, 'utf8') : ''}`).toBe(200)
     expect(outcome).toMatchObject({ ok: true, marketReloaded: true, activation: { [name]: { state: 'live' } } })
-    expect(tarballs).toBe(1)
+    expect(tarballs).toEqual([`${version}.tgz`])
     const method = 'pluginManager/listBundles'
-    const inventory = await fetch(`${origin}/api/${method}`, {
+    const inventory = async () => (await fetch(`${origin}/api/${method}`, {
       method: 'POST', headers, body: JSON.stringify({ type: 'client-request', rpcId: randomUUID(), method, payload: { args: {} } }),
-    })
-    await expect(inventory.json()).resolves.toMatchObject({ result: { ok: true, value: expect.arrayContaining([
-      expect.objectContaining({ name, version, installed: true, enabled: true }),
+    })).json()
+    const installed = (releaseVersion: string) => ({ result: { ok: true, value: expect.arrayContaining([
+      expect.objectContaining({ name, version: releaseVersion, installed: true, enabled: true }),
     ]) } })
+    await expect(inventory()).resolves.toMatchObject(installed(version))
+
+    latest = updatedVersion
+    const update = (eligibleVersion: string) => fetch(`${origin}/dsh-market/update`, {
+      method: 'POST', headers, body: JSON.stringify({ name, eligibleVersion, busyPolicy: 'drain' }),
+    })
+    const resultUpdate = await update(updatedVersion)
+    const updated: unknown = await resultUpdate.json()
+    await expect(inventory()).resolves.toMatchObject(installed(updatedVersion))
+    expect(resultUpdate.status, `${JSON.stringify(updated)}\n${readFileSync(history, 'utf8')}`).toBe(200)
+    expect(updated).toMatchObject({ ok: true, marketReloaded: true, activation: { [name]: { state: expect.any(String) } } })
+    const invalid = await update('99.0.0')
+    expect(invalid.status).toBe(409)
+    await expect(invalid.json()).resolves.toMatchObject({ staleTarget: true })
+    expect(tarballs).toEqual([`${version}.tgz`, `${updatedVersion}.tgz`])
   }, 90_000)
 })

@@ -111,7 +111,7 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
   function Settings({ useLibrary, setDraft, save, reload }) {
     const state = useLibrary(item => item)
     const [groupId, selectGroup] = useState(''), [promptId, selectPrompt] = useState('')
-    const [view, setView] = useState('builtIn'), [dialog, setDialog] = useState(null)
+    const [dialog, setDialog] = useState(null)
     const [feedback, report] = useState('')
     const titleField = useRef(null), bodyField = useRef(null)
     const editing = state.draft, custom = editing?.custom ?? state.custom
@@ -122,15 +122,12 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
       setDraft({ custom: copy, revision: editing?.revision ?? state.revision }); report('')
     }
     if (!custom) return <section className="nf-prompt-settings"><h2>提示词预设</h2><p role="status">{state.error || '正在加载提示词…'}</p>{state.error && <button onClick={() => reload()}>重试</button>}</section>
-    const readOnly = view === 'builtIn'
-    const library = readOnly ? state.builtIn : custom
-    const group = library.categories.find(item => item.id === groupId) ?? library.categories[0]
+    const { categories } = custom
+    const group = categories.find(item => item.id === groupId) ?? categories[0]
     const prompt = group?.prompts.find(item => item.id === promptId) ?? group?.prompts[0]
-    const groupIndex = library.categories.indexOf(group), promptIndex = group?.prompts.indexOf(prompt) ?? -1
+    const groupIndex = categories.indexOf(group), promptIndex = group?.prompts.indexOf(prompt) ?? -1
     const edit = callback => update(copy => callback(copy, copy.categories[groupIndex], copy.categories[groupIndex]?.prompts[promptIndex]))
-    const all = library.categories.flatMap(category => category.prompts.map(item => ({ category, item })))
-    const featured = library.featured.map(id => all.find(row => row.item.id === id))
-    const select = (categoryId, itemId = '') => { selectGroup(categoryId); selectPrompt(itemId); setView(readOnly ? 'builtIn' : 'library') }
+    const select = (categoryId, itemId = '') => { selectGroup(categoryId); selectPrompt(itemId) }
     const addPrompt = () => {
       const id = crypto.randomUUID()
       edit((lib, category) => {
@@ -143,16 +140,11 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
       selectPrompt(id); requestAnimationFrame(() => titleField.current?.focus())
     }
     const close = () => setDialog(null)
-    const toggleFeatured = () => {
-      if (library.featured.includes(prompt.id)) edit(lib => { lib.featured = lib.featured.filter(id => id !== prompt.id) })
-      else if (featured.length === 4) setDialog('replace')
-      else edit(lib => lib.featured.push(prompt.id))
-    }
     const commit = async () => {
       for (const category of custom.categories) {
         const incomplete = category.prompts.find(item => !item.title.trim() || !item.body.trim())
         if (!incomplete) continue
-        setView('library'); selectGroup(category.id); selectPrompt(incomplete.id)
+        select(category.id, incomplete.id)
         const field = !incomplete.title.trim() ? titleField : bodyField
         report(!incomplete.title.trim() ? '请填写提示词标题。' : '请填写提示词正文。')
         requestAnimationFrame(() => field.current?.focus()); return
@@ -175,7 +167,7 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
     const remove = () => {
       if (dialog === 'deleteGroup') {
         edit(lib => { lib.categories.splice(groupIndex, 1); lib.featured = lib.featured.filter(id => !group.prompts.some(item => item.id === id)) })
-        select(library.categories[groupIndex + 1]?.id ?? library.categories[groupIndex - 1]?.id ?? '')
+        select(categories[groupIndex + 1]?.id ?? categories[groupIndex - 1]?.id ?? '')
       } else {
         edit((lib, category) => { category.prompts.splice(promptIndex, 1); lib.featured = lib.featured.filter(id => id !== prompt.id) })
         selectPrompt(group.prompts[promptIndex + 1]?.id ?? group.prompts[promptIndex - 1]?.id ?? '')
@@ -184,27 +176,23 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
     }
     return <section className="nf-prompt-settings" aria-label="提示词预设">
       <header className="nf-preset-heading"><h2>提示词预设</h2></header>
-      <fieldset disabled={busy} className="nf-preset-workspace" aria-label="预设配置">
-        <nav aria-label="配置视图" className="nf-preset-nav">{[['builtIn','内置预设'],['library','自定义预设'],['featured','首页推荐']].map(([key,label]) => <button key={key} aria-pressed={view === key} onClick={() => { setView(key); close() }}>{label}</button>)}</nav>
-        {view !== 'featured' ? <>
-          <div className="nf-categories" aria-label="提示词分类">{library.categories.map(category => <button key={category.id} aria-pressed={category === group} onClick={() => select(category.id)}>{category.name}</button>)}{!readOnly && <button className="nf-add" onClick={addGroup}>＋ 分类</button>}</div>
-          {group ? <div className="nf-preset-grid">
-            <aside className="nf-preset-index"><div className="nf-panel-heading"><h3>{group.name}</h3>{!readOnly && <button onClick={() => setDialog({ kind: 'group', name: group.name, isNew: false, position:groupIndex })}>管理分类</button>}</div>
-              <div className="nf-preset-rows" aria-label="分类提示词">{group.prompts.map(item => <button key={item.id} aria-pressed={item === prompt} onClick={() => selectPrompt(item.id)}><span>{item.title || '未命名提示词'}</span>{library.featured.includes(item.id) && <small aria-label="已推荐" title="首页推荐">★</small>}</button>)}</div>
-              {!readOnly && <button className="nf-add" onClick={addPrompt}>＋ 添加提示词</button>}
-            </aside>
-            {readOnly && prompt ? <article className="nf-preset-editor"><h3>{prompt.title}</h3><p>{prompt.body}</p></article> : prompt ? <div className="nf-preset-editor"><div className="nf-panel-heading"><h3>编辑提示词</h3><Reorder label="提示词" index={promptIndex} count={group.prompts.length} onMove={step => { selectPrompt(prompt.id); edit((_lib, category) => move(category.prompts, promptIndex, step)) }} /></div>
-              <label>标题<input ref={titleField} maxLength={200} placeholder="首页按钮显示的标题" value={prompt.title} onChange={event => edit((_lib, _category, item) => { item.title = event.target.value })}/></label>
-              <label>提示词正文<textarea ref={bodyField} maxLength={32000} placeholder="写下要填入新会话的提示词…" value={prompt.body} onChange={event => edit((_lib, _category, item) => { item.body = event.target.value })}/></label>
-              <div className="nf-panel-heading"><button className="nf-feature-toggle" aria-pressed={library.featured.includes(prompt.id)} onClick={toggleFeatured}>{library.featured.includes(prompt.id) ? '★ 已加入首页推荐' : '☆ 加入首页推荐'}</button><button className="nf-danger" onClick={() => setDialog('deletePrompt')}>删除提示词</button></div>
-            </div> : <p className="nf-empty">这个分类还没有提示词。</p>}
-          </div> : <div className="nf-empty"><button className="nf-add" onClick={addPrompt}>＋ 添加第一条自定义提示词</button></div>}
-        </> : <div className="nf-featured"><p>自定义推荐优先展示，其余位置由内置推荐补齐，共 4 条。</p>{featured.length ? <ol>{featured.map(({ item, category }, index) => <li key={item.id}><button className="nf-feature-link" onClick={() => select(category.id, item.id)}><small>{category.name}</small><strong>{item.title || '未命名提示词'}</strong></button><Reorder label="推荐" count={featured.length} index={index} onMove={step => edit(lib => move(lib.featured,index,step))}/><button onClick={() => edit(lib => lib.featured.splice(index,1))}>移除</button></li>)}</ol> : <p className="nf-empty">在自定义预设中打开一条提示词，即可加入首页推荐。</p>}</div>}
+      <fieldset disabled={busy} className="nf-preset-workspace" aria-label="自定义预设">
+        <div className="nf-categories" aria-label="提示词分类">{categories.map(category => <button key={category.id} aria-pressed={category === group} onClick={() => select(category.id)}>{category.name}</button>)}<button className="nf-add" onClick={addGroup}>＋ 分类</button></div>
+        {group ? <div className="nf-preset-grid">
+          <aside className="nf-preset-index"><div className="nf-panel-heading"><h3>{group.name}</h3><button onClick={() => setDialog({ kind: 'group', name: group.name, isNew: false, position: groupIndex })}>管理分类</button></div>
+            <div className="nf-preset-rows" aria-label="分类提示词">{group.prompts.map(item => <button key={item.id} aria-pressed={item === prompt} onClick={() => selectPrompt(item.id)}>{item.title || '未命名提示词'}</button>)}</div>
+            <button className="nf-add" onClick={addPrompt}>＋ 添加提示词</button>
+          </aside>
+          {prompt ? <div className="nf-preset-editor"><div className="nf-panel-heading"><h3>编辑提示词</h3><Reorder label="提示词" index={promptIndex} count={group.prompts.length} onMove={step => { selectPrompt(prompt.id); edit((_lib, category) => move(category.prompts, promptIndex, step)) }} /></div>
+            <label>标题<input ref={titleField} maxLength={200} placeholder="首页按钮显示的标题" value={prompt.title} onChange={event => edit((_lib, _category, item) => { item.title = event.target.value })}/></label>
+            <label>提示词正文<textarea ref={bodyField} maxLength={32000} placeholder="写下要填入新会话的提示词…" value={prompt.body} onChange={event => edit((_lib, _category, item) => { item.body = event.target.value })}/></label>
+            <div className="nf-panel-heading"><button className="nf-danger" onClick={() => setDialog('deletePrompt')}>删除提示词</button></div>
+          </div> : <p className="nf-empty">这个分类还没有提示词。</p>}
+        </div> : <div className="nf-empty"><button className="nf-add" onClick={addPrompt}>＋ 添加第一条自定义提示词</button></div>}
       </fieldset>
       <footer className="nf-preset-footer"><span role="status">{feedback || state.error || (editing ? '有未保存的修改' : '')}</span><div><button disabled={!editing || busy} onClick={() => setDialog('discard')}>放弃修改</button><Button variant="primary" disabled={!editing || busy} onClick={commit}>{state.saving ? '保存中…' : '保存修改'}</Button></div></footer>
-      {dialog?.kind === 'group' && <Modal open title={dialog.isNew ? '添加分类' : '管理分类'} closeLabel="关闭" onClose={close} footer={<><Button onClick={close}>取消</Button><Button variant="primary" disabled={!dialog.name.trim()} onClick={confirmGroup}>确定</Button></>}><div className="nf-preset-dialog"><label>分类名称<input data-modal-autofocus maxLength={100} value={dialog.name} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) confirmGroup() }} onChange={event => setDialog({...dialog, name:event.target.value})}/></label>{!dialog.isNew && <div className="nf-panel-heading"><span>位置 {dialog.position + 1} / {library.categories.length}</span><Reorder label="分类" index={dialog.position} count={library.categories.length} onMove={step => setDialog({...dialog, position:dialog.position + step})}/><button className="nf-danger" onClick={() => setDialog('deleteGroup')}>删除分类</button></div>}</div></Modal>}
-      {dialog === 'replace' && <Modal open title="替换首页推荐" description="推荐位已满，选择要替换的一条。" closeLabel="取消" onClose={close}><div className="nf-replace-list">{featured.map(({ item }, index) => <button key={item.id} onClick={() => { edit(lib => { lib.featured[index] = prompt.id }); close() }}>{item.title || '未命名提示词'}</button>)}</div></Modal>}
-      {(dialog === 'deleteGroup' || dialog === 'deletePrompt') && <Modal open title={dialog === 'deleteGroup' ? `删除「${group.name}」？` : `删除「${prompt.title || '未命名提示词'}」？`} description={dialog === 'deleteGroup' ? `其中的 ${group.prompts.length} 条提示词及对应首页推荐也会移除。保存后生效。` : '对应的首页推荐也会移除。保存后生效。'} closeLabel="取消" onClose={close} footer={<><Button onClick={close}>取消</Button><Button onClick={remove}>确认删除</Button></>}/>}
+      {dialog?.kind === 'group' && <Modal open title={dialog.isNew ? '添加分类' : '管理分类'} closeLabel="关闭" onClose={close} footer={<><Button onClick={close}>取消</Button><Button variant="primary" disabled={!dialog.name.trim()} onClick={confirmGroup}>确定</Button></>}><div className="nf-preset-dialog"><label>分类名称<input data-modal-autofocus maxLength={100} value={dialog.name} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) confirmGroup() }} onChange={event => setDialog({...dialog, name:event.target.value})}/></label>{!dialog.isNew && <div className="nf-panel-heading"><span>位置 {dialog.position + 1} / {categories.length}</span><Reorder label="分类" index={dialog.position} count={categories.length} onMove={step => setDialog({...dialog, position:dialog.position + step})}/><button className="nf-danger" onClick={() => setDialog('deleteGroup')}>删除分类</button></div>}</div></Modal>}
+      {(dialog === 'deleteGroup' || dialog === 'deletePrompt') && <Modal open title={dialog === 'deleteGroup' ? `删除「${group.name}」？` : `删除「${prompt.title || '未命名提示词'}」？`} description={dialog === 'deleteGroup' ? `分类中的 ${group.prompts.length} 条提示词也会删除。保存后生效。` : '保存后生效。'} closeLabel="取消" onClose={close} footer={<><Button onClick={close}>取消</Button><Button onClick={remove}>确认删除</Button></>}/>}
       {dialog === 'discard' && <Modal open title="放弃未保存的修改？" description="将重新载入最近保存的自定义预设。" closeLabel="取消" onClose={close} footer={<><Button onClick={close}>继续编辑</Button><Button onClick={async () => { close(); report(''); await reload(true) }}>放弃并重新载入</Button></>}/>}
     </section>
   }
