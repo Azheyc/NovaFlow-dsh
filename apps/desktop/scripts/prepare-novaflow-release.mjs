@@ -8,9 +8,9 @@ import { valid } from 'semver'
 const [directory, version] = process.argv.slice(2)
 if (!directory || !version || !valid(version)) throw new Error('Usage: node prepare-novaflow-release.mjs <artifact-directory> <version>')
 const root = resolve(directory)
-const files = readdirSync(root).filter(name => name.startsWith(`NovaFlow-${version}-`))
-const updates = files.filter(name => name.endsWith('.exe') || name.endsWith('.zip'))
-if (updates.length !== 1) throw new Error('Expected one platform update package for the selected version')
+const publicUpdates = new Set([`NovaFlow-${version}-win-x64.exe`, `NovaFlow-${version}-mac-arm64.zip`])
+const updates = readdirSync(root).filter(name => publicUpdates.has(name))
+if (updates.length !== 1) throw new Error('Expected one NovaFlow platform update package with the public filename for the selected version')
 const update = updates[0]
 const mac = update.endsWith('.zip')
 const assets = [update, `${update}.blockmap`]

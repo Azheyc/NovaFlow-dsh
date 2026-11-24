@@ -267,11 +267,6 @@ globalThis.fetch = (input, init) => {
       const update = await rpc<{ result: { changed: boolean; error?: { code: string } } }>('pluginManager/updateBundle', { name: '@local/novaflow-dsh-plugin', version: '99.0.0' })
       expect(update.result.changed).toBe(false)
       expect(update.result.error).toBeDefined()
-      const guide = async (action: string) => (await fetch(`${hostOrigin}/api/novaflow-modes`, {
-        method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ action }),
-      })).json()
-      expect(await guide('state')).toEqual({ seen: false, ready: true })
-      expect(await guide('dismiss')).toEqual({ seen: true, ready: true })
       expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
       const unauthorized = await fetch(`${hostOrigin}/api/novaflow-account`, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"action":"state"}',
@@ -359,7 +354,6 @@ globalThis.fetch = (input, init) => {
       expect(await backend!.read()).toMatchObject({ loggedIn: true, hasApiKey: false })
       expect((await mediaState()).media.selected).toEqual({ image, video })
       await expect.poll(async () => (await mediaState()).media.mcp, { timeout:15000 }).toMatchObject({ state:'connected', toolCount:4 })
-      expect(await guide('state')).toEqual({ seen: true, ready: true })
       await backend!.account.signOut(desktopClientMetadata('en'))
       expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })
       expect((await mediaState()).media.selected).toEqual({})

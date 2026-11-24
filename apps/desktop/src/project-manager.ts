@@ -88,10 +88,9 @@ export class DesktopProjectManager {
       // Validation only: an unreadable or mismatched runtime descriptor stops preparation before the Host starts.
       readDesktopRuntime(this.runtime.dsh)
       migrateProfileSettings(this.paths.profile)
-      const fresh = !existsSync(join(this.paths.profile, 'package.json'))
       createPluginProfile(this.paths.profile)
       removeLinkProjections(this.paths.profile)
-      seedNovaFlowPlugins(this.paths.profile, this.runtime.dsh, fresh)
+      seedNovaFlowPlugins(this.paths.profile, this.runtime.dsh)
       try { linkNovaFlowSkills(this.paths.profile, this.runtime.dsh) }
       catch (error) { console.warn('Could not expose NovaFlow bundled skills in Skills settings:', error) }
     })

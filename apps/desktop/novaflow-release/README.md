@@ -23,7 +23,7 @@ Build macOS Apple Silicon on macOS with the same release version in `$version`.
 DSH_PACKAGING_PRESET=test DSH_PACKAGING_CONFIG_DIR="$PWD/apps/desktop/novaflow-release" NODE_USE_ENV_PROXY=1 node node_modules/pnpm/bin/pnpm.mjs --filter @deepseek-ai/dsh-desktop exec tsx scripts/package-target.ts mac-arm64 --unsigned --build-version "$version"
 ```
 
-The test preset isolates release settings; it does not invoke the upstream test policy service. The installer keeps the unsigned suffix and Windows may show an unknown publisher. A signed release requires NovaFlow's own certificate and the existing signing pipeline, not an upstream certificate.
+The test preset isolates release settings from the upstream test policy service. NovaFlow installer names use the version, platform and architecture. Build and release records indicate signing status. Windows may show an unknown publisher. Signing uses NovaFlow's own certificate and the existing signing pipeline.
 
 ## Publish
 

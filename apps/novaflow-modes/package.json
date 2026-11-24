@@ -3,17 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "NovaFlow shared skills, preset compatibility and first-workspace guidance",
+  "description": "NovaFlow shared skills and preset compatibility",
   "license": "MIT",
   "main": "index.js",
-  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
-  "files": ["index.js", "client.js", "cordis.patch.yml", "locale", "skills", "README.md", "README.zh.md"],
+  "exports": { ".": "./index.js", "./package.json": "./package.json", "./locale/*.json": "./locale/*.json" },
+  "files": ["index.js", "cordis.patch.yml", "locale", "skills", "README.md", "README.zh.md"],
   "dependencies": {
-    "@deepseek-ai/dsh-atomic-write": "workspace:*",
     "@deepseek-ai/dsh-skill-filesystem": "workspace:*"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
-    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-settings"] }
+    "bundle": { "patch": "./cordis.patch.yml" }
   }
 }

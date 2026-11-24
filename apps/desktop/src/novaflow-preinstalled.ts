@@ -87,9 +87,8 @@ function seedExaSearchDefault(profile: string): void {
  * Preserve package choices and refresh desktop-managed packages.
  * @param profile - Mutable Desktop plugin profile, under the caller's profile lock.
  * @param runtime - Immutable Desktop runtime containing the prepared seed.
- * @param fresh - Whether this profile was created by this launch.
  */
-export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boolean): void {
+export function seedNovaFlowPlugins(profile: string, runtime: string): void {
   const seed = join(runtime, 'novaflow-preinstalled')
   const marker = join(profile, '.novaflow-preinstalled-v1.json')
   if (!existsSync(seed)) return
@@ -150,8 +149,6 @@ export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boo
       writeFileSync(`${marker}.tmp`, JSON.stringify({ version: 1, packages: seeded.dependencies }))
       renameSync(`${marker}.tmp`, marker)
     }
-    const guide = join(profile, '.novaflow-mode-guide.json')
-    if (!existsSync(guide)) writeFileSync(guide, JSON.stringify({ version: 1, seen: !fresh }))
     return
   }
   const promptVersion = seeded.dependencies[promptPresets]
@@ -213,8 +210,6 @@ export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boo
   writeFileSync(temporary, `${JSON.stringify(manifest, null, 2)}\n`)
   renameSync(temporary, manifestPath)
   if (pending.length === 0) return
-  const guide = join(profile, '.novaflow-mode-guide.json')
-  if (!existsSync(guide)) writeFileSync(guide, JSON.stringify({ version: 1, seen: !fresh }))
   const temporaryMarker = `${marker}.tmp`
   const packages = Object.fromEntries(pending)
   writeFileSync(temporaryMarker, JSON.stringify({ version: 1, packages: { ...recorded, ...packages } }))

@@ -10,6 +10,7 @@ import {
   resolveDesktopAutoUpdateConfig,
 } from './desktop-auto-update-environment.mjs'
 import { desktopArtifactOutput, desktopTargetBuildPaths } from './desktop-build-paths.mjs'
+import { desktopDistributionArtifactBase } from './novaflow-distribution.mjs'
 import { packageMacOSArtifacts, type DesktopPrepackagedArtifact } from './package-macos.ts'
 import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from './desktop-package-environment.mjs'
 import { createPackagingRun, recordPackagingEvent } from './packaging-run.mjs'
@@ -404,8 +405,7 @@ async function main(): Promise<void> {
   if (success && target.platform === 'darwin' && !invocation.directory && !invocation.prepareOnly) {
     const paths = desktopTargetBuildPaths(target.name, environment)
     const output = desktopArtifactOutput(paths, invocation)
-    const prefix = environment.DSH_DESKTOP_APP_ID === 'vip.ycnovaflow.desktop' ? 'NovaFlow' : 'deepseek-harness'
-    const filename = `${prefix}-${buildVersion}-mac-${target.arch}${output.suffix}.dmg`
+    const filename = `${desktopDistributionArtifactBase(environment, buildVersion, 'mac', target.arch, output.suffix)}.dmg`
     console.log(`DMG: ${join(output.directory, filename)}`)
   }
 }

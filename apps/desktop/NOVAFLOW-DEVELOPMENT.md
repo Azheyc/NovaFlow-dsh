@@ -14,7 +14,7 @@ This reference maps NovaFlow customization to its owning source and validation. 
 | Plugin market account access | The account plugin uses the platform’s `identity_scope` to control market activation. Enterprise sign-in removes the market routes and client entry. Account changes re-evaluate access. |
 | Connect phone | `prepareLocalIm()` adapts the [`@xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) client for the offline seed. The plugin always registers its sidebar entry when enabled. Desktop updates replace the bundled files with the same package name and bot configuration. |
 | NovaFlow Media Desk | Desktop builds compile `novaflow-media-desk` from `preinstalled/media-desk/source/` for offline installation. The source is based on [dsh-media-desk v2.7.2](https://github.com/woniuniuniu/dsh-media-desk/tree/v2.7.2) and ships its MIT license. |
-| Shared skills, legacy presets and first guide | [NovaFlow skills and presets](../novaflow-modes/README.md) |
+| Shared skills and legacy presets | [NovaFlow skills and presets](../novaflow-modes/README.md) |
 | Home prompts and settings | [Prompt presets](../../plugins/prompt-presets/README.md). Edit `catalog.js` to release built-ins shared by every mode. `index.js` saves the custom library. `client.jsx` shows suggestions in new conversations and opens the custom editor in Settings. |
 | Model endpoints and requests | [Model synchronization](../novaflow-plugin/src/native-models.js) migrates managed URLs, [request authentication](../novaflow-plugin/src/model-bridge.js) supplies the platform token and group header, and the [adapter entry](../../packages/llm/llm-pi-ai/src/index.ts) connects inference and discovery. |
 | Logo and home animation | resources/novaflow, scripts/render-novaflow-brand.ts, scripts/render-novaflow-animation.ts, packages/client/ui-brand-official |
@@ -36,7 +36,7 @@ Read versions from the [seed manifest](preinstalled/package.json) and [lockfile]
 
 | Plugin | Behavior and source to preserve when merging upstream |
 | --- | --- |
-| Team mode | The bundled DS Bot patch keeps the classic settings entry outside Team mode. DSH-IM provides the channel setup and lets users select a team Bot as the conversation target. |
+| Team mode | Signing in from the welcome page opens the standard interface. Enter team mode opens DS Bot. Its shell withdraws the standard home's prompt categories and recommendations until the user returns to standard mode. DSH-IM provides channel setup and team Bot selection. |
 | Persistent memory | The bundled dsh-auto-memory patch creates its data directory before acquiring the settings lock. The default Companion preset uses a 32 KB budget and minimum importance 1. Existing user overrides take precedence. |
 | Plugin market | `preinstalled/patches/dshmarket@<version>.patch` keeps the online catalog live, hides the sponsor area and top-level update-check notice, and ships market updates with the desktop. Route requests return the install or update result after a Host remount. |
 | Connect phone | `prepareLocalIm()` retains the package name and bot settings, removes the GitHub and self-update actions, and always registers the sidebar entry while the plugin is enabled. The page subtitle is “NovaFlow at your fingertips”. |

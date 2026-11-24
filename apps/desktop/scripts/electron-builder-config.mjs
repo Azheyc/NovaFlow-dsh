@@ -21,7 +21,7 @@ import {
   scrubWindowsSigningEnvironment,
 } from './windows-sign.mjs'
 import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
-import { isNovaFlowDistribution } from './novaflow-distribution.mjs'
+import { desktopDistributionArtifactBase, isNovaFlowDistribution } from './novaflow-distribution.mjs'
 import { resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
 import { resolveDesktopBuildVersion } from './desktop-build-version.mjs'
 import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
@@ -123,8 +123,7 @@ export function createElectronBuilderConfig(
     productName: novaFlow ? 'NovaFlow' : 'DeepSeek Harness',
     // The default copyright uses author.name; this line names the product instead.
     copyright: `Copyright © ${new Date().getFullYear()} \${productName}`,
-    // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
-    artifactName: `${novaFlow ? 'NovaFlow' : 'deepseek-harness'}-\${version}-\${os}-\${arch}${output.suffix}.\${ext}`,
+    artifactName: `${desktopDistributionArtifactBase(env, '${version}', '${os}', '${arch}', output.suffix)}.\${ext}`,
     directories: { output: output.directory },
     asar: true,
     electronDist: buildPaths.electron,

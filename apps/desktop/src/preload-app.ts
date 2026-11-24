@@ -94,6 +94,8 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   })
   ipcRenderer.on(DESKTOP_IPC.enterWorkspace, () => {
     const body = document.body
+    document.documentElement.setAttribute('data-dsh-entered-from-welcome', '')
+    window.dispatchEvent(new Event('dsh:entered-from-welcome'))
     const previous = body.getAttribute('tabindex')
     body.tabIndex = -1
     body.focus({ preventScroll: true })

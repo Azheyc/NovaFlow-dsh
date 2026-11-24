@@ -409,8 +409,20 @@ index 30e9d8f..040a587 100644
 -        hasProviders,
          hasAdvancedModels: hasSection(dsh, "models"),
          onNavigate: navigateForTour,
-@@ -52912,5 +52843,4 @@ function apply(ctx) {
-   const surface = createSource({ mode: readMode(), plain: false });
+@@ -45762,7 +45693,7 @@
+ function readMode(storage = globalThis.localStorage) {
+   try {
+-    return storage.getItem(STORAGE.surface) === "agent" ? "agent" : "bot";
++    return storage.getItem(STORAGE.surface) === "bot" ? "bot" : "agent";
+   } catch {
+-    return "bot";
++    return "agent";
+   }
+ }
+@@ -52912,5 +52843,5 @@ function apply(ctx) {
+-  const surface = createSource({ mode: readMode(), plain: false });
++  const enteredFromWelcome = () => document.documentElement.hasAttribute("data-dsh-entered-from-welcome");
++  const surface = createSource({ mode: enteredFromWelcome() ? "agent" : readMode(), plain: false });
    const settingsShellHeld = createSource(false);
 -  let settingsShell = null;
    let agentSessionCache = /* @__PURE__ */ new Set();
@@ -436,6 +448,24 @@ index 30e9d8f..040a587 100644
 +  // NovaFlow owns sidebar.settings. Team mode supplies its launcher and settings overlay.
    const queueFace = (sessionId) => ({
      ...face(),
+@@ -54030,3 +53952,4 @@
+     () => installTheme(),
++    () => shadow("conversation.hero.frame", { id: "novaflow-prompt-presets", priority: BOT_PRIORITY }, ({ children }) => children),
+     () => shadow("sidebar.workspaces", { priority: BOT_PRIORITY, inject: face }, TeamSidebar),
+     () => shadow("sidebar.brand.mark", { priority: BOT_PRIORITY }, BrandMark),
+@@ -54197,2 +54119,12 @@
++  ctx.effect(() => {
++    const enterStandard = () => {
++      document.documentElement.removeAttribute("data-dsh-entered-from-welcome");
++      writeMode("agent");
++      actions.setSurface("agent");
++    };
++    window.addEventListener("dsh:entered-from-welcome", enterStandard);
++    if (enteredFromWelcome()) enterStandard();
++    return () => window.removeEventListener("dsh:entered-from-welcome", enterStandard);
++  });
+   ctx.effect(() => {
+     const groups = surfaceGroups({ shell: installShell, conversation: installConversation }, {
 diff --git a/cordis.patch.yml b/cordis.patch.yml
 index 84eda6f..9c9dabf 100644
 --- a/cordis.patch.yml

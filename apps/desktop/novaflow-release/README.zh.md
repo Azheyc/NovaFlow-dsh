@@ -23,7 +23,7 @@ macOS Apple Silicon 在 macOS 上执行以下命令，`$version` 为同一个发
 DSH_PACKAGING_PRESET=test DSH_PACKAGING_CONFIG_DIR="$PWD/apps/desktop/novaflow-release" NODE_USE_ENV_PROXY=1 node node_modules/pnpm/bin/pnpm.mjs --filter @deepseek-ai/dsh-desktop exec tsx scripts/package-target.ts mac-arm64 --unsigned --build-version "$version"
 ```
 
-test 预设隔离发布配置，不调用上游测试策略服务。安装包保留 unsigned 后缀，Windows 可能显示未知发布者。签名版本需要 NovaFlow 自己的证书并沿用现有签名流程，不使用上游证书。
+test 预设将发布配置与上游测试策略服务隔离。NovaFlow 安装包文件名使用版本、平台和架构，签名状态由构建和发布记录注明。Windows 可能显示未知发布者。签名使用 NovaFlow 自己的证书并沿用现有签名流程。
 
 ## 发布
 

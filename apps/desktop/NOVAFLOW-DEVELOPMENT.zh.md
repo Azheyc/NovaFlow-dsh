@@ -14,7 +14,7 @@
 | 插件市场账户权限 | 账户插件根据平台的 `identity_scope` 控制市场加载。登录企业账号后，Host 撤下市场接口和客户端入口。权限随身份切换重新计算。 |
 | 连接手机 | `prepareLocalIm()` 将 [`@xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) 的客户端适配纳入离线预装。插件启用时始终注册「连接手机」入口。客户端更新替换本地插件文件，沿用现有包名和机器人配置。 |
 | 自媒体工作台 | 从 `preinstalled/media-desk/source/` 编译 `novaflow-media-desk`，随客户端离线预装。该目录基于 [dsh-media-desk v2.7.2](https://github.com/woniuniuniu/dsh-media-desk/tree/v2.7.2)，MIT 许可随包保留。 |
-| 全局技能、旧预设兼容与首次指引 | [NovaFlow 技能与预设](../novaflow-modes/README.zh.md) |
+| 全局技能与旧预设兼容 | [NovaFlow 技能与预设](../novaflow-modes/README.zh.md) |
 | 首页提示词与设置 | [提示词插件](../../plugins/prompt-presets/README.zh.md)。维护所有模式共用的内置预设时编辑 `catalog.js`。`index.js` 保存自定义库，`client.jsx` 在新会话展示预设，并在设置中直接打开自定义编辑器。 |
 | 模型地址与请求 | [模型同步](../novaflow-plugin/src/native-models.js)负责受管地址迁移；[请求鉴权](../novaflow-plugin/src/model-bridge.js)负责平台令牌和分组头；[适配器入口](../../packages/llm/llm-pi-ai/src/index.ts)接入推理与发现 |
 | Logo 与首页动画 | resources/novaflow、scripts/render-novaflow-brand.ts、scripts/render-novaflow-animation.ts、packages/client/ui-brand-official |
@@ -36,7 +36,7 @@ macOS 的 NovaFlow 开发版快捷方式会在启动 Electron 前从仓库执行
 
 | 插件 | 合并上游时保留的行为与源码 |
 | --- | --- |
-| 团队模式 | 内置 DS Bot 补丁保留团队模式之外的经典设置入口。连接手机负责渠道配置，并提供团队 Bot 对话对象选择。 |
+| 团队模式 | 从欢迎页登录后进入标准界面，通过「进入团队模式」打开 DS Bot。团队模式接管会话期间撤下标准首页的提示词分类和推荐，返回标准模式后恢复。连接手机负责渠道配置和团队 Bot 选择。 |
 | 持久记忆 | 内置 dsh-auto-memory 补丁在获取设置锁之前创建数据目录。「陪伴（日常）」默认使用 32 KB 预算和重要度门槛 1。已有的用户设置优先。 |
 | 插件市场 | `preinstalled/patches/dshmarket@<version>.patch`。在线目录继续更新，隐藏赞助区及顶部检查失败提示，市场自身随客户端更新。市场因 Host 重载时正常返回插件安装和更新结果。 |
 | 连接手机 | `prepareLocalIm()`。保留包名和机器人配置，隐藏 GitHub 和插件自身更新入口，启用插件时始终显示「连接手机」。页面副标题为「让NovaFlow触手可及」。 |

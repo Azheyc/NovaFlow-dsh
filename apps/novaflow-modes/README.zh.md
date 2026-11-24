@@ -12,8 +12,4 @@ Host 将 `skills/` 注册为全局内置技能来源。故事创作、故事资�
 
 原先设为建模模式 (`novaflow-modeling`) 或内容平台模式 (`novaflow-media-creation`) 的会话和默认设置按标准模式运行。所有模式共用同一套提示词库，其中包含建模提示词。
 
-首次工作区指引注册在 `settings.onboarding`，在标准预设就绪后介绍全局内置技能。关闭、按 Escape 或点击「知道了」即可结束指引。`/api/novaflow-modes` 接受经过所有者认证的 JSON POST 动作 `state`、`dismiss`，返回 `{seen, ready}`。
-
-桌面预装在用户 profile 中建立 `.novaflow-mode-guide.json`：新 profile 标记未读，已有 profile 标记已读。没有经过这一步初始化且文件不存在时，不自动显示指引。关闭状态独立于登录凭据保存。本插件作为本地包随客户端发布，不覆盖社区插件的发布身份。
-
-构建后运行 `novaflow-client-identity.e2e.ts` 验证标准会话和恢复的内容平台会话能够发现并调用技能。`welcome-flow.e2e.ts` 检查预设列表、离线安装、账户管理保护和指引持久化。
+构建后运行 `novaflow-client-identity.e2e.ts` 验证标准会话和恢复的内容平台会话能够发现并调用技能。`welcome-flow.e2e.ts` 检查预设列表、离线安装和账户管理保护。
