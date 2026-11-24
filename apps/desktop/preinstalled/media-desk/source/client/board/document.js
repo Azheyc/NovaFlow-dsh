@@ -41,7 +41,7 @@ export function canvasDocument(id, request, conflict) {
   }
   const read = async () => {
     const next = (await request(`canvas/get?id=${encodeURIComponent(id)}`)).canvas
-    const structure = board => [board.nodes.map(({ id, parentId, position, data }) => [id, parentId, position, data.label]), board.edges]
+    const structure = board => [board.nodes.map(({ id, parentId, position, width, height, data }) => [id, parentId, position, width, height, data.label]), board.edges]
     if (base && next.revision > base.revision && !equal(structure(base), structure(next))) for (const listener of externalEdits) listener(draft)
     receive(next)
   }

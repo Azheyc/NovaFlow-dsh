@@ -3,13 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@michengai/dsh-archive-manager": "1.4.1",
-    "@michengai/dsh-skills-manager": "1.5.0",
+    "@michengai/dsh-archive-manager": "1.4.2",
+    "@michengai/dsh-skills-manager": "1.5.5",
     "@tonydua/dsh-web-search-exa": "0.2.3",
     "@xmanrui/dsh-im": "5.10.0",
-    "dsh-mcp-connector": "0.2.119",
+    "ds-bot": "0.3.10",
+    "dsh-auto-memory": "1.11.0",
     "dsh-ops": "0.5.5",
-    "dsh-rewind-plugin": "0.22.2",
-    "dshmarket": "1.73.24"
+    "dsh-rewind-plugin": "0.24.1",
+    "dshmarket": "1.80.1"
   }
 }

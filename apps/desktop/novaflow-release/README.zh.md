@@ -6,6 +6,8 @@
 
 ## 构建
 
+打包前运行 `node --import tsx apps/desktop/scripts/check-novaflow-plugin-versions.ts --refresh`，提交普通预装插件的版本和锁文件。macOS 和 Windows 构建均重新核对 npm `latest`。插件市场、DSH-IM、DS Bot、dsh-auto-memory 和自媒体工作台保留 NovaFlow 修改。逐项评估上游功能、冲突和测试范围，向维护人申请同意后再合并。NovaFlow 自有插件随本仓库维护。
+
 在仓库根目录用固定版本 pnpm 构建，传入新的递增版本。以下是 Windows x64 命令。
 
 ```powershell

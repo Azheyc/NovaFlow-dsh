@@ -67,7 +67,7 @@ const GROUPS = [{
 }]
 
 /** Boot the plugin over fake faces + a stateful fake host (current moves on selectModel). */
-async function bench(locale: 'zh' | 'en' = 'zh') {
+async function bench(locale: 'zh' | 'en' = 'zh', projectOnSelect = true) {
   const ctx = new Context()
   let defaultSelection: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
   let selected = defaultSelection
@@ -102,7 +102,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
           ? {}
           : { reasoningEffort: ReasoningEffortId(payload.reasoningEffort) },
       }
-      projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
+      if (projectOnSelect) projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
       return Promise.resolve({ ok: true as const, value: { selected } })
     },
   }
@@ -267,6 +267,19 @@ describe('ui-model-selection dual entry', () => {
     } finally {
       await b.ctx.fiber.dispose()
     }
+  })
+
+  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])('keeps the confirmed model and effort for %s while the session projection is delayed', async (model) => {
+    const b = await bench('zh', false)
+    b.mint('s1')
+    const face = b.seat().inject!(sid('s1'))
+    await face.load()
+    const selection = { provider: 'deepseek-official', model, reasoningEffort: 'max' }
+    expect((await face.select(selection))?.ok).toBe(true)
+    await face.load()
+    expect(face.directory.getSnapshot().current).toEqual(selection)
+    b.setProjected(sid('s1'), { lastUsed: null, next: { ...selection, reasoningEffort: ReasoningEffortId('high') } })
+    expect(face.directory.getSnapshot().current?.reasoningEffort).toBe('high')
   })
 
   it('a seat selection is the current the popup marks active next — one shared state', async () => {

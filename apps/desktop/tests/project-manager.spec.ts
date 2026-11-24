@@ -43,6 +43,29 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
+  it('refreshes bundled skill links after the runtime moves and preserves same-name user directories', async () => {
+    const { root, manager } = setup()
+    const makeRuntime = (runtime: string, version: string) => {
+      for (const name of ['storycraft', 'sceneReference']) {
+        const skill = join(runtime, 'node_modules/@local/novaflow-modes/skills', name)
+        mkdirSync(skill, { recursive: true })
+        writeFileSync(join(skill, 'SKILL.md'), version)
+      }
+    }
+    const globalSkills = join(root, '.dsh', 'skills')
+    mkdirSync(join(globalSkills, '故事创作'), { recursive: true })
+    writeFileSync(join(globalSkills, '故事创作', 'SKILL.md'), 'my draft')
+    makeRuntime(manager.runtime.dsh, 'first')
+    await manager.applyRelease()
+    expect(readFileSync(join(globalSkills, '全能场景', 'SKILL.md'), 'utf8')).toBe('first')
+    const moved = join(root, 'second', 'dsh')
+    runtimeFixture(moved)
+    makeRuntime(moved, 'second')
+    rmSync(manager.runtime.dsh, { recursive: true })
+    await new DesktopProjectManager(manager.paths, { dsh: moved }).applyRelease()
+    expect(readFileSync(join(globalSkills, '全能场景', 'SKILL.md'), 'utf8')).toBe('second')
+    expect(readFileSync(join(globalSkills, '故事创作', 'SKILL.md'), 'utf8')).toBe('my draft')
+  })
   it('adds NovaFlow to existing profiles once and retains user bundles and patch bytes', async () => {
     const { manager } = setup()
     await manager.applyRelease()

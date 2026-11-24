@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as uiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { RemoteError, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -81,6 +81,102 @@ beforeEach(() => {
 })
 
 afterEach(cleanup)
+
+describe('NovaFlow compact model picker', () => {
+  beforeEach(() => {
+    vi.stubGlobal('__DSH_COMPACT_MODEL_PICKER__', true)
+    onTestFinished(() => { vi.unstubAllGlobals() })
+  })
+
+  it('keeps the slider open and focused across consecutive effort selections', async () => {
+    const directory = createSnapshotStore(state())
+    const confirmation = Promise.withResolvers<undefined>()
+    const select = vi.fn(async (selection: ModelSelection) => {
+      directory.set(state({ pending: selection }))
+      await confirmation.promise
+      directory.set(state({ current: selection }))
+      return { ok: true as const, value: undefined }
+    })
+    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()}
+      select={select} resolveText={text => typeof text === 'string' ? text : text.zh ?? text.en} t={t} renderSlot={renderLabel} />)
+    const trigger = screen.getByRole('button', { name: '选择模型，当前 DeepSeek-V4-Flash · DeepSeek，推理等级 高' })
+    expect(trigger.textContent).toBe('DeepSeek-V4-Flash · DeepSeek 高')
+    fireEvent.click(trigger)
+    const slider = screen.getByRole<HTMLInputElement>('slider', { name: '推理等级' })
+    expect(slider.value).toBe('1')
+    expect(slider.getAttribute('aria-valuetext')).toBe('高')
+    act(() => slider.focus())
+    fireEvent.pointerDown(slider)
+    fireEvent.change(slider, { target: { value: '0' } })
+    fireEvent.change(slider, { target: { value: '0.33' } })
+    expect(slider.value).toBe('0.33')
+    fireEvent.pointerCancel(slider)
+    expect(slider.value).toBe('1')
+    fireEvent.pointerDown(slider)
+    fireEvent.change(slider, { target: { value: '1.72' } })
+    expect(slider.value).toBe('1.72')
+    expect(slider.getAttribute('aria-valuetext')).toBe('最高')
+    expect(select).not.toHaveBeenCalled()
+    fireEvent.pointerUp(slider)
+    expect(select).toHaveBeenCalledExactlyOnceWith({ provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'max' })
+    expect(slider.value).toBe('2')
+    expect(slider.getAttribute('aria-valuetext')).toBe('最高')
+    expect(trigger.textContent).toContain('最高')
+    await act(async () => { confirmation.resolve(undefined) })
+    await waitFor(() => { expect(trigger.textContent).toContain('最高') })
+    expect(document.activeElement).toBe(slider)
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' })
+    await waitFor(() => { expect(trigger.textContent).toBe('DeepSeek-V4-Flash · DeepSeek 高') })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(select).toHaveBeenCalledTimes(2)
+    fireEvent.keyDown(slider, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('opens the searchable catalog from the model and group, including for models without effort controls', () => {
+    const groups = modelGroups(6)
+    render(<ModelSelect locked={false} available directory={createSnapshotStore(state({ groups, current: { provider: 'deepseek-official', model: 'model-2' } }))}
+      load={vi.fn()} select={vi.fn()} resolveText={resolveText} t={t} renderSlot={renderLabel} />)
+    const trigger = screen.getByRole('button')
+    expect(trigger.textContent).toBe('Model 2 · DeepSeek')
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('slider')).toBeNull()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Model 2 · DeepSeek/ }))
+    expect(screen.getByRole('searchbox')).toBeTruthy()
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(6)
+  })
+
+  it.each([false, true])('resizes the same dialog and returns to the chosen model after confirmation (reduced motion %s)', async (reduced) => {
+    const groups = modelGroups(6)
+    const directory = createSnapshotStore(state({ groups, current: { provider: 'deepseek-official', model: 'model-2' } }))
+    const confirmation = Promise.withResolvers<undefined>()
+    const select = async (selection: ModelSelection) => {
+      await confirmation.promise
+      directory.set(state({ groups, current: selection }))
+      return { ok: true as const, value: undefined }
+    }
+    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()}
+      select={select} resolveText={resolveText} t={t} renderSlot={renderLabel} />)
+    fireEvent.click(screen.getByRole('button'))
+    const dialog = screen.getByRole('dialog')
+    const animate = vi.fn((_frames: Keyframe[]) => ({ cancel: vi.fn() }))
+    Object.defineProperty(dialog, 'animate', { value: animate })
+    vi.spyOn(dialog, 'getBoundingClientRect').mockImplementation(() => {
+      const expanded = dialog.querySelector('[role="menu"]') !== null
+      return new DOMRect(0, 0, expanded ? 254 : 234, expanded ? 270 : 70)
+    })
+    vi.stubGlobal('matchMedia', () => ({ matches: reduced }))
+    fireEvent.click(within(dialog).getByRole('button'))
+    fireEvent.click(within(dialog).getByRole('menuitemradio', { name: 'DeepSeek-V4-Flash' }))
+    expect(within(dialog).getByRole('searchbox')).toBeTruthy()
+    await act(async () => { confirmation.resolve(undefined) })
+    expect(screen.getByRole('dialog')).toBe(dialog)
+    expect(within(dialog).getByRole('slider').getAttribute('aria-valuetext')).toBe('High')
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: /DeepSeek-V4-Flash/ }))
+    const small = { width: '234px', height: '70px' }, large = { width: '254px', height: '270px' }
+    expect(animate.mock.calls.map(([frames]) => frames)).toEqual(reduced ? [] : [[small, large], [large, small]])
+  })
+})
 
 describe('ModelSelect label slot', () => {
   it('distinguishes identical model names and ids by provider across all placements and restores labels on unload', async () => {

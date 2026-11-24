@@ -37,6 +37,7 @@ export function registerAgentTeamUi(ctx: ClientContext): void {
     name: 'conversation.chat.commandview', key: 'team', locale: NS,
   }, TeamCommandRow))
   ctx.inject(['remote', 'remote.agentTeams'], (scope) => {
+    if ((globalThis as { __DSH_HIDE_TEAM_MODEL_OPTION__?: boolean }).__DSH_HIDE_TEAM_MODEL_OPTION__ === true) return
     scope.slots.inject('shell.overlay', function* () {
       const disableRequest = createSnapshotStore<TeamDisableRequest | null>(null)
       const selectTeamMode = async (sessionId: SessionId, enabled: boolean): Promise<string | null> => {

@@ -13,7 +13,9 @@ export function apply(ctx) {
   ctx.effect(() => ctx.agentPresets.registerAlias('novaflow-media-creation', 'standard'))
   ctx.plugin(SkillFileSystem, { providerName: 'novaflow-content-platform', includeDefaultRoots: false, watch: false, bundledSkillDir })
   ctx.on('webserver/index-inject', table => {
-    table.push({ kind: 'global', name: '__DSH_HIDDEN_PRESET_CHOICES__', value: ['cordis', 'ops-ptc'] })
+    table.push({ kind: 'global', name: '__DSH_HIDDEN_PRESET_CHOICES__', value: ['cordis', 'ops-ptc', 'ptc'] })
+    table.push({ kind: 'global', name: '__DSH_HIDE_TEAM_MODEL_OPTION__', value: true })
+    table.push({ kind: 'global', name: '__DSH_COMPACT_MODEL_PICKER__', value: true })
   })
   ctx.systemPrompt.section({
     name: 'novaflow:client-identity',

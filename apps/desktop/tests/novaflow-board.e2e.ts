@@ -11,20 +11,31 @@ import { prepareDesktopHome } from './harness.ts'
 it('lets a real canvas session edit its board and restores its conversation after Host restart', async () => {
   const root = await mkdtemp(join(tmpdir(), 'novaflow-board-'))
   const toolsSeen = new Set<string>()
+  const storyboardSkill = 'laotang-cinematic-storyboard-s10-free'
+  const storyboardPrompt = `请先读取 ${storyboardSkill} 技能，为第一幕制作分镜：末班车驶入车站。`
+  let storyboardLoaded = false
   const model = createServer(async (request, response) => {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk as Buffer)
     const body = JSON.parse(Buffer.concat(chunks).toString()) as {
       tools?: { name: string }[]
-      messages: { content: { type: string }[] }[]
+      messages: { content: { type: string; text?: string }[] }[]
     }
     for (const tool of body.tools ?? []) toolsSeen.add(tool.name)
-    const edit = body.tools?.some(tool => tool.name === 'canvas_edit') && !body.messages.at(-1)?.content.some(block => block.type === 'tool_result')
+    const latest = body.messages.at(-1)?.content ?? []
+    const toolResults = latest.filter(block => block.type === 'tool_result')
+    if (JSON.stringify(toolResults).includes('老唐电影级分镜skill-s10至臻版')) storyboardLoaded = true
+    const readSkill = body.tools?.some(tool => tool.name === 'skill') && latest.some(block => block.text?.includes(storyboardPrompt))
+    const edit = body.tools?.some(tool => tool.name === 'canvas_edit') && !toolResults.length && !readSkill
+    const tool = readSkill ? 'skill' : edit ? 'canvas_edit' : undefined
+    const input = readSkill ? { name: storyboardSkill } : {
+      revision: 1, operations: [{ op: 'addNode', type: 'text', data: { label: '脚本', text: '第一幕' } }],
+    }
     const events = [
       { type: 'message_start', message: { id: randomUUID(), model: 'deepseek-flash', usage: { input_tokens: 8, output_tokens: 0 } } },
-      { type: 'content_block_start', index: 0, content_block: edit ? { type: 'tool_use', id: randomUUID(), name: 'canvas_edit', input: {} } : { type: 'text', text: '' } },
-      { type: 'content_block_delta', index: 0, delta: edit ? { type: 'input_json_delta', partial_json: JSON.stringify({ revision: 1, operations: [{ op: 'addNode', type: 'text', data: { label: '脚本', text: '第一幕' } }] }) } : { type: 'text_delta', text: '已完成' } },
-      { type: 'content_block_stop', index: 0 }, { type: 'message_delta', delta: { stop_reason: edit ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 4 } }, { type: 'message_stop' },
+      { type: 'content_block_start', index: 0, content_block: tool ? { type: 'tool_use', id: randomUUID(), name: tool, input: {} } : { type: 'text', text: '' } },
+      { type: 'content_block_delta', index: 0, delta: tool ? { type: 'input_json_delta', partial_json: JSON.stringify(input) } : { type: 'text_delta', text: '已完成' } },
+      { type: 'content_block_stop', index: 0 }, { type: 'message_delta', delta: { stop_reason: tool ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 4 } }, { type: 'message_stop' },
     ]
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     response.end(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''))
@@ -67,6 +78,9 @@ it('lets a real canvas session edit its board and restores its conversation afte
     expect(await desk('canvas/open', {})).toMatchObject({ canvases: [{ id: canvas.id, name: '未命名', nodeCount: 1 }] })
     expect((await desk('canvas/list')).canvases).toHaveLength(1)
     expect(await desk(`canvas/chat?id=${canvas.id}`)).toMatchObject({ sessionId, messages: expect.arrayContaining([expect.objectContaining({ role: 'user', text: '添加一个文本节点' })]) })
+    await desk('canvas/presence', { id: canvas.id, view: randomUUID() })
+    expect(await desk('canvas/chat', { id: canvas.id, message: storyboardPrompt })).toMatchObject({ sessionId })
+    await expect.poll(() => storyboardLoaded, { timeout: 20000 }).toBe(true)
     expect(await desk('settings', { exportDir: root })).toMatchObject({ storage: { configured: true, path: await realpath(root) } })
     expect(await desk('settings', { exportDir: '' })).toMatchObject({ exportDir: '', storage: { configured: true, path: storageDir } })
   } finally {

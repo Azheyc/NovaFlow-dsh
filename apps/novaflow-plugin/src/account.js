@@ -4,14 +4,14 @@ import { parseBalance } from './balance.js'
 
 /** Owns the saved account grant, without hardware binding. UI snapshots never contain tokens or PKCE secrets. */
 export class NovaAccount {
-  constructor({ credentials, api, origin, onCatalog = async () => [], onClear = async () => {}, now = Date.now }) {
-    Object.assign(this, { credentials, api, origin, onCatalog, onClear, now })
+  constructor({ credentials, api, origin, onState = () => {}, onCatalog = async () => [], onClear = async () => {}, now = Date.now }) {
+    Object.assign(this, { credentials, api, origin, onState, onCatalog, onClear, now })
     this.state = { connected: false, hasCredential: false, account: null, models: [], attempt: null, balance: null, error: null, warning: null, revision: 0 }
     this.generation = 0; this.pending = null; this.disposed = false; this.refreshing = null; this.rotation = null
     this.controller = new AbortController()
     this.balanceRefreshing = null; this.balanceController = null; this.signingOut = false
   }
-  publish(patch) { this.state = { ...this.state, ...patch, revision: this.state.revision + 1 }; return this.snapshot() }
+  publish(patch) { this.state = { ...this.state, ...patch, revision: this.state.revision + 1 }; this.onState(this.state); return this.snapshot() }
   snapshot() { return structuredClone({ ...this.state, mediaModels:this.state.connected ? this.state.mediaModels || [] : [] }) }
   async initialize() {
     const record = await this.credentials.readRecord(RECORD)
@@ -195,14 +195,18 @@ export class NovaAccount {
       try {
         const token = await this.accessToken()
         const bootstrap = await this.api.request(PREFIX + '/creator/bootstrap', { token, signal: this.controller.signal })
-        const catalog = await this.api.request(PREFIX + '/creator/models', { token, signal: this.controller.signal })
         const account = this.accountView(bootstrap)
+        if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
+        // Apply a verified change of account scope even if model discovery subsequently fails.
+        if (this.state.account?.role !== account.role) {
+          this.resetBalance()
+          this.publish({ account, balance: null })
+        }
+        const catalog = await this.api.request(PREFIX + '/creator/models', { token, signal: this.controller.signal })
         if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
         const models = await this.onCatalog(catalog, selectDefault, { resetModels })
         if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
-        const sameIdentity=this.state.account?.role===account.role
-        if (!sameIdentity) this.resetBalance()
-        this.publish({ connected: true, hasCredential: true, account, models, mediaModels:mediaModels(catalog.items), error: null,...(sameIdentity ? {} : {balance:null}) })
+        this.publish({ connected: true, hasCredential: true, account, models, mediaModels:mediaModels(catalog.items), error: null })
         // Balance availability must not delay or fail model sign-in/synchronization.
         void this.refreshBalance().catch(()=>{})
         return this.snapshot()

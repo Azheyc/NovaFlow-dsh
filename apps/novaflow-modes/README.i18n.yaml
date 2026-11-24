@@ -3,5 +3,5 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write apps/novaflow-modes/README.md
 /novaflow-session-modes:
-  en: d312a1312a30ecf5
-  zh: 29a0bf4783296e3d
+  en: ae04f480c47baf76
+  zh: 77e69814c628cdc6

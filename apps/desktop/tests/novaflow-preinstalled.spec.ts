@@ -29,6 +29,23 @@ function fixture(existing = false, name = 'fixture-plugin') {
   return { profile, runtime, read }
 }
 
+it('retires the bundled Hindsight installation across repeated launches', () => {
+  const name = '@vectorize-io/hindsight-coding-agents'
+  const f = fixture(false, name)
+  const seed = join(f.runtime, 'novaflow-preinstalled')
+  writeFileSync(join(seed, 'novaflow-builtins.json'), '{}')
+  writeFileSync(join(seed, 'market-build.sha256'), 'a'.repeat(64))
+  seedNovaFlowPlugins(f.profile, f.runtime, true)
+  expect(f.read().dsh.profile.bundles).toContain(name)
+  writeFileSync(join(seed, 'package.json'), '{"dependencies":{}}')
+  seedNovaFlowPlugins(f.profile, f.runtime, false)
+  seedNovaFlowPlugins(f.profile, f.runtime, false)
+  expect(f.read().dependencies).not.toHaveProperty(name)
+  expect(f.read().dsh.profile.bundles).not.toContain(name)
+  expect(existsSync(join(f.profile, 'node_modules', name))).toBe(false)
+  expect(existsSync(join(f.profile, '.novaflow-bundled', name))).toBe(false)
+})
+
 const exa = '@tonydua/dsh-web-search-exa'
 
 it('defaults a newly seeded Exa bundle while retaining existing fetch settings and patch expressions', () => {

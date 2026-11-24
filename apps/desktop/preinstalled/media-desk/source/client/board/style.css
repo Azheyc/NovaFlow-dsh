@@ -5,6 +5,15 @@
 .md-board-area { position: relative; flex: 1; min-width: 0; overflow: clip; container: md-canvas / size; }
 .md-flow-page > .md-dock { min-width: 0; max-width: 85%; }
 .md-flow-page > .md-dock .md-dock-head { padding-top: 68px; }
+.md-board-workflows { display: grid; gap: 6px; padding-block: 8px; }
+.md-board-workflows h3 { margin: 0; font-size: 16px; font-weight: 500; }
+.md-board-workflows p, .md-board-workflows small { color: var(--ink3); font-size: 12px; line-height: 1.5; }
+.md-board-workflows p { margin: 0 0 6px; }
+.md-board-workflows button { display: grid; grid-template-columns: 18px 1fr 13px; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--card); color: var(--ink2); text-align: start; }
+.md-board-workflows button:hover { background: var(--hover); }
+.md-board-workflows button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.md-board-workflows button span { display: grid; gap: 2px; min-width: 0; }
+.md-board-workflows strong { color: var(--ink); font-size: 13px; line-height: 1.5; font-weight: 500; }
 .md-board-top { position: absolute; left: 16px; top: 64px; z-index: 15; max-width: calc(100% - 32px); }
 .md-board-picker > button { max-width: 100%; }
 .md-board-picker > button span, .md-bnode-caption b { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -13,18 +22,26 @@
 .md-board-row > button:first-child { display: flex; flex: 1; min-width: 0; overflow-wrap: anywhere; gap: 6px; justify-content: space-between; align-items: baseline; text-align: left; }
 .md-board-row small, .md-board-search small { flex: none; color: var(--ink3); font-size: 12px; }
 .md-board-row.is-on, .md-board-row:hover { background: var(--hover); }
-.md-flow-stage.is-selecting { cursor: crosshair; }
-.md-bnode { position: absolute; background: var(--card); color: var(--ink); border-radius: var(--r-lg); box-shadow: inset 0 0 0 1px var(--line-strong), var(--dsw-elevation-soft); cursor: grab; }
-.md-bnode.is-group { background: color-mix(in srgb, var(--group, var(--accent)) 7%, transparent); z-index: -1; }
-.md-bnode.is-selected { outline: 1.5px solid var(--accent); }
-.md-bnode-face { width: 100%; height: 100%; border-radius: inherit; }
-.md-bnode-caption { position: absolute; bottom: calc(100% + 6px); left: 2px; max-width: 100%; display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: var(--ink2); }
+.md-flow-stage[data-pointer-tool="select"]:not(.is-panning) { cursor: crosshair; }
+.md-bnode { position: absolute; color: var(--ink); }
+.md-bnode .md-node-resize { position: absolute; right: -6px; bottom: -6px; width: 20px; height: 20px; padding: 0; background: transparent; cursor: nwse-resize; touch-action: none; }
+.md-bnode .md-node-resize:focus-visible { outline: none; }
+.md-bnode:has(.md-node-resize:focus-visible) .md-bnode-face { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.md-bnode.is-group { z-index: -1; }
+.md-bnode.is-group .md-card { justify-content: flex-start; background: color-mix(in srgb, var(--group, var(--accent)) 7%, transparent); border: 1px solid var(--line-strong); }
+.md-bnode.is-group.is-selected .md-card { outline: 1.5px solid var(--accent); }
+.md-bnode-face.md-card { display: flex; flex-direction: column; height: 100%; cursor: grab; }
+.md-bnode-body { flex: 1; min-height: 0; overflow: hidden; }
+.md-bnode-caption { flex: none; max-width: 100%; color: var(--ink2); }
 .md-bnode-caption svg { flex: none; }
 .md-bnode-caption b { font-weight: 550; }
 .md-bnode .md-node-media, .md-node-empty, .md-board-markdown { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 .md-node-empty { display: grid; place-items: center; color: var(--ink3); }
 .md-board-markdown { overflow: clip; padding: 14px; overflow-wrap: anywhere; pointer-events: none; }
-.md-bnode-status { position: absolute; left: 8px; bottom: 8px; padding: 1px 7px; border-radius: var(--r-sm); background: var(--card); color: var(--ink2); font-size: 12px; }
+.md-bnode-status { position: absolute; right: 10px; top: 10px; padding: 1px 7px; border-radius: var(--r-sm); background: var(--card); color: var(--ink2); font-size: 12px; }
+.md-node-field textarea:disabled { color: var(--ink3); background: var(--hover); cursor: not-allowed; }
+.md-flow-menu.md-context-menu { bottom: auto; z-index: 25; max-height: calc(100% - 4px); }
+.md-expanded-media { display: block; width: 100%; max-height: 75vh; object-fit: contain; border-radius: var(--r-md); }
 .md-node-editor { position: absolute; z-index: 10; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: min(520px, calc(100% - 16px)); max-height: calc(100% - 84px); overflow: hidden auto; overscroll-behavior: contain; touch-action: pan-y; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); box-shadow: var(--dsw-elevation-prominent); color: var(--ink); cursor: default; user-select: text; }
 .md-node-editor header, .md-node-editor footer { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .md-node-name { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 8px; border: 1px solid transparent; border-radius: var(--r-sm); color: var(--ink2); }

@@ -20,4 +20,10 @@ export const RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9'
 export const TIERS = ['1K', '2K']
 
 export const NODE_TYPES = Object.keys(NODE_INFO)
+
+export function imagePromptSource(canvas, node) {
+  if (node?.type !== 'imageGen') return undefined
+  const edge = canvas.edges.find(row => row.target === node.id && row.targetHandle === 'prompt')
+  return edge && canvas.nodes.find(source => source.id === edge.source && source.type === 'text')
+}
 export const IMAGE_TIERS = { '1K': 1024, '2K': 2048 }

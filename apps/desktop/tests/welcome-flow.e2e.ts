@@ -22,6 +22,7 @@ async function mockPlatform() {
   let init: Record<string, string> = {}
   let failExchange = false
   let rejectAuthorization = false
+  let identityScope = 'personal'
   let exchanged = false
   const imageRequests: Array<{ group: string | undefined; model: string; size: string }> = []
   const server = createServer((req, res) => {
@@ -62,7 +63,7 @@ async function mockPlatform() {
           res.end(JSON.stringify({ data: [{ b64_json: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=' }] }))
           return
         }
-        if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: 'personal' }
+        if (req.url === `${prefix}/creator/bootstrap`) data = { user_id: 7, display_name: 'Fixture user', identity_scope: identityScope }
         else if (req.url === `${prefix}/creator/models`) data = { items: [
           { model_id: 'gpt-image-2.6', group_id: 'Image group', kind: 'image', supported_endpoint_types: ['image-generation'] },
           { model_id: 'video-fixture', group_id: 'Video group', kind: 'video', supported_endpoint_types: ['openai-video'] },
@@ -71,8 +72,8 @@ async function mockPlatform() {
           { model_id: 'gpt-6.2-astra', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['openai-response'] },
           { model_id: 'claude-fixture', group_id: 'Fixture group', kind: 'text', supported_endpoint_types: ['anthropic'] },
         ] }
-        else if (req.url === `${prefix}/plugin/usage`) data = { schema_version: 1, account_mode: 'personal',
-          personal: { balance: '10', frozen: '0', available: '10', unit: 'CNY' }, limits: null, as_of: new Date().toISOString() }
+        else if (req.url === `${prefix}/plugin/usage`) data = { schema_version: 1, account_mode: identityScope === 'personal' ? 'personal' : 'enterprise',
+          [identityScope === 'personal' ? 'personal' : 'company']: { balance: '10', frozen: '0', available: '10', unit: 'CNY' }, limits: identityScope === 'personal' ? null : { daily_mode: 'unlimited', monthly_mode: 'unlimited', daily_used: 0, monthly_used: 0, daily_remaining: null, monthly_remaining: null, daily_limit: null, monthly_limit: null, can_use: true, block_reason: '' }, as_of: new Date().toISOString() }
         else { res.writeHead(404).end(); return }
       }
       res.setHeader('content-type', 'application/json')
@@ -85,6 +86,7 @@ async function mockPlatform() {
   return {
     imageRequests,
     origin: `http://127.0.0.1:${String(address.port)}`,
+    setScope: (scope: string) => { identityScope = scope },
     failExchange: (value: boolean) => { failExchange = value },
     rejectAuthorization: (value: boolean) => { rejectAuthorization = value },
     callback: () => `${init.redirect_uri}?${new URLSearchParams({ code, state: init.state!, iss: issuer }).toString()}`,
@@ -139,21 +141,54 @@ globalThis.fetch = (input, init) => {
       }
       await restart()
       const bundles = await rpc<Array<{ name: string; version?: string; update?: string; enabled: boolean; installed: boolean; removable: boolean }>>('pluginManager/listBundles')
-      for (const name of ['dshmarket', 'dsh-ops', 'dsh-rewind-plugin', '@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', 'novaflow-dsh-prompt-presets', '@tonydua/dsh-web-search-exa', '@xmanrui/dsh-im', 'novaflow-media-desk', 'dsh-mcp-connector']) {
-        expect(bundles.find(row => row.name === name), name).toMatchObject({ enabled: true, installed: true, removable: true })
-      }
       const seedManifest = JSON.parse(readFileSync(join(project, 'novaflow-preinstalled', 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
-      const market = bundles.find(row => row.name === 'dshmarket')
-      expect(market?.version).toBe(seedManifest.dependencies.dshmarket)
+      expect(seedManifest.dependencies['dsh-auto-memory']).toBeDefined()
+      const readMemorySettings = async () => {
+        const response = await fetch(`${hostOrigin}/api/auto-memory/config.get`, { headers: { cookie } })
+        expect(response.status).toBe(200)
+        return response.json()
+      }
+      const saveMemorySettings = async (patch: Record<string, number | null>) => {
+        const response = await fetch(`${hostOrigin}/api/auto-memory/config.set`, {
+          method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(patch),
+        })
+        expect(await response.json()).toMatchObject({ ok: true })
+      }
+      const companion = { maxBytes: 32768, minImportance: 1 }
+      const focus = { maxBytes: 4096, minImportance: 4 }
+      expect(await readMemorySettings()).toMatchObject({ effective: companion, overrides: {} })
+      await saveMemorySettings(focus)
+      expect(await readMemorySettings()).toMatchObject({ effective: focus, overrides: focus })
+      expect(seedManifest.dependencies['ds-bot']).toBeDefined()
+      const marketListing = await fetch(`${hostOrigin}/dsh-market/installed`, { headers: { cookie } })
+      expect(marketListing.status).toBe(200)
+      const marketInstalled = (await marketListing.json()).installed
+      for (const [name, version] of Object.entries(seedManifest.dependencies)) {
+        expect(bundles.some(row => row.name === name), name).toBe(false)
+        expect(Object.hasOwn(marketInstalled, name), name).toBe(false)
+        const installed = JSON.parse(readFileSync(join(paths.profile, 'node_modules', name, 'package.json'), 'utf8'))
+        expect(installed.version, name).toBe(version)
+      }
+      const refused = await rpc<{ changed: boolean; error?: { code: string } }>('pluginManager/setBundleEnabled', { name: 'ds-bot', enabled: false })
+      expect(refused).toMatchObject({ changed: false, error: { code: 'management-required' } })
+      const entries = await rpc<Array<{ entryId: string; moduleName: string; fiberPhase: string; readOnlyReason?: string }>>('pluginManager/listPlugins')
+      const hindsightPackage = '@vectorize-io/hindsight-coding-agents'
+      expect(seedManifest.dependencies[hindsightPackage]).toBeUndefined()
+      expect(entries.some(row => row.moduleName === `${hindsightPackage}/dsh`)).toBe(false)
+      const bot = entries.find(row => row.moduleName === 'ds-bot')
+      expect(bot).toMatchObject({ fiberPhase: 'active', readOnlyReason: 'management-required' })
+      const rowChange = await rpc<{ changed: boolean }>('pluginManager/setPluginEnabled', { id: bot!.entryId, enabled: false })
+      expect(rowChange.changed).toBe(false)
+      for (const operation of ['toggle', 'uninstall']) {
+        const response = await fetch(`${hostOrigin}/dsh-market/${operation}`, { method: 'POST',
+          headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'ds-bot', enabled: false }) })
+        expect(response.ok, operation).toBe(false)
+      }
       const marketClient = readFileSync(join(paths.profile, 'node_modules', 'dshmarket/client/client.js'), 'utf8')
       expect(marketClient).not.toMatch(/\(SponsorMark\s*,/)
       expect(marketClient).not.toMatch(/t\("updateCheckFailed"\)/)
-      expect(bundles.find(row => row.name === 'dsh-mcp-connector')?.version).toBe(seedManifest.dependencies['dsh-mcp-connector'])
-      const connector = await fetch(`${hostOrigin}/mcp-connector/api`, {
-        method: 'POST', headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' }, body: '{"method":"governance"}',
-      })
-      expect(connector.status).toBe(200)
-      await expect(connector.json()).resolves.toMatchObject({ ok: true })
+      expect(seedManifest.dependencies['dsh-mcp-connector']).toBeUndefined()
+      expect(entries.some(row => row.moduleName === 'dsh-mcp-connector')).toBe(false)
       expect(bundles.some(row => row.name === 'dsh-media-desk')).toBe(false)
       const deskVersion = await fetch(`${hostOrigin}/media-desk/version`, { headers: { cookie } })
       expect(deskVersion.status).toBe(200)
@@ -170,10 +205,6 @@ globalThis.fetch = (input, init) => {
         method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{}',
       })
       expect(drawTest.status).toBe(404)
-      expect(market?.update).toBeUndefined()
-      for (const name of ['@michengai/dsh-archive-manager', '@michengai/dsh-skills-manager', '@xmanrui/dsh-im']) {
-        expect(bundles.find(row => row.name === name)?.version).toBe(seedManifest.dependencies[name])
-      }
       const marketUpdate = await fetch(`${hostOrigin}/dsh-market/update`, {
         method: 'POST', headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'dshmarket', restore: true }),
@@ -213,9 +244,20 @@ globalThis.fetch = (input, init) => {
       const skillResponse = await fetch(`${hostOrigin}/api/michengai/dsh-skills-manager/state`, { headers: { cookie } })
       expect(skillResponse.status).toBe(200)
       const { data: { roots } } = await skillResponse.json() as {
-        data: { roots: Array<{ group?: string }> }
+        data: { roots: Array<{ key: string; group?: string; skills: Array<{ name: string; declaredName: string }> }> }
       }
       expect(roots.some(root => root.group === '内容平台模式')).toBe(false)
+      const globalSkills = roots.find(root => root.key === 'dsh')?.skills
+      for (const [name, declaredName] of Object.entries({
+        故事创作: 'laotang-storycraft-zh', 故事资产提取: 'laotang-asset-extractor', 角色资产板: 'laotang-character-board',
+        全能场景: 'laotang-scene-reference-zh', 'S10 电影级分镜': 'laotang-cinematic-storyboard-s10-free',
+      })) {
+        expect(globalSkills?.filter(skill => skill.declaredName === declaredName)).toEqual([
+          expect.objectContaining({
+            name, declaredName, description: expect.stringContaining(name), loadable: true, enabled: true, linked: true,
+          }),
+        ])
+      }
       const management = await rpc<{ changed: boolean; error?: { code: string } }>('pluginManager/setBundleEnabled', { name: '@local/novaflow-dsh-plugin', enabled: false })
       expect(management.changed).toBe(false)
       expect(management.error).toBeDefined()
@@ -306,6 +348,9 @@ globalThis.fetch = (input, init) => {
       expect(videoResult.job).toMatchObject({ status: 'running' })
       expect((await deskRequest('settings', { exportDir: project })).status).toBe(200)
       await restart()
+      expect(await readMemorySettings()).toMatchObject({ effective: focus, overrides: focus })
+      await saveMemorySettings({ maxBytes: null, minImportance: null })
+      expect(await readMemorySettings()).toMatchObject({ effective: companion, overrides: {} })
       const recovered = await (await deskRequest('canvas/generation/status', { id: canvas.id, nodeId: 'movie' })).json()
       expect(recovered.job).toMatchObject({ id: videoResult.job.id, status: 'completed' })
       const asset = await fetch(`${hostOrigin}/${recovered.job.files[0]}`, { headers: { cookie } })
@@ -342,6 +387,31 @@ globalThis.fetch = (input, init) => {
       expect(savedModels()).not.toContain('gpt-6.2-sol')
       expect((await refresh('refresh_models')).status).toBe(200)
       expect(savedModels()).toBe(initialized)
+      const marketStatus = async () => (await fetch(`${hostOrigin}/dsh-market/installed`, { headers: { cookie } })).status
+      const clientOffersMarket = async () => (await (await fetch(hostOrigin, { headers: { cookie } })).text()).includes('"id":"dshmarket"')
+      expect(await clientOffersMarket()).toBe(true)
+      platform.setScope('enterprise:42')
+      expect((await refresh('refresh')).status).toBe(200)
+      const checkEnterpriseMarket = async () => {
+        await expect.poll(marketStatus).toBe(404)
+        await expect.poll(clientOffersMarket).toBe(false)
+        const attempt = await fetch(`${hostOrigin}/dsh-market/install`, { method: 'POST', headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' }, body: '{}' })
+        expect([404, 405]).toContain(attempt.status)
+      }
+      await checkEnterpriseMarket()
+      await restart()
+      expect((await mediaState()).account.role).toBe('enterprise:42')
+      await checkEnterpriseMarket()
+      await backend!.account.signOut(desktopClientMetadata('en'))
+      await backend!.account.start(desktopClientMetadata('en'))
+      expect((await fetch(platform.callback())).status).toBe(200)
+      await checkEnterpriseMarket()
+      await backend!.account.signOut(desktopClientMetadata('en'))
+      platform.setScope('personal')
+      await backend!.account.start(desktopClientMetadata('en'))
+      expect((await fetch(platform.callback())).status).toBe(200)
+      await expect.poll(marketStatus).toBe(200)
+      await expect.poll(clientOffersMarket).toBe(true)
       platform.rejectAuthorization(true)
       await restart()
       expect(await backend!.read()).toMatchObject({ loggedIn: false, hasApiKey: false })

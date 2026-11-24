@@ -1,5 +1,6 @@
 // Host 英文词典：key 是中文原文，{name} 是占位符。
 export const EN = {
+  '请在已连接的文本节点中填写提示词': 'Enter the prompt in the connected text node.',
   // 请求与文件
   未授权: 'Not authorized',
   内容太大: 'The content is too large',

@@ -33,6 +33,10 @@ function hostOf(url) {
   }
 }
 
+export function CardSurface({ className = '', ...props }) {
+  return <article className={`md-card ${className}`} {...props} />
+}
+
 export function Card({ item: raw, onOpen }) {
   const item = displayItem(raw)
   const inverted = item.pinned
@@ -42,8 +46,8 @@ export function Card({ item: raw, onOpen }) {
   const lines = hash(item.id) % 2 === 0
 
   return (
-    <article
-      className={`md-card kind-${item.kind} ${inverted ? 'is-inverted' : ''} ${item.status === 'published' ? 'is-published' : ''}`}
+    <CardSurface
+      className={`kind-${item.kind} ${inverted ? 'is-inverted' : ''} ${item.status === 'published' ? 'is-published' : ''}`}
       data-card={item.id}
       tabIndex={0}
       role="button"
@@ -82,7 +86,7 @@ export function Card({ item: raw, onOpen }) {
         <span className="md-card-source">{item.kind === 'web' && item.url ? hostOf(item.url) : item.source || t(KIND_LABEL[item.kind])}</span>
         <span className="md-card-time">{running ? <span className="md-shimmer">{t('正在成稿')}</span> : item.production?.status === 'done' ? t('已成稿') : item.scheduledAt && item.status !== 'published' ? relativeDay(item.scheduledAt) : ''}</span>
       </footer>
-    </article>
+    </CardSurface>
   )
 }
 

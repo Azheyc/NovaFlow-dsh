@@ -1,6 +1,6 @@
 /** Offline community-plugin seeding and the desktop-owned market installation. */
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync, renameSync, statSync, symlinkSync } from 'node:fs'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import { isMap, isSeq, parseDocument } from 'yaml'
 
 const exaBundle = '@tonydua/dsh-web-search-exa'
@@ -105,6 +105,55 @@ export function seedNovaFlowPlugins(profile: string, runtime: string, fresh: boo
   }
   const dependencies = manifest.dependencies ??= {}
   const bundles = manifest.dsh.profile.bundles
+  // Current desktop seeds carry a private dependency closure per bundle. Replace each
+  // package as a unit, including on upgrades from the old registry-backed profiles.
+  if (existsSync(join(seed, 'novaflow-builtins.json'))) {
+    const before = JSON.stringify(manifest)
+    const retired = ['dsh-mcp-connector', '@vectorize-io/hindsight-coding-agents'].filter(name =>
+      !Object.hasOwn(seeded.dependencies, name) && Object.hasOwn(recorded, name)
+      && (dependencies[name] === undefined || dependencies[name] === recorded[name]
+        || dependencies[name]?.startsWith(`link:./.novaflow-bundled/${name}/`)))
+    const { [upstreamMediaDesk]: oldMediaDesk, ...retained } = Object.fromEntries(
+      Object.entries(dependencies).filter(([name]) => !retired.includes(name)),
+    )
+    manifest.dependencies = retained
+    if (oldMediaDesk !== undefined) {
+      retained[novaFlowMediaDesk] ??= oldMediaDesk
+      for (let i = 0; i < bundles.length; i++) if (bundles[i] === upstreamMediaDesk) bundles[i] = novaFlowMediaDesk
+    }
+    for (const name of Object.keys(seeded.dependencies)) {
+      if (name === exaBundle && bundles.includes(officialExaBundle)) continue
+      if (!Object.hasOwn(retained, name) && !bundles.includes(name)) bundles.push(name)
+      retained[name] = prepareBundledPackage(profile, seed, name)
+    }
+    manifest.dsh.profile.bundles = [...new Set(bundles.filter(name => !retired.includes(name)))]
+    if (pending.some(([name]) => name === exaBundle) && bundles.includes(exaBundle)) seedExaSearchDefault(profile)
+    if (before !== JSON.stringify(manifest)) {
+      writeFileSync(`${manifestPath}.novaflow-tmp`, JSON.stringify(manifest, null, 2) + '\n', { mode: 0o600 })
+      renameSync(`${manifestPath}.novaflow-tmp`, manifestPath)
+    }
+    for (const name of retired) {
+      const installed = resolve(profile, 'node_modules', name)
+      const bin = join(profile, 'node_modules', '.bin')
+      if (existsSync(bin)) {
+        for (const entry of readdirSync(bin, { withFileTypes: true })) {
+          const executable = join(bin, entry.name)
+          if (entry.isSymbolicLink() && resolve(bin, readlinkSync(executable)).startsWith(installed + sep)) {
+            rmSync(executable)
+          }
+        }
+      }
+      rmSync(installed, { recursive: true, force: true })
+      rmSync(join(profile, '.novaflow-bundled', name), { recursive: true, force: true })
+    }
+    if (JSON.stringify(recorded) !== JSON.stringify(seeded.dependencies)) {
+      writeFileSync(`${marker}.tmp`, JSON.stringify({ version: 1, packages: seeded.dependencies }))
+      renameSync(`${marker}.tmp`, marker)
+    }
+    const guide = join(profile, '.novaflow-mode-guide.json')
+    if (!existsSync(guide)) writeFileSync(guide, JSON.stringify({ version: 1, seen: !fresh }))
+    return
+  }
   const promptVersion = seeded.dependencies[promptPresets]
   const missing = new Map(pending.filter(([name]) => !Object.hasOwn(dependencies, name)))
   if (bundles.includes(officialExaBundle)) missing.delete(exaBundle)

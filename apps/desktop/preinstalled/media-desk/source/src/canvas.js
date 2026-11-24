@@ -55,12 +55,13 @@ export function normalizeNode(node) {
     referenceOrder: data.referenceOrder && typeof data.referenceOrder === 'object' ? Object.fromEntries(Object.entries(data.referenceOrder).slice(0, 8).map(([key, list]) => [text(key, 40), Array.isArray(list) ? list.filter(id => typeof id === 'string').slice(0, 16) : []])) : undefined,
   }
   for (const key of Object.keys(clean)) if (clean[key] === undefined || clean[key] === '') delete clean[key]
+  const sizeLimit = node.type === 'group' ? Number.MAX_SAFE_INTEGER : 4000
   return {
     id: node.id,
     type: node.type,
     position: { x: finite(node.position?.x), y: finite(node.position?.y) },
-    ...(node.width ? { width: Math.max(80, Math.min(4000, finite(node.width, 320))) } : {}),
-    ...(node.height ? { height: Math.max(60, Math.min(4000, finite(node.height, 240))) } : {}),
+    ...(node.width ? { width: Math.max(80, Math.min(sizeLimit, finite(node.width, 320))) } : {}),
+    ...(node.height ? { height: Math.max(60, Math.min(sizeLimit, finite(node.height, 240))) } : {}),
     ...(node.parentId && ID.test(node.parentId) ? { parentId: node.parentId } : {}),
     data: clean,
   }

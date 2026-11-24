@@ -137,6 +137,198 @@
   line-height: 18px;
 }
 
+.compactTrigger {
+  max-width: min(300px, 58vw);
+  height: 26px;
+  gap: 4px;
+  padding-inline: 7px;
+  border-radius: 7px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.compactTrigger .triggerLabel,
+.compactTrigger .triggerEffort { display: block; }
+
+.triggerGroup {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactTrigger .triggerEffort { display: inline-grid; flex-shrink: 0; max-width: 32%; }
+.compactTrigger .triggerEffort > * { grid-area: 1 / 1; }
+.compactTrigger .triggerEffort > i { visibility: hidden; font: inherit; }
+.compactTrigger .triggerEffort > i::before { content: attr(data-label); }
+.compactTrigger .triggerEffort > span { overflow: hidden; text-overflow: ellipsis; }
+
+.menu.compactMenu {
+  width: min(234px, calc(100vw - 24px));
+  min-width: 0;
+  padding: 7px 11px 9px;
+  gap: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+}
+
+.menu.expandedMenu {
+  width: min(254px, calc(100vw - 24px));
+  min-width: 0;
+  border-radius: 14px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .expandedMenu > :not([aria-hidden="true"]),
+  .compactMenu > :not([aria-hidden="true"]) {
+    animation: paneArrive 160ms ease-out;
+  }
+}
+
+@keyframes paneArrive {
+  from { opacity: 0; translate: 0 3px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.modelSummary {
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-primary);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .modelSummary:hover,
+  .compactTrigger:hover:not(:disabled) {
+    color: var(--dsw-alias-state-business-primary);
+    background: transparent;
+  }
+}
+
+.effortTitle {
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.modelCaption {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.modelCaption > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelCaption > svg { flex: none; width: 12px; height: 12px; }
+
+.scale {
+  --thumb: 28px;
+  --rail-inset: 1px;
+  --travel-inset: calc(var(--thumb) / 2 - var(--rail-inset));
+  --rail: #e5e5e5;
+  --rail-stroke: rgb(0 0 0 / 6%);
+  --stop: rgb(0 0 0 / 23%);
+  position: relative;
+  height: var(--thumb);
+  direction: ltr;
+}
+
+:global(body[data-ds-dark-theme]) .scale {
+  --rail: #434242;
+  --rail-stroke: #525151;
+  --stop: #717070;
+}
+
+.scale::before,
+.scale::after {
+  content: '';
+  position: absolute;
+  inset: 2px var(--rail-inset);
+  border-radius: 999px;
+  corner-shape: round;
+  pointer-events: none;
+}
+
+.scale::before {
+  background: var(--rail);
+  box-shadow: inset 0 0 0 0.5px var(--rail-stroke);
+}
+
+.scale::after {
+  background: #3983f7;
+  /* Clip the fill exactly at the native thumb center, including between stops. */
+  clip-path: inset(0 calc(var(--travel-inset) + (100% - 2 * var(--travel-inset)) * (1 - var(--effort-fraction))) 0 0);
+}
+
+.scaleStops {
+  position: absolute;
+  z-index: 1;
+  inset: 0 calc(var(--thumb) / 2 - 2px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.scaleStops i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--stop);
+}
+
+.scaleStops i[data-filled] { background: #79a8fa; }
+
+.scale input {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  border-radius: 999px;
+  corner-shape: round;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.scale input::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 0;
+  border-radius: 50%;
+  corner-shape: round;
+  background: white;
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 8%);
+}
+
+:global(body[data-ds-dark-theme]) .scale input::-webkit-slider-thumb { box-shadow: none; }
+
+.scale input[aria-disabled="true"] { cursor: default; }
+.modelSummary:focus-visible, .scale input:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
+
 .error,
 .warning {
   display: flex;

@@ -62,7 +62,11 @@ describe.skipIf(!existsSync(builtHost))('bundled NovaFlow market', () => {
       }
       response.setHeader('Content-Type', 'application/json')
       if (request.url === '/catalog.json') {
-        response.end(JSON.stringify({ plugins: [{ name, url, npm: name, category: ['tools'] }] }))
+        response.end(JSON.stringify({ plugins: [
+          { name, url, npm: name, category: ['tools'] },
+          { name: 'Team', npm: 'ds-bot', url: 'https://github.com/Fei2411/DS-Bot', category: ['tools'] },
+          { name: '上游工作台', url: 'https://github.com/woniuniuniu/dsh-media-desk', category: ['tools'] },
+        ] }))
       } else if (request.url === `/${name}` || request.url === `/${name}/latest`) {
         const available = latest === version ? [version] : [version, updatedVersion]
         const versions = Object.fromEntries(available.map((releaseVersion) => {
@@ -83,14 +87,28 @@ describe.skipIf(!existsSync(builtHost))('bundled NovaFlow market', () => {
     const address = server.address()
     if (address === null || typeof address === 'string') throw new Error('Fixture registry requires a TCP port')
     const registry = `http://127.0.0.1:${address.port}`
+    const teamCatalog = join(root, 'team-catalog.json')
+    writeFileSync(teamCatalog, JSON.stringify({ plugins: [
+      { name: 'team-example', npm: 'team-example', url: 'https://github.com/fixture/team-example', category: ['tools'] },
+      { name: 'Built-in alias', url: 'https://github.com/woniuniuniu/dsh-media-desk.git/', category: ['tools'] },
+      { name: 'Team bot', npm: 'ds-bot', url: 'https://github.com/fixture/team-bot', category: ['tools'] },
+    ] }))
+    const policy = join(root, 'market-policy.json')
+    writeFileSync(policy, JSON.stringify({ catalogs: [{ id: 'team', file: teamCatalog }], pins: { 'team-example': '2.0.0' } }))
     const host = new DesktopHostProcess(process.execPath, project, paths.profile, undefined, {
-      ...process.env, DSHM_REGISTRY_URL: `${registry}/catalog.json`, DSHM_NPM_MIRROR: registry,
+      ...process.env, DSHM_REGISTRY_URL: `${registry}/catalog.json`, DSHM_NPM_MIRROR: registry, DSH_MARKET_POLICY: policy,
     })
     onTestFinished(() => host.stop())
     const { url: launchUrl } = await host.start()
     const origin = new URL(launchUrl).origin
     const cookie = await authenticateWebHost(launchUrl)
     const headers = { cookie, origin, 'content-type': 'application/json' }
+    const catalog = await fetch(`${origin}/dsh-market/registry`, { headers })
+    expect((await catalog.json()).registry).toMatchObject({
+      count: 2,
+      plugins: [{ name: 'team-example', pinned: '2.0.0', source: { id: 'team' } }, { name }],
+      sources: expect.arrayContaining([expect.objectContaining({ id: 'team', status: 'ok' })]),
+    })
     const result = await fetch(`${origin}/dsh-market/install`, {
       method: 'POST', headers, body: JSON.stringify({ url, version, busyPolicy: 'drain' }),
     })

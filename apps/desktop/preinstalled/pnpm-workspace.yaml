@@ -5,8 +5,13 @@ autoInstallPeers: false
 enableGlobalVirtualStore: false
 ignoreScripts: true
 patchedDependencies:
-  dshmarket@1.73.24: patches/dshmarket@1.73.24.patch
+  dsh-auto-memory@1.11.0: patches/dsh-auto-memory@1.11.0.patch
+  ds-bot@0.3.10: patches/ds-bot@0.3.10.patch
+  dshmarket@1.80.1: patches/dshmarket@1.80.1.patch
 minimumReleaseAgeExclude:
-  - '@michengai/dsh-archive-manager@1.4.1'
-  - dshmarket@1.73.24
-  - dsh-mcp-connector@0.2.119
+  - dshmarket@1.80.1
+  - dsh-rewind-plugin@0.24.1
+  - ds-bot@0.3.10
+  - dsh-auto-memory@1.11.0
+  - "@michengai/dsh-archive-manager@1.4.2"
+  - "@michengai/dsh-skills-manager@1.5.5"

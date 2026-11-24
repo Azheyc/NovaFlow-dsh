@@ -1,0 +1,762 @@
+diff --git a/client.js b/client.js
+index 30e9d8f..040a587 100644
+--- a/client.js
++++ b/client.js
+@@ -377,5 +377,5 @@ var JA = {
+   "Bot mode": "Bot モード",
+   "Switch": "切り替え",
+-  "Back to DS Bot": "DS Bot に戻る",
++  "Enter team mode": "チームモードに入る",
+   "{model} is not available anymore. Pick another model for me.": "{model} は現在利用できません。別のモデルを選んでください。",
+   "Hi, I'm {name}. I don't have a model yet. How do you want to set one up?": "こんにちは、{name} です。まだモデルが設定されていません。どのように設定しますか？",
+@@ -1994,5 +1994,5 @@ var JA = {
+   "Switch between Bubble and Flat layout, or adjust width below.": "バブル表示とフラット表示を切り替え、下で幅を調整します。",
+   "Tune interface motion and Bot animation intensity here.": "ここで画面モーションと Bot アニメーションの強さを調整します。",
+-  "Click any provider row to expand it and enter your API key.": "プロバイダー行をクリックして展開し、API キーを入力します。",
++  "Expand a provider to see its models.": "プロバイダーを開くと利用できるモデルが表示されます。",
+   "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint.": "ここをクリックして OpenAI・Anthropic・Gemini 互換エンドポイントを追加します。",
+   "Click here to tune context windows, thinking levels, and model order.": "ここをクリックしてコンテキスト長・思考レベル・モデル順を調整します。",
+@@ -3065,5 +3065,5 @@ var KO = {
+   "Bot mode": "Bot 모드",
+   "Switch": "전환",
+-  "Back to DS Bot": "DS Bot로 돌아가기",
++  "Enter team mode": "팀 모드로 전환",
+   "{model} is not available anymore. Pick another model for me.": "{model} 모델을 더 이상 사용할 수 없습니다. 다른 모델을 선택해 주세요.",
+   "Hi, I'm {name}. I don't have a model yet. How do you want to set one up?": "안녕하세요, {name}입니다. 아직 사용할 모델이 없습니다. 어떻게 설정할까요?",
+@@ -4724,5 +4724,5 @@ var KO = {
+   "Switch between Bubble and Flat layout, or adjust width below.": "말풍선/플랫 레이아웃을 전환하고 아래에서 너비를 조절하세요.",
+   "Tune interface motion and Bot animation intensity here.": "여기서 인터페이스 모션과 Bot 애니메이션 강도를 조절하세요.",
+-  "Click any provider row to expand it and enter your API key.": "공급자 행을 눌러 펼친 뒤 API 키를 입력하세요.",
++  "Expand a provider to see its models.": "공급자를 펼쳐 사용 가능한 모델을 확인하세요.",
+   "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint.": "여기를 눌러 사용자 지정 OpenAI·Anthropic·Gemini 엔드포인트를 추가하세요.",
+   "Click here to tune context windows, thinking levels, and model order.": "여기를 눌러 컨텍스트 길이, 사고 수준, 모델 순서를 조정하세요.",
+@@ -5796,5 +5796,5 @@ var ES = {
+   "Bot mode": "Modo Bot",
+   "Switch": "Cambiar",
+-  "Back to DS Bot": "Volver a DS Bot",
++  "Enter team mode": "Entrar en modo de equipo",
+   "{model} is not available anymore. Pick another model for me.": "{model} ya no está disponible. Elige otro modelo para mí.",
+   "Hi, I'm {name}. I don't have a model yet. How do you want to set one up?": "Hola, soy {name}. Aún no tengo un modelo. ¿Cómo quieres configurarlo?",
+@@ -7455,5 +7455,5 @@ var ES = {
+   "Switch between Bubble and Flat layout, or adjust width below.": "Alterna entre diseño de burbuja y plano, o ajusta el ancho abajo.",
+   "Tune interface motion and Bot animation intensity here.": "Ajusta aquí las transiciones de la interfaz y la animación de los Bots.",
+-  "Click any provider row to expand it and enter your API key.": "Haz clic en un proveedor para desplegarlo e introducir tu clave API.",
++  "Expand a provider to see its models.": "Abre un proveedor para ver sus modelos.",
+   "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint.": "Haz clic aquí para añadir un endpoint personalizado de OpenAI, Anthropic o Gemini.",
+   "Click here to tune context windows, thinking levels, and model order.": "Haz clic aquí para ajustar contexto, niveles de razonamiento y orden de modelos.",
+@@ -8525,5 +8525,5 @@ var FR = {
+   "Bot mode": "Mode Bot",
+   "Switch": "Basculer",
+-  "Back to DS Bot": "Retour à DS Bot",
++  "Enter team mode": "Passer en mode équipe",
+   "{model} is not available anymore. Pick another model for me.": "{model} n’est plus disponible. Choisissez-moi un autre modèle.",
+   "Hi, I'm {name}. I don't have a model yet. How do you want to set one up?": "Bonjour, je suis {name}. Je n’ai pas encore de modèle. Comment souhaitez-vous en configurer un ?",
+@@ -10142,5 +10142,5 @@ var FR = {
+   "Switch between Bubble and Flat layout, or adjust width below.": "Basculez entre bulles et plat, ou ajustez la largeur ci-dessous.",
+   "Tune interface motion and Bot animation intensity here.": "Réglez ici les transitions de l’interface et l’animation des Bots.",
+-  "Click any provider row to expand it and enter your API key.": "Cliquez sur un fournisseur pour l’ouvrir et saisir votre clé API.",
++  "Expand a provider to see its models.": "Ouvrez un fournisseur pour voir ses modèles.",
+   "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint.": "Cliquez ici pour ajouter un point de terminaison OpenAI, Anthropic ou Gemini.",
+   "Click here to tune context windows, thinking levels, and model order.": "Cliquez ici pour régler contexte, niveaux de réflexion et ordre des modèles.",
+@@ -11213,5 +11213,5 @@ var DE = {
+   "Bot mode": "Bot-Modus",
+   "Switch": "Wechseln",
+-  "Back to DS Bot": "Zurück zu DS Bot",
++  "Enter team mode": "Teammodus öffnen",
+   "{model} is not available anymore. Pick another model for me.": "{model} ist nicht mehr verfügbar. Wähle bitte ein anderes Modell für mich aus.",
+   "Hi, I'm {name}. I don't have a model yet. How do you want to set one up?": "Hallo, ich bin {name}. Ich habe noch kein Modell. Wie möchtest du eines einrichten?",
+@@ -12872,5 +12872,5 @@ var DE = {
+   "Switch between Bubble and Flat layout, or adjust width below.": "Wechsle zwischen Blasen- und Flach-Layout oder passe unten die Breite an.",
+   "Tune interface motion and Bot animation intensity here.": "Stelle hier Oberflächen-Bewegungen und Bot-Animationen ein.",
+-  "Click any provider row to expand it and enter your API key.": "Klicke auf einen Anbieter, um ihn zu öffnen und den API-Schlüssel einzugeben.",
++  "Expand a provider to see its models.": "Öffne einen Anbieter, um seine Modelle zu sehen.",
+   "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint.": "Hier klicken, um einen eigenen OpenAI-, Anthropic- oder Gemini-Endpunkt hinzuzufügen.",
+   "Click here to tune context windows, thinking levels, and model order.": "Hier klicken, um Kontextfenster, Denkstufen und Modellreihenfolge anzupassen.",
+@@ -13898,5 +13898,5 @@ var ZH = {
+   "Bot mode": "Bot 模式",
+   "Switch": "切换",
+-  "Back to DS Bot": "返回 DS Bot",
++  "Enter team mode": "进入团队模式",
+   "{model} is not available anymore. Pick another model for me.": "{model} 已经不可用了。给我换一个模型吧。",
+   "Hi, I'm {name}. I don't have a model yet. How do you want to set one up?": "你好，我是 {name}。我还没有可用的模型。你想怎么配置？",
+@@ -14478,5 +14478,5 @@ var ZH = {
+   "Switch between Bubble and Flat layout, or adjust width below.": "切换气泡/平铺排版，并在下方调节宽度。",
+   "Tune interface motion and Bot animation intensity here.": "在这里调节界面动效和 Bot 动画幅度。",
+-  "Click any provider row to expand it and enter your API key.": "点击任意服务商展开面板，填入 API 密钥并保存。",
++  "Expand a provider to see its models.": "展开服务商即可查看可用模型。",
+   "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint.": "点这里接入自定义的 OpenAI、Anthropic 或 Gemini 接口。",
+   "Click here to tune context windows, thinking levels, and model order.": "点这里调整上下文长度、思考档位和模型排序。",
+@@ -26172,5 +26172,5 @@ function SignInHost({ entry, actions }) {
+     useApiKey: () => {
+       close();
+-      actions.openHarnessOnboarding("deepseek-official");
++      actions.openSettings("models");
+     }
+   });
+@@ -28443,5 +28443,4 @@ function BotSettingsForm({ bot, roster, actions, run: run2 }) {
+       (0, import_react27.createElement)(Row, { label: t("Label"), hint: t("Optional. Shown under the name.") }, (0, import_react27.createElement)(InlineText, { label: t("Label"), value: bot.role, placeholder: t("Research, admin…"), maxLength: 24, onSave: (role) => save({ role }) }))
+     ),
+-    (0, import_react27.createElement)(RunModeCard, { bot, roster, actions, run: run2, Card: Card2 }),
+     (0, import_react27.createElement)(
+       Card2,
+@@ -34305,10 +34304,8 @@ function AccountLauncher({ seat = true, settingsOpen, actions }) {
+       [t("Usage"), GaugeIcon, () => actions.openSettings("usage")],
+       openModels ? [t("Models and API keys"), SlidersIcon, () => openModels()] : null,
+-      [t("Connectors"), ConnectorIcon, () => actions.openConnectors()],
+       [t("Automation tasks"), ClockIcon, () => actions.selectPanel("schedules")],
+       [t("Settings"), GearIcon, () => actions.openSettings("overview")]
+-    ].filter(Boolean),
+-    typeof actions.setSurface === "function" ? [[t("Classic Agent mode"), SwitchIcon, () => actions.setSurface("agent")]] : null
+-  ].filter(Boolean);
++    ].filter(Boolean)
++  ];
+   if (signedIn) groups.push([[accountT("signOut"), SignOutIcon, askSignOut, void 0, true]]);
+   else if (signedOut) groups.push([[t("Sign in to DeepSeek"), SignInIcon, () => actions.signIn()]]);
+@@ -34316,4 +34313,9 @@ function AccountLauncher({ seat = true, settingsOpen, actions }) {
+     import_react37.Fragment,
+     null,
++    typeof actions.setSurface === "function" ? (0, import_react37.createElement)(
++      "button",
++      { type: "button", className: "bt-account", title: t("Switch to classic Agent mode"), "aria-label": t("Switch to classic Agent mode"), onClick: () => actions.setSurface("agent") },
++      (0, import_react37.createElement)("span", { className: "bt-you", "aria-hidden": true }, (0, import_react37.createElement)(ChevronLeftIcon))
++    ) : null,
+     (0, import_react37.createElement)(
+       "button",
+@@ -34486,9 +34488,9 @@ function BotReturn({ wide, useSurface, useRoster, actions }) {
+   useReportReady(mode === "agent" && ready);
+   if (mode !== "agent") return null;
+-  const label = t("Back to DS Bot");
++  const label = t("Enter team mode");
+   return (0, import_react37.createElement)(
+     "button",
+     { type: "button", className: "bt-return", "aria-label": label, title: label, onClick: () => actions.setSurface("bot") },
+-    (0, import_react37.createElement)(BotMark, { look: MAIN_LOOK, size: 20 }),
++    (0, import_react37.createElement)(BotMark, { look: { shape: "pebbles", color: "blue" }, size: 22 }),
+     wide ? (0, import_react37.createElement)("span", { className: "bt-return-name" }, label) : null,
+     wide ? (0, import_react37.createElement)("span", { className: "bt-return-swap", "aria-hidden": true }, (0, import_react37.createElement)(SwitchIcon)) : null
+@@ -34496,11 +34498,10 @@ function BotReturn({ wide, useSurface, useRoster, actions }) {
+ }
+ var RETURN_CSS = `
+-.bt-return{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 14px;border:0;border-radius:999px;background:var(--bt-return-fill);color:inherit;font:inherit;font-size:14px;line-height:20px;cursor:pointer;transition:background-color .12s ease}
++.bt-return{margin-block-end:12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 14px;border:0;border-radius:999px;background:var(--bt-return-fill);color:inherit;font:inherit;font-size:14px;line-height:20px;cursor:pointer;transition:background-color .12s ease}
+ .bt-return:hover{background:var(--bt-return-fill-hover)}
+ .bt-return:active{transform:scale(.96)}
+ .bt-return .bt-mark{display:inline-flex;flex:none;line-height:0}
+ .bt-return .bt-mark svg{width:100%;height:100%;overflow:visible}
+-/* Shell styles carry --bt-ink-deepseek and Agent mode withdraws them; pin it here. */
+-.bt-return .bt-mark{--bt-ink-deepseek:#4D6BFE}
++.bt-return .bt-mark{--bt-ink-blue:#2563EB}
+ .bt-return-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .bt-return-swap{display:inline-flex;flex:none;line-height:0;opacity:.55}
+@@ -35033,7 +35034,5 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
+   const [library, setLibrary] = (0, import_react40.useState)(false);
+   const [name, setName] = (0, import_react40.useState)(start?.name ?? "");
+-  const [mode, setMode] = (0, import_react40.useState)("model");
+   const [model, setModel] = (0, import_react40.useState)(() => startModel(roster));
+-  const [agentModel, setAgentModel] = (0, import_react40.useState)("");
+   const [ownLook, setOwnLook] = (0, import_react40.useState)(false);
+   const [effort, setEffort] = (0, import_react40.useState)(void 0);
+@@ -35042,8 +35041,4 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
+   const fileRef = (0, import_react40.useRef)(null);
+   const frame2 = (0, import_react40.useRef)(null);
+-  const localAgents = useLocalAgents(mode === "local");
+-  const [reading, readModels] = useAgentModels(actions);
+-  const local = mode === "local";
+-  const chosen = local ? agentModel : model;
+   useEscape(onBack);
+   (0, import_react40.useEffect)(() => {
+@@ -35054,5 +35049,5 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
+   const clash = roster.bots.some((bot) => bot.name.toLowerCase() === finalName.toLowerCase());
+   const problem = nameProblem(finalName);
+-  const blocked = busy || clash || Boolean(problem) || local && chosen === "";
++  const blocked = busy || clash || Boolean(problem);
+   const create = async () => {
+     if (blocked) return;
+@@ -35060,5 +35055,5 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
+     setBusy(true);
+     try {
+-      const bot = await actions.createBot(createPayload({ name: finalName, look, image, model: chosen, effort: local ? void 0 : effort, brief, ownLook, sectionId: start?.sectionId }));
++      const bot = await actions.createBot(createPayload({ name: finalName, look, image, model, effort, brief, ownLook, sectionId: start?.sectionId }));
+       onCreated(bot);
+     } catch (failure) {
+@@ -35072,14 +35067,8 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
+     avatarImage(file).then(setImage, (failure) => setError(failure?.message ?? String(failure)));
+   };
+-  const pickAgent = (agent) => {
+-    setAgentModel(`${agent.route}/default`);
+-    readModels(agent.route);
+-  };
+-  const worn = local && chosen !== "" && !ownLook ? agentAvatar(routeOf(chosen))?.image : void 0;
+-  const previewLook = image ? { ...look, image } : worn ? { ...look, image: worn } : look;
++  const previewLook = image ? { ...look, image } : look;
+   const card = (0, import_react40.createElement)(
+     "div",
+     { className: "bt-create-card" },
+-    (0, import_react40.createElement)(RunModeSwitch, { mode, setMode }),
+     (0, import_react40.createElement)(
+       "div",
+@@ -35155,24 +35144,14 @@ function CreateBot({ roster, actions, start, brief = "", onBack, canGoBack, onCr
+       problem ? (0, import_react40.createElement)("span", { className: "bt-note bt-danger" }, hostText(problem)) : clash ? (0, import_react40.createElement)("span", { className: "bt-note bt-danger" }, t("A Bot named {name} already exists", { name: finalName })) : null
+     ),
+-    local ? (0, import_react40.createElement)(
+-      "div",
+-      { className: "bt-field" },
+-      (0, import_react40.createElement)("span", { className: "bt-field-label" }, t("Local agent")),
+-      (0, import_react40.createElement)(CliList, { ...localAgents, selected: routeOf(chosen), onPick: pickAgent, actions })
+-    ) : null,
+-    !local || chosen !== "" ? (0, import_react40.createElement)(
++    (0, import_react40.createElement)(
+       "div",
+       { className: "bt-field" },
+-      (0, import_react40.createElement)("span", { className: "bt-field-label" }, t("Model"), local && reading ? (0, import_react40.createElement)(ReadingModels) : null),
+-      (0, import_react40.createElement)(ModelMenu, { bot: { id: "new-bot", name: finalName, model: chosen || void 0, effort: local ? void 0 : effort }, roster, actions, wide: true, onPick: (ref) => {
+-        if (local) {
+-          setAgentModel(ref);
+-          return;
+-        }
++      (0, import_react40.createElement)("span", { className: "bt-field-label" }, t("Model")),
++      (0, import_react40.createElement)(ModelMenu, { bot: { id: "new-bot", name: finalName, model: model || void 0, effort }, roster, actions, wide: true, onPick: (ref) => {
+         setModel(ref);
+         setEffort(void 0);
+       }, onPickEffort: (picked) => setEffort(picked ?? null) }),
+-      (0, import_react40.createElement)("span", { className: "bt-note" }, chosen ? t("The Bot runs on this model. You can change it later in its details.") : modelsFor(roster.models).length > 0 ? t("Pick a model here, or the Bot asks for one in its chat.") : t("Add a provider and a model in DeepSeek Harness first, or pick one in the Bot's chat later."))
+-    ) : null,
++      (0, import_react40.createElement)("span", { className: "bt-note" }, model ? t("The Bot runs on this model. You can change it later in its details.") : modelsFor(roster.models).length > 0 ? t("Pick a model here, or the Bot asks for one in its chat.") : t("Add a provider and a model in DeepSeek Harness first, or pick one in the Bot's chat later."))
++    ),
+     error ? (0, import_react40.createElement)("div", { className: "bt-error", role: "alert", style: { padding: 0 } }, error) : null,
+     (0, import_react40.createElement)(
+@@ -40915,5 +40894,5 @@ var SECTION_TOURS = {
+   ],
+   models: [
+-    { target: "provider-list", title: "Providers", cue: "Click any provider row to expand it and enter your API key." },
++    { target: "provider-list", title: "Providers", cue: "Expand a provider to see its models." },
+     { target: "provider-add", title: "Add a provider", cue: "Click here to add a custom OpenAI, Anthropic, or Gemini endpoint." },
+     { target: "provider-advanced", title: "Advanced settings", cue: "Click here to tune context windows, thinking levels, and model order.", optional: true }
+@@ -40923,13 +40902,4 @@ var SECTION_TOURS = {
+     { target: "bm-bar", title: "Choose a model", cue: 'Click "Select all" or pick a model here to apply it in one click.' }
+   ],
+-  "local-agents": [
+-    { target: "la-detected", title: "Detected agents", cue: 'Click "Refresh" to scan local CLIs, or "Sign in" to copy the login command.' },
+-    { target: "la-add", title: "Custom agents", cue: 'Click "+ Add agent" to register an ACP-compatible command.' }
+-  ],
+-  "deepseek-services": [
+-    { target: "svc-key", title: "DeepSeek API", cue: 'Confirm the API key is ready, or click "Manage models" to set it up.' },
+-    { target: "svc-ocr", title: "Image and document reading", cue: "Turn on this switch to read images and documents with DeepSeek." },
+-    { target: "svc-tts", title: "Text to speech", cue: "Switch to DeepSeek here for voice replies, or enable dictation below." }
+-  ],
+   bots: [
+     { target: "main-bot", title: "Main Bot", cue: "Pick your primary Main Bot from this dropdown." },
+@@ -40953,19 +40923,4 @@ var SECTION_TOURS = {
+     }
+   ],
+-  connectors: [
+-    { target: "conn-search", title: "Search connectors", cue: 'Search an app here, or click "+ Custom" to add your own MCP server.' },
+-    { target: "conn-grid", title: "Connectors", cue: 'Click "Connect" on any card to sign in or paste credentials.' }
+-  ],
+-  im: [
+-    { target: "im-platforms", title: "Add an IM bot", cue: "Click a platform below and follow its steps to bind a Bot." }
+-  ],
+-  phone: [
+-    { target: "phone-pair", title: "Pair a phone", cue: 'Click "Turn on & pair" to show a one-time QR code, then scan it on your phone.' },
+-    { target: "phone-server", title: "Server", cue: 'Click "Edit" here only if you host your own relay server.' }
+-  ],
+-  mcp: [
+-    { target: "mcp-switch", title: "MCP access", cue: "Turn on this switch so other local agents can reach your Bots." },
+-    { target: "mcp-add", title: "Add a client", cue: 'Enter a client name, click "Create token", then pick allowed Bots below.' }
+-  ],
+   computer: [
+     { target: "comp-switch", title: "Computer use", cue: "Turn on this switch and grant system permissions when prompted." },
+@@ -40987,12 +40942,11 @@ var SECTION_TOURS = {
+ };
+ var hasSectionTour = (page) => Object.hasOwn(SECTION_TOURS, page);
+-function stepsForTour(mode, { hasProviders = true, hasAdvancedModels = false } = {}) {
++function stepsForTour(mode, { hasAdvancedModels = false } = {}) {
+   if (mode === "full") {
+     return [
+       { page: "overview", target: "search", title: "Search settings", cue: "Click here to search any setting, Bot, or model." },
+-      hasProviders ? { page: "models", target: "provider-list", title: "Models", cue: 'Click a provider to enter your API key, or click "+ Add a provider".' } : { page: "bot-models", target: "bm-bar", title: "Bot models", cue: "Select Bots below and pick a model here to switch them together." },
++      { page: "general", ...SECTION_TOURS.general[0] },
+       { page: "bots", target: "new-bot", title: "Team", cue: 'Click "+ New Bot" to add a member, or click any Bot row to edit it.' },
+-      { page: "phone", target: "phone-pair", title: "Connect", cue: 'Click "Turn on & pair" to show a one-time QR code, then scan it on your phone.' },
+-      { page: "appearance", target: "theme-grid", title: "Appearance", cue: "Pick a theme, accent color, and layout here. Replay this guide anytime in About DS Bot." }
++      { page: "appearance", target: "theme-grid", title: "Appearance", cue: SECTION_TOURS.appearance[0].cue }
+     ];
+   }
+@@ -41091,8 +41045,8 @@ function placeCard(spot, cardW, cardH) {
+   return { left: Math.round(maxLeft), top: Math.round(maxTop) };
+ }
+-function SettingsTour({ tour, currentPage, dialogRef, hasProviders, hasAdvancedModels, onNavigate, onDismiss }) {
++function SettingsTour({ tour, currentPage, dialogRef, hasAdvancedModels, onNavigate, onDismiss }) {
+   const steps = (0, import_react54.useMemo)(
+-    () => tour ? stepsForTour(tour.mode, { hasProviders, hasAdvancedModels }) : [],
+-    [tour?.mode, hasProviders, hasAdvancedModels]
++    () => tour ? stepsForTour(tour.mode, { hasAdvancedModels }) : [],
++    [tour?.mode, hasAdvancedModels]
+   );
+   const tourKey = tour ? `${tour.mode}:${tour.nonce}` : "";
+@@ -41634,10 +41588,8 @@ var SEARCH_ENTRIES = [
+   { id: "memory", label: "Memory", group: "General", page: "general", icon: "general", expandAdvanced: true, keywords: "bring up related memory group bot team memory size recall limits 记忆 上限 召回 自动召回" },
+   { id: "background", label: "Background work", group: "General", page: "general", icon: "general", expandAdvanced: true, keywords: "background commands after seconds timeout 后台 命令 超时 秒" },
+-  { id: "mode", label: "Classic Agent mode", group: "General", page: "general", icon: "general", expandAdvanced: true, requiresSurface: true, keywords: "bot mode agent mode surface 经典模式 切换" },
+   { id: "appearance", label: "Appearance", group: "Appearance", page: "appearance", icon: "appearance", keywords: "theme accent color dark light font size 主题 强调色 颜色 深色 浅色 字体 字号" },
+   { id: "layout", label: "Message layout", group: "Appearance", page: "appearance", icon: "appearance", keywords: "bubble flat text bubble width text width show thinking 气泡 平铺 宽度 气泡宽度 正文宽度 显示思考过程 思考" },
+   { id: "motion", label: "Motion", group: "Appearance", page: "appearance", icon: "appearance", keywords: "interface motion bot animation quiet normal lively full reduced 界面动效 动画 安静 正常 活泼" },
+   { id: "models", label: "Providers", group: "Models", page: "models", icon: "models", keywords: "api key openai anthropic gemini deepseek 模型 服务商 密钥" },
+-  { id: "local-agents", label: "Local agents", group: "Models", page: "local-agents", icon: "local-agents", keywords: "cli claude codex antigravity acp 本地 代理" },
+   { id: "bot-models", label: "Bot models", group: "Models", page: "bot-models", icon: "bot-models", keywords: "batch switch models 批量 切换 模型" },
+   { id: "deepseek-services", label: "DeepSeek services", group: "Models", page: "deepseek-services", icon: "deepseek-services", keywords: "ocr tts asr speech voice dictation document 识图 语音 朗读 听写 文档" },
+@@ -41654,6 +41606,5 @@ var SEARCH_ENTRIES = [
+   { id: "secrets", label: "Secrets", group: "Tools", page: "secrets", icon: "secrets", keywords: "encrypt passphrase password keys 密钥 加密 口令" },
+   { id: "usage", label: "Usage", group: "Usage", page: "usage", icon: "usage", keywords: "tokens cost stats chart 用量 统计 消耗" },
+-  { id: "about", label: "About DS Bot", group: "About DS Bot", page: "about", icon: "about", keywords: "version update release github guide walkthrough 关于 版本 更新 引导" },
+-  { id: "feedback", label: "Feedback", group: "About DS Bot", page: "feedback", icon: "feedback", keywords: "bug error log diagnostics issue 反馈 报错 日志 诊断" }
++  { id: "feedback", label: "Feedback", group: "Feedback", page: "feedback", icon: "feedback", keywords: "bug error log diagnostics issue 反馈 报错 日志 诊断" }
+ ];
+ var matches2 = (haystack, tokens) => tokens.every((token) => haystack.includes(token));
+@@ -41995,11 +41946,4 @@ function Tiles({ roster, actions, icons, view, hasProviders, narrow }) {
+   const providers = uniq(usable.map((entry) => entry.providerName ?? entry.ref.split("/")[0])).filter((name) => !keyless.includes(name));
+   const local = (roster.bots ?? []).filter((bot) => isLocalRoute(modelRefOf(bot))).length;
+-  const connectors = roster.connectors ?? {};
+-  const mail = connectors.mail?.accounts ?? [];
+-  const apps = (connectors.connectors ?? []).filter((app) => app.id !== "mail" && app.state !== "off");
+-  const im = roster.im?.connections ?? [];
+-  const phone = roster.phone ?? {};
+-  const phoneOnline = Boolean(phone.on && phone.status === "online" && (phone.phones ?? []).some((entry) => entry.connected));
+-  const connected = mail.length + apps.length + im.length + (phoneOnline ? 1 : 0);
+   const capabilities = roster.capabilities ?? [];
+   const secrets = roster.secrets ?? [];
+@@ -42019,12 +41963,4 @@ function Tiles({ roster, actions, icons, view, hasProviders, narrow }) {
+       local > 0 ? (0, import_react57.createElement)(Chip, null, t("Local {count}", { count: local })) : null
+     ),
+-    (0, import_react57.createElement)(
+-      Tile,
+-      { icon: icons.connectors, title: t("Connect"), onOpen: () => actions.openSettings("connectors"), value: connected, unit: t("connected") },
+-      phone.on ? (0, import_react57.createElement)(Chip, { tone: phoneOnline ? "ok" : null }, t("Phone")) : null,
+-      uniq(im.map((conn) => t(platformOf(conn.platform).name))).slice(0, 2).map((name) => (0, import_react57.createElement)(Chip, { key: `im:${name}` }, name)),
+-      apps.slice(0, 2).map((app) => (0, import_react57.createElement)(Chip, { key: app.id }, app.name)),
+-      mail.length > 0 ? (0, import_react57.createElement)(Chip, null, t("Mailbox")) : null
+-    ),
+     (0, import_react57.createElement)(
+       Tile,
+@@ -42106,5 +42042,5 @@ var NAV_GROUPS = [
+     label: "Models",
+     icon: "models",
+-    pages: [["models", "Providers"], ["local-agents", "Local agents"], ["bot-models", "Bot models"], ["deepseek-services", "DeepSeek services"]],
++    pages: [["models", "Providers"], ["bot-models", "Bot models"], ["deepseek-services", "DeepSeek services"]],
+     section: "main"
+   },
+@@ -42132,9 +42068,9 @@ var NAV_GROUPS = [
+   { id: "usage", label: "Usage", icon: "usage", pages: [["usage", "Usage"]], section: "main" },
+   {
+-    id: "about",
+-    label: "About DS Bot",
+-    icon: "about",
+-    pages: [["about", "About DS Bot"], ["feedback", "Feedback"]],
+-    section: "last"
++    id: "feedback",
++    label: "Feedback",
++    icon: "feedback",
++    pages: [["feedback", "Feedback"]],
++    section: "contextual"
+   }
+ ];
+@@ -42429,5 +42365,5 @@ function GeneralPage({ roster, actions, run: run2, dsh, openAdvanced = 0 }) {
+     if (openAdvanced) setAdvancedOpen(true);
+   }, [openAdvanced]);
+-  const advancedSummary = [t("Memory"), t("Background work"), actions.setSurface && !inAgentMode ? t("Classic Agent mode") : null].filter(Boolean).join(" · ");
++  const advancedSummary = [t("Memory"), t("Background work")].join(" · ");
+   return [
+     // In Agent mode, keep the way back to Bot mode visible at the top.
+@@ -42500,5 +42436,4 @@ function GeneralPage({ roster, actions, run: run2, dsh, openAdvanced = 0 }) {
+           (0, import_react58.createElement)(SecondsField, { label: t("Background commands after (seconds)"), value: prefs.backgroundAfterSec ?? BACKGROUND_AFTER_SEC, save: (backgroundAfterSec) => run2(actions.setPrefs({ backgroundAfterSec })) })
+         ),
+-        actions.setSurface && !inAgentMode ? (0, import_react58.createElement)(SetRow, { key: "classic", label: t("Classic Agent mode") }, (0, import_react58.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", onClick: () => actions.setSurface("agent") }, t("Switch"))) : null,
+         ...more.map((id) => dshItem(dsh, id))
+       ] : null
+@@ -42748,11 +42683,10 @@ function SettingsDialog({ page, id, roster, actions, useUpdate, leaving = false,
+   });
+   const hasProviders = actions.providers !== void 0;
+-  const hasServices = actions.deepseekServices !== void 0;
+   const hasSurface = typeof actions.setSurface === "function";
+-  const pageAvailable = (key) => (key !== "models" || actions.providers !== void 0) && (key !== "deepseek-services" || actions.deepseekServices !== void 0);
++  const pageAvailable = (key) => (key !== "models" || actions.providers !== void 0) && !["deepseek-services", "connectors", "im", "phone", "mcp"].includes(key);
+   const groups = (0, import_react58.useMemo)(() => NAV_GROUPS.map((group) => ({
+     ...group,
+     pages: group.pages.filter(([key]) => pageAvailable(key))
+-  })).filter((group) => group.pages.length > 0), [hasProviders, hasServices]);
++  })).filter((group) => group.pages.length > 0), [hasProviders]);
+   const extra = dshPages(dsh);
+   const resolvedPage = GROUP_ALIASES[page] ?? (page === "models" && !hasProviders ? "bot-models" : page);
+@@ -42913,6 +42847,6 @@ function SettingsDialog({ page, id, roster, actions, useUpdate, leaving = false,
+   const mainGroups = groups.filter((group) => group.section === "main");
+   const lastGroups = groups.filter((group) => group.section === "last");
+-  const guideKey = parts ? activePart : shown;
+-  const showSectionGuide = !section && depth === 0 && !usageFocus && hasSectionTour(guideKey);
++  const guideKey = atHome ? "full" : parts ? activePart : shown;
++  const showSectionGuide = !section && depth === 0 && !usageFocus && (guideKey === "full" || hasSectionTour(guideKey));
+   const homeGroups = [
+     { key: "main", items: mainGroups.map((group) => ({ key: group.id, label: t(group.label), iconKey: group.icon, page: group.pages[0][0] })) },
+@@ -42924,6 +42858,4 @@ function SettingsDialog({ page, id, roster, actions, useUpdate, leaving = false,
+       case "models":
+         return (0, import_react58.createElement)(ProvidersPage, { actions, run: run2, roster, Section: SetSection, advanced: hasSection(dsh, "models") ? () => actions.openSettings("models", "advanced") : null });
+-      case "local-agents":
+-        return (0, import_react58.createElement)(LocalAgentsPage, { run: run2, Section: SetSection, Row: SetRow });
+       // A preset opens the page afresh each time search offers it.
+       case "bot-models":
+@@ -43114,5 +43046,4 @@ function SettingsDialog({ page, id, roster, actions, useUpdate, leaving = false,
+         currentPage: shown,
+         dialogRef,
+-        hasProviders,
+         hasAdvancedModels: hasSection(dsh, "models"),
+         onNavigate: navigateForTour,
+@@ -52912,5 +52843,4 @@ function apply(ctx) {
+   const surface = createSource({ mode: readMode(), plain: false });
+   const settingsShellHeld = createSource(false);
+-  let settingsShell = null;
+   let agentSessionCache = /* @__PURE__ */ new Set();
+   try {
+@@ -53626,5 +53556,4 @@ function apply(ctx) {
+   actions.openPlugins = () => ctx.get("pluginNavigation")?.openList();
+   actions.speech = () => ctx.get("remote.speech") ?? void 0;
+-  actions.openHarnessOnboarding = (id) => settingsShell?.openOnboarding(id);
+   actions.voiceSetup = (providerId) => {
+     const navigation = ctx.get("pluginNavigation");
+@@ -53760,13 +53689,5 @@ function apply(ctx) {
+   const hostDrawsUserText = typeof ctx.uiConversation.userText?.register === "function";
+   ctx.effect(() => installCommandActions(ctx, { roster, actions }), "ds-bot: bot command actions");
+-  ctx.effect(() => {
+-    const offStyles = installCompiledStyles(SETTINGS_SHELL_CSS, "settings-shell");
+-    settingsShell = installSettingsShell(ctx, { face, actions, ui, held: settingsShellHeld });
+-    return () => {
+-      settingsShell?.dispose();
+-      settingsShell = null;
+-      offStyles();
+-    };
+-  }, "ds-bot: settings shell");
++  // NovaFlow owns sidebar.settings. Team mode supplies its launcher and settings overlay.
+   const queueFace = (sessionId) => ({
+     ...face(),
+diff --git a/cordis.patch.yml b/cordis.patch.yml
+index 84eda6f..9c9dabf 100644
+--- a/cordis.patch.yml
++++ b/cordis.patch.yml
+@@ -18,8 +18,2 @@
+     searchProvider: auto
+     fetchProvider: http
+-
+-# DS Bot's settings shell holds the sidebar's settings seat (src/client/settings-shell.js)
+-# and draws DSH's settings pages in DS Bot's Settings dialog. Only the entry that declares
+-# the seat's child slots may render them, so DSH's own shell stays off.
+-- id: ui-settings-general
+-  disabled: true
+diff --git a/index.js b/index.js
+index 3caae66..f86598b 100644
+--- a/index.js
++++ b/index.js
+@@ -57,5 +57,4 @@ import * as goalSkills from './src/host/goal-skills.js'
+ import * as issueReport from './src/host/issue-report.js'
+ import * as manualSkills from './src/host/manual-skills.js'
+-import * as localAgents from './src/host/local-agents/index.js'
+ import * as deepseekServices from './src/host/deepseek-services.js'
+ 
+@@ -69,5 +68,5 @@ export { name, inject } from './src/host/entry.js'
+ // usage meters model requests after every listener that rewrites them. privacy checks a
+ // call before the hooks of tools do, so a closed call never reaches a card they show.
+-const MODULES = [diagnostics, store, ledger, models, providers, permissions, turns, steer, handoffs, requests, delivery, roster, folders, privacy, agents, prompt, timeContext, tools, issueReport, deepseekServices, chatIndex, groups, goals, agentCommands, tasks, approvals, resume, memory, parts, botTasks, changes, images, avatarLibrary, secrets, connectors, capabilities, learning, schedules, browser, browserPlugins, computer, usage, update, dshUpdate, thinking, mobile, feed, phone, mcpServer, im, channel, remote, officeSkills, goalSkills, manualSkills, localAgents]
++const MODULES = [diagnostics, store, ledger, models, providers, permissions, turns, steer, handoffs, requests, delivery, roster, folders, privacy, agents, prompt, timeContext, tools, issueReport, deepseekServices, chatIndex, groups, goals, agentCommands, tasks, approvals, resume, memory, parts, botTasks, changes, images, avatarLibrary, secrets, connectors, capabilities, learning, schedules, browser, browserPlugins, computer, usage, update, dshUpdate, thinking, mobile, feed, phone, mcpServer, im, channel, remote, officeSkills, goalSkills, manualSkills]
+ 
+ export function apply(ctx, config = {}) {
+diff --git a/src/host/channel.js b/src/host/channel.js
+index c911d2b..55f0e52 100644
+--- a/src/host/channel.js
++++ b/src/host/channel.js
+@@ -837,12 +837,4 @@ export function install(rt) {
+           await rt.load()
+           return ok(await rt.imEndpoint(endpoint, body))
+-        case 'local-agents':
+-        case 'local-agent-models':
+-        case 'local-agent-refresh':
+-        case 'local-agent-add':
+-        case 'local-agent-update':
+-        case 'local-agent-remove':
+-          await rt.load()
+-          return ok(await rt.localAgentsEndpoint(endpoint, body))
+         case 'bot-stop-task': {
+           await rt.load()
+diff --git a/src/host/folders.js b/src/host/folders.js
+index c8a55ac..f1d06d1 100644
+--- a/src/host/folders.js
++++ b/src/host/folders.js
+@@ -143,5 +143,5 @@ export function install(rt) {
+     const clash = await rt.privateClash(path)
+     if (clash) throw new Error(`${text} is in or around the folder of ${clash.name}, a private Bot, so it cannot be the team workspace`)
+-    const workspace = await ctx.workspaceRegistry.resolveByPath(path) ?? await ctx.workspaceRegistry.create(path, 'DS Bot')
++    const workspace = await ctx.workspaceRegistry.resolveByPath(path) ?? await ctx.workspaceRegistry.create(path, '团队工作区')
+     state.workspaceId = workspace.id
+     await rt.save()
+diff --git a/src/host/prompt.js b/src/host/prompt.js
+index 0c42154..d7887af 100644
+--- a/src/host/prompt.js
++++ b/src/host/prompt.js
+@@ -25,5 +25,5 @@ const TEAM_RULES = [
+   '- A file the user attaches reaches you as a saved path, and the read tool opens text files only. A PDF, scanned or not, opens through the office skill: load it, then look at the pages with office_render (or the office-render skill when the catalog offers that instead). If that cannot run here, for example because your model does not accept images, say so and tell the user what to send instead; never answer only that the file cannot be read.',
+   '- Your conversations are long-lived. When one grows long, either its older messages are condensed in place into a summary you wrote (a "[Checkpoint N]" message), or it moves on to a fresh part that opens with a handoff note you wrote and your latest messages (a "[Handoff · part N]" message). What leaves your working context stays saved. When you need the exact earlier wording or a detail the summary or note does not show in full (a full path, a figure, every item of a complete list or a final summary), call read_own_chat with words to look for, or with part N to read the note that closed an earlier part; never fill such a detail in from memory. Each line it returns starts with an anchor such as [part 2 #1234 · 10-08 14:22]; pass the anchor as around to read what was said around it.',
+-  '- For multi-step or slow work in your own chat or a group chat, call task_start to run it in a background task while the chat stays free. Pass follow-ups with task_send, stop one with task_stop, inspect with task_list, and read long results with task_read. Slow shell commands move to background jobs on their own after the configured wait. On local CLI agents, a background task starts a separate CLI session with a recent summary (use workdir for a separate folder or worktree when editing files).',
++  '- For multi-step or slow work in your own chat or a group chat, call task_start to run it in a background task while the chat stays free. Pass follow-ups with task_send, stop one with task_stop, inspect with task_list, and read long results with task_read. Slow shell commands move to background jobs on their own after the configured wait.',
+   `- Load the ds-bot-manual skill when the user asks how to use or configure DS Bot, what it can do, or wants a tour, and before changing DS Bot settings yourself; if you have no skill loader, use your read tool to open ${JSON.stringify(join(manualDirectory(), 'SKILL.md'))} and its linked references directly. Read the relevant references and respect their user-only controls and approvals.`,
+   '- Reply in the user\'s language.',
+diff --git a/src/host/providers.js b/src/host/providers.js
+index 129e66e..68a426a 100644
+--- a/src/host/providers.js
++++ b/src/host/providers.js
+@@ -230,4 +230,5 @@ export function install(rt) {
+     const addable = []
+     for (const entry of ctx.llm.listConfigurableProviders()) {
++      if (entry.provider === 'deepseek-official') continue
+       const profile = profileOf(entry, map)
+       if (entry.settingsNs === PI_AI && profile === undefined) {
+diff --git a/src/host/roster.js b/src/host/roster.js
+index b3dada3..98fe8c5 100644
+--- a/src/host/roster.js
++++ b/src/host/roster.js
+@@ -66,5 +66,5 @@ export function install(rt) {
+     const path = rt.defaultTeamFolder()
+     await mkdir(path, { recursive: true })
+-    const workspace = await ctx.workspaceRegistry.resolveByPath(path) ?? await ctx.workspaceRegistry.create(path, 'DS Bot')
++    const workspace = await ctx.workspaceRegistry.resolveByPath(path) ?? await ctx.workspaceRegistry.create(path, '团队工作区')
+     state.workspaceId = workspace.id
+     await rt.save()
+@@ -1032,4 +1032,10 @@ export function install(rt) {
+   async function bootstrap() {
+     await rt.load()
++    if (!state.novaflowWorkspaceTitleMigrated) {
++      const workspace = state.workspaceId && ctx.workspaceRegistry.get(state.workspaceId)
++      if (workspace?.title === 'DS Bot') await workspace.setTitle('团队工作区')
++      state.novaflowWorkspaceTitleMigrated = true
++      await rt.save()
++    }
+     void rt.syncModels()
+     if (state.mainBotIds.some(id => rt.botOf(id))) return
+diff --git a/src/host/skills/ds-bot-manual/SKILL.md b/src/host/skills/ds-bot-manual/SKILL.md
+index ed9e0e1..338b9b8 100644
+--- a/src/host/skills/ds-bot-manual/SKILL.md
++++ b/src/host/skills/ds-bot-manual/SKILL.md
+@@ -20,5 +20,5 @@ Read the relevant reference before answering or changing a setting. This manual
+ Every Bot can change its own supported profile settings with `update_bot`, manage its own memory, and use the tools it has been granted. A Main Bot can create Bots and change other Bots. Group administration has separate rules; being a member is not the same as being the admin.
+ 
+-Only the user deletes Bots, changes Main Bot status, switches between DS Bot models and local agent CLIs, changes privacy or permission controls, authorizes accounts, and grants computer access. A Main Bot is not exempt from user approval. Folder changes can require approval. Local MCP commands need user permission before they run. Browser actions and computer applications have their own approval boundaries.
++Only the user deletes Bots, changes Main Bot status, changes privacy or permission controls, authorizes accounts, and grants computer access. A Main Bot is not exempt from user approval. Folder changes can require approval. Local MCP commands need user permission before they run. Browser actions and computer applications have their own approval boundaries.
+ 
+ ## Index
+diff --git a/src/host/skills/ds-bot-manual/references/bots.md b/src/host/skills/ds-bot-manual/references/bots.md
+index 07318f0..c836818 100644
+--- a/src/host/skills/ds-bot-manual/references/bots.md
++++ b/src/host/skills/ds-bot-manual/references/bots.md
+@@ -11,15 +11,12 @@ Call `list_bots` to inspect the team. Call `update_bot` without bot to change yo
+ Only a Main Bot can call `create_bot` or change another Bot with `update_bot`. Check for duplicates first. Do not invent a model preference: pass model or effort when the user names one. Only the user deletes a Bot or changes Main Bot status. There can be several Main Bots.
+ 
+-## Private Bots and local agents
++## Private Bots
+ 
+ The user controls **Privacy → Private**. Give private work a separate folder. Other Bots cannot read a private Bot's folder, memory or history. Sending messages out or writing outside its folder requires approval. A private Bot cannot be a Main Bot or join a group. Deleting it does not automatically release its protected records and folder. This is a team boundary, not an OS sandbox: shell and network access still matter.
+ 
+-The user can choose **Local agent** when creating or configuring a Bot. This uses an installed CLI's sign-in, models, tools and context. Only the user switches between DS Bot models and a local CLI, or between CLIs. There is no update_bot field for that route switch.
+-
+ ## Common problems
+ 
+ - A role named “Main” does not make a Bot a Main Bot. Ask the user to review its actual rights.
+ - A changed folder is not a permission grant for every file on disk. Respect approval cards.
+-- A local agent's tools and context differ from shared DSH tools. Check the CLI's setup in **Settings → Local agents**.
+ 
+ Sources: README.md (Bot, Main bot, Private bot, Local agents); src/client/bot-settings.js; src/host/tools.js; docs/plans/2026-10-27-private-bots.md.
+diff --git a/src/host/skills/ds-bot-manual/references/capabilities.md b/src/host/skills/ds-bot-manual/references/capabilities.md
+index c2f1025..dd7e43e 100644
+--- a/src/host/skills/ds-bot-manual/references/capabilities.md
++++ b/src/host/skills/ds-bot-manual/references/capabilities.md
+@@ -13,5 +13,5 @@ Keep credentials out of definitions. In MCP env or headers use the saved-secret
+ ## Connectors and mail
+ 
+-Open **Settings → Connectors** to connect accounts or add a custom server. Bot details have **Connectors** controls for each Bot. `list_connectors` shows the catalog, connection status and availability to you. `request_connector` asks the user to connect a service with a card in your own chat; it is not a group-chat sign-in tool. Wait for the user's result instead of retrying. User sign-in and per-Bot access controls are not bypassed by Main Bot rights.
++For shared MCP servers, open team **Settings → Tools → Capabilities**. Bot details have **Connectors** controls for each Bot. `list_connectors` shows the catalog, connection status and availability to you. `request_connector` asks the user to connect a service with a card in your own chat; it is not a group-chat sign-in tool. Wait for the user's result instead of retrying. User sign-in and per-Bot access controls are not bypassed by Main Bot rights.
+ 
+ Connected remote servers can have **Read-only** enabled. It exposes only tools marked read-only by the server. Unmarked tools count as writes. Default mailbox sends need user confirmation; configured send rules may allow direct sending, but private Bots still require confirmation. Check the current tool catalog for service-specific and mail tools: these depend on connected accounts.
+diff --git a/src/host/skills/ds-bot-manual/references/getting-started.md b/src/host/skills/ds-bot-manual/references/getting-started.md
+index c836548..044b354 100644
+--- a/src/host/skills/ds-bot-manual/references/getting-started.md
++++ b/src/host/skills/ds-bot-manual/references/getting-started.md
+@@ -1,24 +1,9 @@
+-# Install and first run
++# First use in NovaFlow
+ 
+-DS Bot is a persistent Bot team built on DeepSeek Harness (DSH). The desktop app includes a pinned DSH. The plugin uses the DSH installation where it is enabled. Teams, chats and memory are stored on the computer hosting DS Bot.
++1. Sign in to NovaFlow. In the standard sidebar, select **进入团队模式** above the account button.
++2. Use the round settings button in the lower-left corner. The first settings tour covers Overview, the default model for new Bots, team members, and appearance. Replay it from **概览 → 引导**.
++3. In **通用 → 默认模型**, choose a model available to the team. To change existing Bots together, open **模型 → Bot 模型**. If NovaFlow models are missing, use the round back button to the left of Settings, then open **账户与余额 → 刷新模型配置** from the standard sidebar account button.
++4. Open **团队 → Bots** to create a member or edit one. Use the names in the current roster when guiding the user. The back button returns to the standard NovaFlow workspace.
++5. For phone conversations, return to the standard sidebar and open **连接手机**. See [Phone conversations](remote-access.md) for channel setup.
+ 
+-## User steps
+-
+-1. Download the desktop installer for Windows, macOS or Linux from the repository's Releases page. Open it. No separate DSH install is needed.
+-2. Set up a model in **Settings → Models**. The app can also import an existing team from DSH. Its data is separate from the user's DSH data.
+-3. Talk to **Chief**, the initial Main Bot. Describe one concrete job. Ask it to create a specialist only if that role needs an ongoing identity.
+-4. Open **Settings → Bots**, select a Bot, and review **Instructions**, **Model** and **Working folder**.
+-
+-For the plugin, install DSH and configure at least one model first. In DSH Desktop use **Plugins → Add plugin**, enter ds-bot, then **Install** and **Enable now**. For DSH Web the README specifies Node.js 22.19 or later and pnpm. Use the README's commands for the supported DSH version rather than guessing a newer version.
+-
+-## Bot help and authority
+-
+-Call `list_bots` before proposing a new team. A Main Bot can call `create_bot` and `create_group`. Ordinary Bots can explain setup or ask a Main Bot with `message_bot`. Installing the app, importing a team and supplying model credentials are user steps, not Bot tools. Do not ask for API keys in chat.
+-
+-## Common problems
+-
+-- No usable model: configure a provider and model in **Models** first. A Bot cannot create a working provider merely by changing its model name.
+-- Unsigned app warning: the README documents **More info → Run anyway** on Windows and **System Settings → Privacy & Security → Open Anyway** on macOS. The user decides whether to trust the download.
+-- Linux native-library failure on an old distribution: see troubleshooting. Do not replace DSH libraries.
+-
+-Sources: root README.md (Install, Setup, Main bot); docs/vision.md; docs/plans/2026-10-16-desktop-app.md; src/client/settings.js; src/host/tools.js.
++Call `list_bots` before proposing a new team. A Main Bot can call `create_bot` and `create_group`. A regular Bot can explain setup or ask a Main Bot through `message_bot`. Never ask for API keys in chat.
+diff --git a/src/host/skills/ds-bot-manual/references/models.md b/src/host/skills/ds-bot-manual/references/models.md
+index 33267bb..58c6541 100644
+--- a/src/host/skills/ds-bot-manual/references/models.md
++++ b/src/host/skills/ds-bot-manual/references/models.md
+@@ -1,9 +1,9 @@
+ # Models, providers and thinking
+ 
+-A provider supplies model access. Each DS Bot-model Bot has its own model and optional thinking level. Switching a model is different from signing in to a provider or switching to a local agent CLI.
++A provider supplies model access. Each Bot has its own model and optional thinking level.
+ 
+ ## Steps
+ 
+-1. The user opens **Settings → Models** to configure provider access.
++1. NovaFlow supplies the signed-in account’s models. In team **Settings → Models → Providers**, expand a provider to see its models. For new Bots choose **General → Default model**.
+ 2. Open **Settings → Bots**, select the Bot, then **Model** to choose its model and supported thinking level.
+ 3. Use **Settings → Bot models** to review model choices across the team. **Settings → Usage** shows usage information.
+@@ -11,5 +11,5 @@ A provider supplies model access. Each DS Bot-model Bot has its own model and op
+ Call `list_bot_models` for exact provider/model refs and supported thinking levels for models in use. Call `list_bots` to see the current assignment. Use `update_bot` with model or effort only for the user's requested choice. An empty effort returns to the model's default. Every Bot can change itself; a Main Bot can change another Bot.
+ 
+-For `create_bot`, if the user has not named a model, leave model out. The host chooses a usable team default or the creator's model. Do not silently select a more expensive model. Only the user moves a Bot between DS Bot models and a local CLI. Provider credentials, account sign-in and global provider setup are user-controlled UI work; there is no general Bot provider-settings tool described here.
++For `create_bot`, if the user has not named a model, leave model out. The host chooses a usable team default or the creator's model. Do not silently select a more expensive model. Provider credentials, account sign-in and global provider setup are user-controlled UI work.
+ 
+ ## Problems
+@@ -19,5 +19,4 @@ For `create_bot`, if the user has not named a model, leave model out. The host c
+ - Thinking levels differ by model. Do not send an unsupported effort value.
+ - Changing models does not give a text-only model image support. Explain when a screenshot or scanned document needs an image-capable model.
+-- Local agents use the CLI's own model access and tool behavior. Check **Local agents**, not just the shared model list.
+ 
+ Sources: README.md (Bot, Local agents); src/host/tools.js (list_bot_models, create_bot, update_bot); src/client/settings.js, bot-models-page.js, bot-settings.js; docs/plans/2026-11-13-bot-models.md.
+diff --git a/src/host/skills/ds-bot-manual/references/remote-access.md b/src/host/skills/ds-bot-manual/references/remote-access.md
+index d0e7a19..77dbb5d 100644
+--- a/src/host/skills/ds-bot-manual/references/remote-access.md
++++ b/src/host/skills/ds-bot-manual/references/remote-access.md
+@@ -1,28 +1,7 @@
+-# IM, phone and mobile access
++# Phone conversations in NovaFlow
+ 
+-Remote access talks to the team running on the host computer. It does not move that team's files and model runtime onto the phone.
++Return to the standard NovaFlow sidebar with the round back button beside team Settings. Open **连接手机** and select the messaging channel.
+ 
+-## Phone and browser pairing
++On supported setup pages, use **新接入账号的对话对象** before pairing. **独立** uses an independent conversation. **团队：<Bot name>** uses a member of the current team. On Feishu or Weixin, QR pairing binds the verified owner's private chat to the selected Bot. For manual setup or other channels, confirm the private chat from **对话对象** beside the connected account. Send a private message first if no conversation is listed, then refresh.
+ 
+-1. On the computer open **Settings → Phone**.
+-2. Enable phone access. Under **Show a QR code**, choose **Show** and scan it with the phone app.
+-3. Review paired devices under **Phones**. Use **Remove** to revoke one.
+-
+-For browser remote, show a pairing code and use **Open in a browser** or **Copy browser link**. The Relay Server must serve the exported mobile web build. Use HTTPS/WSS outside localhost. Browser remote is preview functionality; its relay deployment must support the web page before the link works.
+-
+-Pairing is a user security action. There is no Bot configuration tool for enabling phone access or silently pairing a device. A Bot can explain the steps and continue work through the user's connected client. Do not copy pairing material into public chats.
+-
+-The link is end-to-end encrypted. Browser remote still runs a page supplied by its Server: use only a trusted Server. Browser storage is encrypted with a non-extractable key in IndexedDB, but that does not make an untrusted web page safe. Sensitive operations require the phone app or computer. Browser remote has no background notifications.
+-
+-## IM platforms
+-
+-Open **Settings → IM** to configure supported messaging-platform connections. Use the platform choices and setup fields actually shown there; do not assume every chat platform is supported. Account credentials and pairing are user UI work, not Main Bot powers. IM carries messages to the existing team; it is not a new OS sandbox or permission grant.
+-
+-## Problems
+-
+-- A paired client needs the host computer and link connection available. Check **Phone** status before pairing repeatedly.
+-- A browser link that cannot load may mean the Relay Server has no web build. Consult the Relay Server deployment guide rather than changing model settings.
+-- A sensitive operation unavailable in browser remote should be done on the phone app or computer, not through a workaround.
+-- Revoke lost devices from **Phones**. Do not merely hide their chat.
+-
+-Sources: README.md (Browser remote); src/client/phone-page.js, phone-browser.js, im-page.js; docs/plans/2026-10-24-mobile-app.md; docs/plans/2026-11-04-im.md; docs/plans/2026-11-17-web-remote.md.
++Account authorization and pairing are user actions. Keep pairing material and credentials out of chat. Existing account bindings can be reviewed and released from the account's **对话对象** page.
+diff --git a/src/host/skills/ds-bot-manual/references/settings.md b/src/host/skills/ds-bot-manual/references/settings.md
+index 4ba872d..27a131e 100644
+--- a/src/host/skills/ds-bot-manual/references/settings.md
++++ b/src/host/skills/ds-bot-manual/references/settings.md
+@@ -1,5 +1,5 @@
+ # Settings reference
+ 
+-Open **Settings** from the sidebar. The English page labels below are the DS Bot pages. DSH and other plugins can add more pages. A page's presence does not mean every service on it is available on this host.
++In team mode, open the round settings button in the lower-left corner. Replay the first-use guide from **Overview → Guide**. The round back button to the left of Settings returns to the standard sidebar, where **连接手机** opens IM setup. The English page labels below are the DS Bot pages. DSH and other plugins can add more pages. A page's presence does not mean every service on it is available on this host.
+ 
+ | Page | Use it for | Who configures it |
+@@ -7,13 +7,8 @@ Open **Settings** from the sidebar. The English page labels below are the DS Bot
+ | General | General and interface preferences | User |
+ | Models | Provider and model setup | User |
+-| Local agents | Installed agent CLI setup | User |
+ | Bots | Bot profile, model, folder, instructions, memory and access | User; supported profile fields also via Bot tools |
+ | Bot models | Team model assignments | User; supported individual assignments also via Bot tools |
+ | Group chats | Group membership and settings | User; Main Bot or group admin via supported tools |
+-| Connectors | Service accounts, custom servers and mail | User sign-in; Bot can request a connection |
+-| IM | Messaging platform connections | User |
+-| Phone | Phone access, pairing and paired-device revocation | User |
+ | Capabilities | Shared MCP servers, skills and packs | User or Bot; local commands require user approval |
+-| DeepSeek services | DeepSeek service configuration | User |
+ | Browser | Browser access information and website action grants | User |
+ | Computer use | Provider status and computer access | User |
+@@ -21,6 +16,4 @@ Open **Settings** from the sidebar. The English page labels below are the DS Bot
+ | Usage | Usage information | User reads |
+ | Secrets | Credentials, scope and optional encryption | User; Bot can request credentials securely |
+-| Feedback | Report a problem | User |
+-| About DS Bot | Application information | User reads |
+ 
+ ## Bot configuration map
+diff --git a/src/host/skills/ds-bot-manual/references/troubleshooting.md b/src/host/skills/ds-bot-manual/references/troubleshooting.md
+index c38d5de..e12d9ce 100644
+--- a/src/host/skills/ds-bot-manual/references/troubleshooting.md
++++ b/src/host/skills/ds-bot-manual/references/troubleshooting.md
+@@ -25,5 +25,5 @@ An error such as GLIBC_2.27 not found while loading libghostty-vt.so comes from
+ - A read-only browser cannot click. Review **Settings → Browser → Browser access**.
+ - Browser profiles do not share logins between Bots. Payments require user handoff.
+-- Browser remote needs a Relay Server serving the web build. Sensitive actions need the phone app or computer.
++- For phone conversations open **连接手机** in the standard NovaFlow sidebar. Check the channel account and its selected conversation partner.
+ - An old fact outside active context is not necessarily lost. Call `read_own_chat`, `read_group_chat` or `bot_recall` as appropriate.
+ - Approval denial is not a transient failure. Do not retry through a different tool.
+diff --git a/src/host/store.js b/src/host/store.js
+index 5839b17..125ee53 100644
+--- a/src/host/store.js
++++ b/src/host/store.js
+@@ -10,5 +10,5 @@ import { homeLock } from './home-lock.js'
+ import { currentColor, headOf, normalize, unquote } from './text.js'
+ import { isActiveTask } from './threads.js'
+-import { AMBIGUOUS_OLD_ROUTES, legacyRoute } from './local-agents/engines.js'
++import { AMBIGUOUS_OLD_ROUTES, isLocalAgentRoute, legacyRoute } from './local-agents/engines.js'
+ 
+ // A table read that sees only the keys the table holds itself. Ids that come from
+@@ -242,4 +242,12 @@ export function install(rt) {
+     }
+     if (migrateLocalRoutes(state)) migrated = true
++    for (const bot of Object.values(state.bots)) {
++      for (const field of ['model', 'appliedModel']) {
++        if (isLocalAgentRoute(bot[field]?.split('/')[0])) {
++          delete bot[field]
++          migrated = true
++        }
++      }
++    }
+     // A team from before several Main Bots were allowed names a single one.
+     if (!Array.isArray(state.mainBotIds)) state.mainBotIds = []
+diff --git a/src/host/tools.js b/src/host/tools.js
+index 0b9ee2b..896d1e9 100644
+--- a/src/host/tools.js
++++ b/src/host/tools.js
+@@ -496,5 +496,5 @@ export function install(rt) {
+       color: { type: 'string', description: `One of ${[...COLORS, ...EXTRA_COLORS].join(', ')}` },
+       avatar: { ...AVATAR_PARAM, description: `${AVATAR_PARAM.description} An empty string removes the photo and shows the Bot's character again.` },
+-      model: { type: 'string', description: 'Move the Bot to another model, as provider/model or a model id. It stays on what it runs on: only the user moves a Bot between DS Bot models and a local agent CLI, or between two CLIs, in its settings.' },
++      model: { type: 'string', description: 'Move the Bot to an available provider/model or model id from list_bot_models.' },
+       effort: { type: 'string', description: 'Thinking level for the Bot\'s model, as list_bot_models shows; an empty string returns to the model\'s default' },
+       work_dir: { ...WORK_DIR_PARAM, description: `${WORK_DIR_PARAM.description}; an empty string returns it to the team workspace` },

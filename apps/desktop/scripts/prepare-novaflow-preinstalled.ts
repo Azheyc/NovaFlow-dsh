@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { join, relative, resolve, sep } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
@@ -85,8 +85,58 @@ function prepareLocalIm(target: string): void {
   replace('"让NovaFlow触手可及": "DeepSeek Harness ', '"让NovaFlow触手可及": "NovaFlow ')
   replace(/  const \[runningVersion, setRunningVersion\] = .*;\n/, '  const runningVersion = IM_PLUGIN_VERSION;\n')
   replace(/  const reportUpdateStatus = [^\n]+\n    setRunningVersion\(snapshot.runningVersion\);\n  \}, \[\]\);\n/, '')
+  replace('  const { openBotSettings } = React8.useContext(BotSettingsContext);', `  const { openBotSettings } = React8.useContext(BotSettingsContext);
+  const openAccount = (initialTab) => openBotSettings?.({ ...channelSettings, channel: channel7, botId, botName, connected: Boolean(connected), accessPolicy, initialTab });`)
+  replace(/onClick: \(\) => openBotSettings\?\.\(\{\n[\s\S]*?\n        \}\)/, 'onClick: () => openAccount("general")')
+  replace('    { className: "dim-botSettingsAction" },', `    { className: "dim-botSettingsAction" },
+    h2("button", { type: "button", className: "dim-botSettingsButton", onClick: () => openAccount("ds-bot") }, "对话对象"),`)
+  replace('React40.useState(BOT_SETTINGS_TABS[0].id)', 'React40.useState(account.initialTab ?? BOT_SETTINGS_TABS[0].id)')
+  replace('"连接手机": "Connect phone",', '"对话对象": "Conversation partner",\n  "连接手机": "Connect phone",')
+  replace(String.raw`Object.freeze({ id: "ds-bot", label: "\u7ED1\u5B9A DS Bot" })`, 'Object.freeze({ id: "ds-bot", label: "对话对象" })')
+  replace(String.raw`h2("h3", null, "\u7ED1\u5B9A DS Bot")`, 'h2("h3", null, "对话对象")')
+  const imSource = resolve(import.meta.dirname, '../preinstalled/im')
+  const picker = readFileSync(join(imSource, 'setup-partner-client.js'), 'utf8')
+  replace('function IMSettingsTab({', `${picker}\nfunction IMSettingsTab({\n  setupPartnerRpc,`)
+  replace('          loopbackRecovery ? h2(LoopbackRecoveryNotice, {', `          !globalSettingsSelected && !deliverySettings && !["email", "office"].includes(active.id)
+            ? h2(SetupPartnerPicker, { key: active.id, channel: active.id, rpc: setupPartnerRpc }) : null,
+          loopbackRecovery ? h2(LoopbackRecoveryNotice, {`)
+  replace('  const panelDependencies = {', `  const panelDependencies = {
+    setupPartnerRpc: (method, payload, signal) => callManagementRpc(ctx.connection, "/novaflow-partner", method, payload, signal),`)
+  replace('account: deliverySettings,', 'account: deliverySettings, setupPartnerRpc,')
+  replace('function DeliveryTargetSettingsPage({', 'function DeliveryTargetSettingsPage({\n  setupPartnerRpc,')
+  replace('activeTab.id === "ds-bot" ? h2(DsBotSettingsPage, {', 'activeTab.id === "ds-bot" ? h2(DsBotSettingsPage, { channel: channel7, setupPartnerRpc,')
+  replace('function DsBotSettingsPage({ botId, rpcCall })', 'function DsBotSettingsPage({ botId, channel, setupPartnerRpc, rpcCall })')
+  replace('    void refresh(controller.signal);\n    return () => {\n      controller.abort();\n      requests.current.revision++;', `    void refresh(controller.signal).then(async () => {
+      if (controller.signal.aborted) return;
+      try {
+        const choice = unwrapRpcResult16(await setupPartnerRpc("get", { channel, botId }, controller.signal));
+        if (!controller.signal.aborted) setDsBotId(current => current || choice.selected);
+      } catch { /* Explicit binding remains available if setup preferences are unavailable. */ }
+    });
+    return () => {
+      controller.abort();
+      requests.current.revision++;`)
   writeFileSync(entry, client)
-  includeLocalDependencies(target, imBundle)
+
+  // Desktop-owned bundles are omitted from pluginManager.listBundles(). Let the
+  // existing owner-scoped Bot RPC determine availability when its row is hidden.
+  const hostEntry = join(dirname(entry), 'index.js')
+  let host = readFileSync(hostEntry, 'utf8')
+  const check = 'if(!r?.installed)return{state:"missing",bots:[]};if(!r.enabled)return{state:"disabled",bots:[]}'
+  if (host.split(check).length !== 2) throw new Error('Cannot locate the DSH-IM Bot availability check')
+  host = host.replace(check, 'if(r&&!r.installed)return{state:"missing",bots:[]};if(r&&!r.enabled)return{state:"disabled",bots:[]}')
+  // Hook account setup after the workspace exists but before its inbound runtime starts.
+  const setupHooks = [
+    ['dsBot:hZ(G)});if(typeof F.listSessionSyncTargets', 'dsBot:hZ(G)});installSetupPartners(G,U,F);if(typeof F.listSessionSyncTargets'],
+    ['let et=yi(Ae,{dsBot:t.deliveryService?.dsBot,botId:Ue', 'await t.deliveryService?.applySetupPartner("feishu",Ue,le,_);let et=yi(Ae,{dsBot:t.deliveryService?.dsBot,botId:Ue'],
+    ['let Ie=yi(q,{dsBot:t.deliveryService?.dsBot,botId:V', 'await t.deliveryService?.applySetupPartner("weixin",V,ce,_);let Ie=yi(q,{dsBot:t.deliveryService?.dsBot,botId:V'],
+  ] as const
+  for (const [original, replacement] of setupHooks) {
+    if (host.split(original).length !== 2) throw new Error('Cannot locate the DSH-IM account setup hook')
+    host = host.replace(original, replacement)
+  }
+  cpSync(join(imSource, 'setup-partner.mjs'), join(dirname(hostEntry), 'setup-partner.mjs'))
+  writeFileSync(hostEntry, `import { installSetupPartners } from './setup-partner.mjs';\n${host}`)
 }
 
 /**
@@ -98,11 +148,14 @@ export function prepareNovaFlowPreinstalled(): string {
   const source = join(desktop, 'preinstalled')
   const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
   const marketPatch = `patches/dshmarket@${manifest.dependencies.dshmarket}.patch`
-  const files = ['package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml', marketPatch]
+  const botPatch = `patches/ds-bot@${manifest.dependencies['ds-bot']}.patch`
+  const memoryPatch = `patches/dsh-auto-memory@${manifest.dependencies['dsh-auto-memory']}.patch`
+  const files = ['package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml', marketPatch, botPatch, memoryPatch]
   const promptSource = resolve(desktop, '../../plugins/prompt-presets')
   const promptFiles = ['package.json', 'index.js', 'catalog.js', 'cordis.patch.yml', 'README.md']
   const promptManifest = JSON.parse(readFileSync(join(promptSource, 'package.json'), 'utf8')) as { name: string; version: string }
   const hash = createHash('sha256').update(readFileSync(import.meta.filename))
+  for (const file of ['setup-partner-client.js', 'setup-partner.mjs']) hash.update(readFileSync(join(source, 'im', file)))
   for (const file of files) hash.update(readFileSync(join(source, file)))
   const deskSource = join(source, 'media-desk', 'source')
   for (const item of ['assets', 'client', 'src', 'scripts', 'LICENSE', 'README.md', 'package.json', 'cordis.patch.yml']) {
@@ -127,7 +180,9 @@ export function prepareNovaFlowPreinstalled(): string {
     const pnpm = fileURLToPath(new URL('../../../node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
     execFileSync(process.execPath, [pnpm, 'install', '--frozen-lockfile', '--ignore-scripts', '--config.registry=https://registry.npmjs.org'],
       { cwd: target, stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1' } })
-    includeLocalDependencies(target, 'dshmarket', ['@deepseek-ai/schemastery'])
+    for (const name of Object.keys(manifest.dependencies)) {
+      includeLocalDependencies(target, name, name === 'dshmarket' ? ['@deepseek-ai/schemastery'] : [])
+    }
     prepareLocalIm(target)
     manifest.dependencies[novaFlowMediaDesk] = prepareLocalMediaDesk(target, source)
     mkdirSync(promptTarget, { recursive: true })
@@ -135,6 +190,15 @@ export function prepareNovaFlowPreinstalled(): string {
     const client = readFileSync(join(promptSource, 'client.jsx'), 'utf8').replace("'__PROMPT_STYLES__'", () => JSON.stringify(readFileSync(join(promptSource, 'style.css'), 'utf8')))
     writeFileSync(join(promptTarget, 'client.js'), ts.transpileModule(client, { fileName: 'client.jsx', compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, allowJs: true } }).outputText)
     manifest.dependencies[promptManifest.name] = promptManifest.version
+    const names = [...Object.keys(manifest.dependencies), '@local/novaflow-dsh-plugin', '@local/novaflow-modes']
+    const repositories = Object.keys(manifest.dependencies).flatMap((name) => {
+      const metadata = JSON.parse(readFileSync(join(target, 'node_modules', name, 'package.json'), 'utf8'))
+      const url = typeof metadata.repository === 'string' ? metadata.repository : metadata.repository?.url
+      return typeof url === 'string' ? [url.replace(/^git\+/, '').replace(/\.git$/, '').toLowerCase()] : []
+    })
+    const policy = JSON.stringify({ names, repositories }, null, 2)
+    writeFileSync(join(target, 'novaflow-builtins.json'), policy)
+    writeFileSync(join(target, 'node_modules/dshmarket/lib/novaflow-builtins.json'), policy)
     writeFileSync(join(target, 'package.json'), JSON.stringify(manifest, null, 2))
     writeFileSync(join(target, stamp), digest)
     try { renameSync(target, completed) }

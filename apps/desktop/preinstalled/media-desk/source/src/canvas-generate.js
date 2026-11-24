@@ -7,6 +7,7 @@ import { callModel } from './ai.js'
 import { imagePixels, PORTS } from './canvas.js'
 import { tr } from './i18n.js'
 import { checkedFolder, rootId } from './storage.js'
+import { imagePromptSource } from './board-schema.js'
 
 const VIDEO_SIZES = { '16:9': '1280x720', '9:16': '720x1280', '1:1': '960x960', '4:3': '960x720', '3:4': '720x960', '21:9': '1680x720' }
 const fail = (message, status = 400) => Object.assign(new Error(message), { status })
@@ -32,6 +33,8 @@ function textOf(node) {
 }
 
 export function promptOf(canvas, node) {
+  const source = imagePromptSource(canvas, node)
+  if (source) return textOf(source).trim()
   const linked = inputsOf(canvas, node.id, 'prompt').map(textOf).filter(Boolean)
   return [node.data.prompt, ...linked].map(value => String(value ?? '').trim()).filter(Boolean).join('\n\n')
 }
@@ -94,6 +97,7 @@ export class CanvasGenerator {
 
   async image(canvas, node, prepared) {
     const prompt = promptOf(canvas, node)
+    if (!prompt && imagePromptSource(canvas, node)) throw fail(tr('请在已连接的文本节点中填写提示词'))
     if (!prompt) throw fail(tr('请先填写提示词，或连接文本节点'))
     const root = await this.storage.current()
     const references = []

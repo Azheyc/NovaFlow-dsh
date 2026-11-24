@@ -207,4 +207,4 @@ None.
 
 </details>
 
-In the NovaFlow customization, the core account package `@local/novaflow-dsh-plugin` is omitted from managed bundle listings and rejects replacement or management mutations. Community plugin behavior is unchanged.
+NovaFlow Desktop supplies its managed bundle list at startup. The manager omits these bundles from the installed list and protects their component switches, installation and removal. The desktop release updates their bundled code.

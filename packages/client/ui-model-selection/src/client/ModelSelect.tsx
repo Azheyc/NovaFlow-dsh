@@ -30,7 +30,7 @@
 import { MenuGroup, MenuSurface, observeStickyMenuGroups } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
-  type CSSProperties, type KeyboardEvent, type FocusEvent,
+  type CSSProperties, type KeyboardEvent, type FocusEvent, type ReactNode, type Ref,
 } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -54,6 +54,76 @@ interface EffortChoice {
   label: string
 }
 
+const compactEffortZh: Readonly<Record<string, string>> = {
+  off: '关闭', none: '无', minimal: '最低', low: '低', medium: '中', high: '高', xhigh: '超高', max: '最高',
+}
+
+function CompactModelControls({ choices, effort, label, model, group, disabled, modelRef, openModels, commit, sliderName }: {
+  choices: readonly EffortChoice[]
+  effort: string | undefined
+  label: string | undefined
+  model: ReactNode
+  group: string
+  disabled: boolean
+  modelRef: Ref<HTMLButtonElement>
+  openModels: () => void
+  commit: (value: string | undefined) => void
+  sliderName: string
+}) {
+  const [preview, setPreview] = useState<number | null>(null)
+  const dragging = useRef(false)
+  const current = choices.findIndex(choice => choice.effort === effort)
+  const index = preview ?? current
+  const last = choices.length - 1
+  const caption = choices[Math.round(index)]?.label ?? label
+  const apply = (next: number): void => {
+    if (!disabled && next !== current && choices[next]) commit(choices[next].effort)
+  }
+  return <>
+    <button type="button" className={css.modelSummary} ref={modelRef} onClick={openModels}>
+      {caption && <strong className={css.effortTitle}>{caption}</strong>}
+      <span className={css.modelCaption}><span>{model}{group && ` · ${group}`}</span><IconChevronRightOutlineRegular /></span>
+    </button>
+    {last > 0 && <div className={css.scale} style={{ '--effort-fraction': Math.max(0, index) / last } as CSSProperties}>
+      <div aria-hidden="true" className={css.scaleStops}>{choices.map((choice, stop) => <i key={choice.key} data-filled={stop <= index || undefined} />)}</div>
+      <input type="range" min={0} max={last} step="any" value={Math.max(0, index)} aria-disabled={disabled}
+        aria-label={sliderName} aria-valuetext={caption}
+        onKeyDown={(event) => {
+          const stop = Math.max(0, current)
+          const targets: Record<string, number> = {
+            ArrowLeft: stop - 1, ArrowDown: stop - 1, PageDown: stop - 1,
+            ArrowRight: stop + 1, ArrowUp: stop + 1, PageUp: stop + 1,
+            Home: 0, End: last,
+          }
+          const target = targets[event.key]
+          if (target === undefined) return
+          event.preventDefault()
+          apply(Math.min(last, Math.max(0, target)))
+        }}
+        onPointerDown={(event) => {
+          if (disabled) { event.preventDefault(); return }
+          dragging.current = true
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+        }}
+        onChange={(event) => {
+          if (disabled) return
+          const next = event.currentTarget.valueAsNumber
+          if (dragging.current) setPreview(next)
+          else apply(Math.round(next))
+        }}
+        onPointerUp={(event) => {
+          if (!dragging.current) return
+          dragging.current = false
+          const stop = Math.round(event.currentTarget.valueAsNumber)
+          setPreview(null)
+          apply(stop)
+        }}
+        onPointerCancel={() => { dragging.current = false; setPreview(null) }}
+      />
+    </div>}
+  </>
+}
+
 /**
  * Render the composer model seat.
  * @param props - owner share (locked) + injected face (shared directory
@@ -71,6 +141,7 @@ export function ModelSelect(
   )
   const [open, setOpen] = useState(false)
   const [pane, setPane] = useState<Pane>('root')
+  const compact = (globalThis as { __DSH_COMPACT_MODEL_PICKER__?: boolean }).__DSH_COMPACT_MODEL_PICKER__ === true
   const [query, setQuery] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
   const [selectionFocus, setSelectionFocus] = useState(false)
@@ -85,6 +156,7 @@ export function ModelSelect(
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const searchRef = useRef<HTMLInputElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const transitionFrom = useRef<DOMRect | null>(null)
   const groupsRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
@@ -127,7 +199,9 @@ export function ModelSelect(
     : choices.findIndex(c => c.selection.provider === state.current?.provider && c.selection.model === state.current.model)
   const currentChoice = choices[selectedIndex]
   const reasoning = currentChoice?.model.reasoning
-  const effectiveEffort = state.current?.reasoningEffort ?? reasoning?.defaultEffort
+  const { pending } = state
+  const savingEffort = compact && pending !== null && pending.provider === state.current?.provider && pending.model === state.current.model
+  const effectiveEffort = (savingEffort ? pending : state.current)?.reasoningEffort ?? reasoning?.defaultEffort
   const effortLabel = currentChoice === undefined
     ? undefined
     : reasoning === undefined
@@ -141,14 +215,36 @@ export function ModelSelect(
       ...reasoning.defaultEffort === undefined
         ? [{ key: 'provider-default', effort: undefined, label: t('effort.providerDefault') }]
         : [],
-      ...reasoning.efforts.map((effort: ModelReasoningEffort) => ({
-        key: `effort:${effort.id}`,
-        effort: effort.id,
-        label: effort.name,
-      })),
-    ], [reasoning, t])
-  const { pending } = state
+      ...reasoning.efforts.map((effort: ModelReasoningEffort) => {
+        const translated = compactEffortZh[effort.id]
+        return {
+          key: `effort:${effort.id}`,
+          effort: effort.id,
+          label: compact && translated && effort.name.toLowerCase() === effort.id
+            ? resolveText({ en: effort.name, zh: translated }) : effort.name,
+        }
+      }),
+    ], [reasoning, t, compact, resolveText])
   const busy = pending !== null
+
+  const changePane = (next: Pane): void => {
+    if (compact && pane !== next) transitionFrom.current = menuRef.current?.getBoundingClientRect() ?? null
+    setPane(next)
+  }
+
+  useLayoutEffect(() => {
+    const from = transitionFrom.current
+    transitionFrom.current = null
+    const menu = menuRef.current
+    if (!open || !from || !menu?.animate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const to = menu.getBoundingClientRect()
+    if (!from.height || !to.height || (from.height === to.height && from.width === to.width)) return
+    const animation = menu.animate([
+      { width: `${from.width}px`, height: `${from.height}px` },
+      { width: `${to.width}px`, height: `${to.height}px` },
+    ], { duration: 210, easing: 'cubic-bezier(.22, 1, .36, 1)' })
+    return () => animation.cancel()
+  }, [open, pane])
 
   const reload = (): void => {
     lastActionRef.current = 'load'
@@ -221,7 +317,7 @@ export function ModelSelect(
     triggerRef.current?.focus()
     setQuery('')
     setHighlightedIndex(null)
-    if (currentChoice === undefined) paneFocus.current = 'drill'
+    if (compact || currentChoice === undefined) paneFocus.current = 'drill'
     setPane(currentChoice === undefined ? 'model' : 'root')
     setOpen(true)
     reload()
@@ -247,13 +343,13 @@ export function ModelSelect(
     setQuery('')
     setHighlightedIndex(null)
     paneFocus.current = 'drill'
-    setPane(next)
+    changePane(next)
   }
 
   /** Leave a drilled pane for the root one, handing the keyboard back to its cell. */
   const back = (from: Exclude<Pane, 'root'>): void => {
     paneFocus.current = from
-    setPane('root')
+    changePane('root')
   }
 
   const moveFocus = (offset: number): void => {
@@ -281,6 +377,16 @@ export function ModelSelect(
       return
     }
     if (!open) return
+    if (compact && pane === 'root') {
+      if (event.key === 'Tab') {
+        const controls = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled)') ?? [])
+        const next = controls[controls.indexOf(document.activeElement as HTMLElement) + (event.shiftKey ? -1 : 1)]
+        event.preventDefault()
+        if (next) next.focus()
+        else close(true)
+      }
+      return
+    }
     if (pane === 'model' && showSearch && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
       event.preventDefault()
       if (!busy && visibleModels.length > 0) {
@@ -346,10 +452,10 @@ export function ModelSelect(
     close()
   }
 
-  const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>): void => {
+  const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>, onSuccess?: () => void): void => {
     if (result === undefined) return
     if (result.ok) {
-      if (rootRef.current !== null) closeAfterSelection()
+      if (rootRef.current !== null) onSuccess?.()
       return
     }
     const { error } = result
@@ -362,26 +468,32 @@ export function ModelSelect(
     })
   }
 
-  const submit = (selection: ModelSelection): void => {
+  const submit = (selection: ModelSelection, onSuccess?: () => void): void => {
     lastActionRef.current = 'select'
     // Disabled option rows cannot retain focus while a selection is pending.
-    setSelectionFocus(true)
-    triggerRef.current?.focus()
-    void select(selection).then(settleSelection)
+    if (onSuccess) {
+      setSelectionFocus(true)
+      triggerRef.current?.focus()
+    }
+    void select(selection).then((result) => { settleSelection(result, onSuccess) })
   }
 
   const choose = (selection: ModelSelection): void => {
+    const list = groupsRef.current
+    const finish = compact ? () => {
+      if (list && groupsRef.current === list) back('model')
+    } : closeAfterSelection
     if (state.current?.provider === selection.provider && state.current.model === selection.model) {
-      closeAfterSelection()
+      finish()
       return
     }
-    submit(selection)
+    submit(selection, finish)
   }
 
   const chooseEffort = (effort: string | undefined): void => {
     if (state.current === null) return
     if (effectiveEffort === effort) {
-      closeAfterSelection()
+      if (!compact) closeAfterSelection()
       return
     }
     const selection: ModelSelection = {
@@ -389,7 +501,7 @@ export function ModelSelect(
       model: state.current.model,
       ...effort === undefined ? {} : { reasoningEffort: effort },
     }
-    submit(selection)
+    submit(selection, compact ? undefined : closeAfterSelection)
   }
 
   const waiting = currentChoice === undefined && state.status === 'loading'
@@ -397,14 +509,19 @@ export function ModelSelect(
     ? t('trigger.loading')
     : currentChoice?.model.name
       ?? t('trigger.fallback')
-  const triggerLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
+  const groupLabel = compact ? currentChoice?.group.provider.name : undefined
+  const modelAndGroup = groupLabel ? `${modelLabel} · ${groupLabel}` : modelLabel
+  const triggerEffort = compact && reasoning
+    ? effortChoices.find(choice => choice.effort === effectiveEffort)?.label ?? effortLabel
+    : effortLabel
+  const triggerLabel = triggerEffort === undefined ? modelAndGroup : `${modelAndGroup}${compact ? ' ' : ' · '}${triggerEffort}`
   const triggerAria = waiting
     ? t('trigger.loading')
     : currentChoice === undefined
       ? t('trigger.selectAria')
-      : effortLabel === undefined
-        ? t('trigger.aria', { model: modelLabel })
-        : t('trigger.ariaEffort', { model: modelLabel, effort: effortLabel })
+      : triggerEffort === undefined
+        ? t('trigger.aria', { model: modelAndGroup })
+        : t('trigger.ariaEffort', { model: modelAndGroup, effort: triggerEffort })
   const renderModelLabel = (
     provider: ModelLabelOwner['provider'], model: ModelLabelOwner['model'],
     placement: ModelLabelOwner['placement'], selected: boolean,
@@ -444,10 +561,10 @@ export function ModelSelect(
       <button
         ref={triggerRef}
         type="button"
-        className={css.trigger}
+        className={clsx(css.trigger, compact && css.compactTrigger)}
         style={anchorStyle}
         aria-label={triggerAria}
-        aria-haspopup="menu"
+        aria-haspopup={compact ? 'dialog' : 'menu'}
         aria-expanded={open}
         aria-controls={open ? `${id}-menu` : undefined}
         title={triggerLabel}
@@ -463,14 +580,18 @@ export function ModelSelect(
           }
         }}
       >
-        <IconDataOutlineRegular className={css.triggerIcon} size={16} />
+        {!compact && <IconDataOutlineRegular className={css.triggerIcon} size={16} />}
         <span className={css.triggerLabel}>
           {currentChoice === undefined ? modelLabel : renderModelLabel(currentChoice.group.provider, currentChoice.model, 'trigger', true)}
         </span>
-        {effortLabel !== undefined && <span className={css.triggerEffort}>{effortLabel}</span>}
-        {busy
+        {groupLabel && <span className={css.triggerGroup}> · {groupLabel}</span>}
+        {triggerEffort !== undefined && <span className={css.triggerEffort}>
+          {compact && effortChoices.map(choice => <i key={choice.key} aria-hidden="true" data-label={choice.label} />)}
+          <span>{compact ? ' ' : ''}{triggerEffort}</span>
+        </span>}
+        {busy && !savingEffort
           ? <StateDot state="ongoing" />
-          : <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
+          : !compact && <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
       </button>
 
       {/* Portaled to body (Menu primitive's portal mode) so the sidebar and
@@ -480,28 +601,35 @@ export function ModelSelect(
         <MenuSurface
           ref={menuRef}
           id={`${id}-menu`}
-          className={css.menu}
+          className={clsx(css.menu, compact && (pane === 'root' ? css.compactMenu : css.expandedMenu))}
           style={anchorStyle}
-          role={pane === 'model' ? 'group' : 'menu'}
+          role={compact ? 'dialog' : pane === 'model' ? 'group' : 'menu'}
           aria-label={t('menu.aria')}
           aria-busy={state.status === 'loading' || busy}
         >
           {pane === 'root' && (
             <>
-              <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('model') }}>
-                <span className={css.cellLabel}>{t('menu.model')}</span>
-                <span className={css.cellValue}>
-                  {currentChoice === undefined ? modelLabel : renderModelLabel(currentChoice.group.provider, currentChoice.model, 'menu', true)}
-                </span>
-                <IconChevronRightOutlineRegular className={css.cellChevron} />
-              </button>
-              {reasoning !== undefined && (
-                <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('effort') }}>
-                  <span className={css.cellLabel}>{t('menu.effort')}</span>
-                  <span className={css.cellValue}>{effortLabel}</span>
+              {compact ? <CompactModelControls
+                choices={effortChoices} effort={effectiveEffort} label={effortLabel}
+                model={currentChoice ? renderModelLabel(currentChoice.group.provider, currentChoice.model, 'menu', true) : modelLabel}
+                group={currentChoice?.group.provider.name ?? ''} disabled={locked || busy}
+                modelRef={itemRef()} openModels={() => { drill('model') }} commit={chooseEffort} sliderName={t('menu.effort')}
+              /> : <>
+                <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('model') }}>
+                  <span className={css.cellLabel}>{t('menu.model')}</span>
+                  <span className={css.cellValue}>
+                    {currentChoice === undefined ? modelLabel : renderModelLabel(currentChoice.group.provider, currentChoice.model, 'menu', true)}
+                  </span>
                   <IconChevronRightOutlineRegular className={css.cellChevron} />
                 </button>
-              )}
+                {reasoning !== undefined && (
+                  <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { drill('effort') }}>
+                    <span className={css.cellLabel}>{t('menu.effort')}</span>
+                    <span className={css.cellValue}>{effortLabel}</span>
+                    <IconChevronRightOutlineRegular className={css.cellChevron} />
+                  </button>
+                )}
+              </>}
               {renderSlot('conversation.input.model.options', {
                 locked: locked || busy,
                 dismiss: () => {

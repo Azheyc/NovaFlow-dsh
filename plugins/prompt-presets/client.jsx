@@ -22,6 +22,42 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
     return null
   }
 
+  function CategoryStrip({ groups, selected, onChoose }) {
+    const row = useRef(null), viewport = useRef(null), list = useRef(null)
+    const [overflow, setOverflow] = useState(false)
+    const [atEnd, setAtEnd] = useState(false)
+    useLayoutEffect(() => {
+      const frame = viewport.current
+      const measure = () => {
+        setOverflow(list.current.getBoundingClientRect().width > row.current.clientWidth + 1)
+        setAtEnd(frame.scrollLeft + frame.clientWidth >= frame.scrollWidth - 1)
+      }
+      measure()
+      const observer = new ResizeObserver(measure)
+      for (const element of [row.current, frame, list.current]) observer.observe(element)
+      frame.addEventListener('scroll', measure, { passive: true })
+      return () => { observer.disconnect(); frame.removeEventListener('scroll', measure) }
+    }, [])
+    function turnPage() {
+      const frame = viewport.current
+      let left = 0
+      if (!atEnd) {
+        const next = Array.from(list.current.children).find(chip => chip.offsetLeft + chip.offsetWidth > frame.scrollLeft + frame.clientWidth + 1)
+        left = next && next.offsetLeft > frame.scrollLeft + 1 ? next.offsetLeft : frame.scrollLeft + frame.clientWidth
+      }
+      frame.scrollTo({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    }
+    const label = atEnd ? '返回第一页分类' : '下一页分类'
+    return <div className="nf-prompt-types" role="group" aria-label="提示词类型" ref={row}>
+      <div className="nf-prompt-viewport" ref={viewport} data-more={overflow && !atEnd}>
+        <div className="nf-prompt-chips" ref={list}>{groups.map(item => <button key={item.id} type="button" title={item.name} aria-pressed={selected === item.id} onClick={() => onChoose(selected === item.id ? null : item.id)}>{item.name}</button>)}</div>
+      </div>
+      {overflow && <button className="nf-prompt-page" type="button" aria-label={label} title={label} onClick={turnPage}>
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d={atEnd ? 'M10 3 5 8l5 5' : 'm6 3 5 5-5 5'} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>}
+    </div>
+  }
+
   function Suggestions({ targets, binding, library }) {
     const [selected, choose] = useState(null)
     const [preview, showPreview] = useState(null)
@@ -61,7 +97,7 @@ window.__ModuleLoader__.load({ id: 'novaflow-dsh-prompt-presets', factory(requir
       if (binding.input.draft || binding.input.occurrences.length) confirm({ prompt, revision })
       else fill(prompt, revision)
     }
-    return <>{createPortal(<div className="nf-prompt-types" aria-label="提示词类型">{groups.map(item => <button key={item.id} type="button" aria-pressed={group?.id === item.id} onClick={() => { showPreview(null); choose(group?.id === item.id ? null : item.id) }}>{item.name}</button>)}</div>, above)}
+    return <>{createPortal(<CategoryStrip groups={groups} selected={group?.id} onChoose={id => { showPreview(null); choose(id) }}/>, above)}
       {createPortal(<div className="nf-prompt-list" aria-label="预设提示词">{prompts.map(prompt => <button key={prompt.id} type="button" disabled={!available} onMouseEnter={() => showPreview(prompt)} onMouseLeave={() => showPreview(null)} onFocus={() => showPreview(prompt)} onBlur={() => showPreview(null)} onClick={() => pick(prompt)}>{prompt.title}<span aria-hidden="true">↗</span></button>)}</div>, below)}
       {confirmation && available && confirmation.revision === binding.input.draftRev && <Modal open title="替换当前草稿？" description="提示词将替换输入框内的文字和行内引用，已添加的附件会保留。" closeLabel="取消" onClose={() => confirm(null)} footer={<><Button onClick={() => confirm(null)}>取消</Button><Button variant="primary" onClick={() => fill(confirmation.prompt, confirmation.revision)}>替换草稿</Button></>} />}
     </>

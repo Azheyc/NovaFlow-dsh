@@ -251,6 +251,8 @@ export interface RunProfileOptions {
   profile: string
   /** Loaded application profile; bypasses named profile initialization when supplied. */
   resolvedProfile?: ResolvedProfileRuntime | undefined
+  /** Plugin packages managed by the embedding application. */
+  managedBundles?: readonly string[]
   /** Shipped template that replaces the named profile before boot. */
   fromDefaultProfile?: string | undefined
   /** `--patch` overlay paths, in argv order. */
@@ -330,6 +332,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       dir: composed.profile.dir, patchPath: composed.profile.patchPath,
       installAnchor: options.resolvedProfile?.installAnchor ?? INSTALL_ANCHOR,
       startedBundles: composed.profile.layers.map(layer => layer.packageName),
+      ...(options.managedBundles && { managedBundles: options.managedBundles }),
       cwd: process.cwd(), home: resolveDshHome(),
       overlays: composed.overlays, telemetryDisabledEnv: process.env.DSH_TELEMETRY_DISABLED,
     }

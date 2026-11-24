@@ -110,6 +110,20 @@ test('native model profiles reach the bridge through the shipped WebServer prefi
   }
 })
 
+test('sync uses the group name and upgrades only the former generated display name', async t => {
+  const h = await bindingFor(t)
+  const catalog = { items: [row('研发 A')] }
+  const [item] = await h.binding.update(catalog, false)
+  const providers = () => h.state.entry.options.config.providers[item.provider]
+  assert.equal(providers().displayName, '研发 A')
+  providers().displayName = 'NovaFlow · 研发 A'
+  await h.binding.update(catalog, false)
+  assert.equal(providers().displayName, '研发 A')
+  providers().displayName = '团队专用'
+  await h.binding.update(catalog, false)
+  assert.equal(providers().displayName, '团队专用')
+})
+
 test('first sync saves official providers via ConfigEditor, with secret references rather than keys', async t => {
   const h = await bindingFor(t)
   const items = await h.binding.update({ items: [row('研发 A'), row('研发 B', 'anthropic'), row('Responses', 'openai-response')] }, true)
@@ -137,6 +151,20 @@ test('first sync saves official providers via ConfigEditor, with secret referenc
   assert.deepEqual(h.state.selection, { provider: items[0].provider, model: items[0].id, reasoningEffort: 'high' })
   assert.equal(JSON.stringify(saved).includes('nfds_'), false)
   assert.equal(JSON.stringify(saved).includes('nfdr_'), false)
+})
+
+test('initial login prefers the stable group Sol and retains an existing choice on later logins', async t => {
+  const h = await bindingFor(t)
+  const catalog = { items: [row('gpt 特惠分组', 'openai-response', 'gpt-6.2-sol'),
+    row('gpt pro稳定分组', 'openai-response', 'gpt-6.2-astra'), row('gpt pro稳定分组', 'openai-response', 'gpt-6.2-sol')] }
+  const items = await h.binding.update(catalog, true, { resetModels: true })
+  const stable = items.find(item => item.group === 'gpt pro稳定分组' && item.id === 'gpt-6.2-sol')
+  assert.deepEqual(h.state.selection, { provider: stable.provider, model: stable.id, reasoningEffort: 'high' })
+  const other = items.find(item => item.group === 'gpt 特惠分组')
+  const manual = { provider: other.provider, model: other.id, reasoningEffort: 'low' }
+  h.state.selection = manual
+  await h.binding.update(catalog, true, { resetModels: true })
+  assert.deepEqual(h.state.selection, manual)
 })
 
 test('repeated sync updates platform capacities and preserves native names, removals and unrelated providers', async t => {

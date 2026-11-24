@@ -293,7 +293,8 @@ export async function createModelBinding(ctx, account, config, libraries, { when
         present.add(row.id)
       }
       const baseURL=platformBase(api)
-      let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:'NovaFlow · '+groupId,api,baseURL,apiKeyEnv:ref,models,transport:'sse'}
+      let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:groupId,api,baseURL,apiKeyEnv:ref,models,transport:'sse'}
+      if (next.displayName==='NovaFlow · '+groupId) next.displayName=groupId
       next.reasoning='high'
       if (template?.modelOverrides) {
         next.modelOverrides=Object.fromEntries(Object.entries(template.modelOverrides).filter(([id])=>selectModel({id})).map(([id,value])=>{
@@ -385,7 +386,9 @@ export async function createModelBinding(ctx, account, config, libraries, { when
     const defaultAvailable = nativeProfiles[currentDefault.provider]?.models?.some(model => model.id === currentDefault.model)
     const replaceMissingDefault = resetModels && owners.providers[currentDefault.provider] && !defaultAvailable
     if ((selectDefault || replaceMissingDefault) && selectedItems.length && !selectedItems.some(item=>item.provider===currentDefault.provider && item.id===currentDefault.model)) {
-      const selected={provider:selectedItems[0].provider,model:selectedItems[0].id,reasoningEffort:'high'}
+      const preferred = selectDefault && selectedItems.find(item => item.id === 'gpt-6.2-sol' && item.group.replace(/\s+/g, '').toLowerCase() === 'gptpro稳定分组')
+      const initialModel = preferred || selectedItems[0]
+      const selected={provider:initialModel.provider,model:initialModel.id,reasoningEffort:'high'}
       await ctx.credentials.modifyRecord(DEFAULT_RECORD,async record=>({kind:'grant',payload:{previous:record?.kind==='grant' && record.payload?.previous ? record.payload.previous : currentDefault,selected}}))
       await ctx.agentDefaultModel.saveSelection(selected)
     } else if (preferences?.reasoningPolicy!==REASONING_POLICY && plannedProviders.has(currentDefault.provider) && nativeProfiles[currentDefault.provider]?.models?.some(model=>model.id===currentDefault.model)) {

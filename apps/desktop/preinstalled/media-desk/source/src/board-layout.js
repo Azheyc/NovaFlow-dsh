@@ -26,6 +26,55 @@ export function portPoint(node, side) {
   return { x: node.position.x + (side === 'source' ? w : 0), y: node.position.y + h / 2 }
 }
 
+// Members use canvas coordinates. Expanding a frame must never reposition its contents.
+export function frameMembers(group, members) {
+  const box = boundsOf(members)
+  if (!box) return
+  const x = Math.min(group.position.x, box.x - 24)
+  const y = Math.min(group.position.y, box.y - 48)
+  const { w, h } = sizeOf(group)
+  group.width = Math.max(group.position.x + w, box.x + box.w + 24) - x
+  group.height = Math.max(group.position.y + h, box.y + box.h + 24) - y
+  group.position = { x, y }
+}
+
+export function expandParentFrames(nodes, changedIds) {
+  const parents = new Set(nodes.filter(n => changedIds.has(n.id) && n.parentId).map(n => n.parentId))
+  for (const group of nodes) {
+    if (parents.has(group.id) && group.type === 'group') frameMembers(group, nodes.filter(n => n.parentId === group.id))
+  }
+}
+
+// Assign only the cards actually dragged. Moving a whole frame keeps its original membership.
+export function settleGroupDrop(nodes, moving) {
+  const frames = nodes.filter(n => n.type === 'group' && !moving.has(n.id))
+  for (const n of nodes) {
+    if (n.type === 'group' || !moving.has(n.id) || moving.has(n.parentId)) continue
+    const { w, h } = sizeOf(n)
+    const x = n.position.x + w / 2, y = n.position.y + h / 2
+    let target, smallest = Infinity
+    for (const frame of frames) {
+      const size = sizeOf(frame)
+      if (x < frame.position.x || y < frame.position.y || x > frame.position.x + size.w || y > frame.position.y + size.h) continue
+      if (frame.id === n.parentId) { target = frame; break }
+      if (size.w * size.h < smallest) { target = frame; smallest = size.w * size.h }
+    }
+    if (target) n.parentId = target.id
+    else delete n.parentId
+  }
+  expandParentFrames(nodes, moving)
+}
+
+export function resizedNode(node, dx, dy, nodes) {
+  const { w, h } = sizeOf(node)
+  const members = node.type === 'group' ? boundsOf(nodes.filter(n => n.parentId === node.id)) : null
+  const limit = node.type === 'group' ? Number.MAX_SAFE_INTEGER : 4000
+  return {
+    width: Math.min(limit, Math.max(80, members ? members.x + members.w + 24 - node.position.x : 0, Math.round(w + dx))),
+    height: Math.min(limit, Math.max(60, members ? members.y + members.h + 24 - node.position.y : 0, Math.round(h + dy))),
+  }
+}
+
 // Place new cards near the insertion point without moving anything already on the board.
 export function availablePosition(nodes, type, center) {
   const { w, h } = NODE_INFO[type]

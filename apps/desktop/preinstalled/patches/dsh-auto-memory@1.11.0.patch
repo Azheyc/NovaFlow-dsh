@@ -1,0 +1,35 @@
+diff --git a/lib/index.js b/lib/index.js
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -3374,6 +3374,7 @@
+ */
+ async function applySettings(rootDir, patch) {
+ 	const file = join(rootDir, SETTINGS_FILENAME);
++	await promises.mkdir(rootDir, { recursive: true });
+ 	return withLockRecovery(file, async () => {
+ 		const next = await readOverrides(file);
+ 		for (const key of Object.keys(SETTABLE_FIELDS)) {
+@@ -3384,7 +3385,6 @@
+ 			const value = validateField(key, patch[key]);
+ 			if (value !== void 0) next[key] = value;
+ 		}
+-		await promises.mkdir(rootDir, { recursive: true });
+ 		await writeFileAtomic(file, `${JSON.stringify(next, null, 2)}\n`, { mode: 384 });
+ 		return next;
+ 	});
+@@ -4029,13 +4029,13 @@
+ const name = "dsh-auto-memory";
+ const inject = ["tools", "systemPrompt"];
+ const Config = z.object({
+-	maxBytes: z.number().default(16384),
++	maxBytes: z.number().default(32768),
+ 	memoryDir: z.string(),
+ 	enableUserScope: z.boolean().default(true),
+ 	autoSummarize: z.boolean().default(false),
+ 	autoSummarizeMaxMemories: z.number().default(5),
+ 	autoSummarizeMaxTokens: z.number().default(2048),
+-	minImportance: z.number().default(4),
++	minImportance: z.number().default(1),
+ 	staleAfterDays: z.number().default(0)
+ });
+ function apply(ctx, config) {

@@ -1,5 +1,21 @@
 // 英文词典（studio）。key 是中文原文，value 是英文。
 export const STUDIO = {
+  '流程预设': 'Workflow prompts',
+  '选择流程后，补充素材或要求再发送。': 'Choose a workflow, then add your material or instructions before sending.',
+  '故事创作': 'Write a story', '电影级分镜': 'Cinematic storyboard', '提取故事资产': 'Extract story assets',
+  '角色资产板': 'Character reference board', '场景补充视角': 'Additional scene angles', '落实到画布': 'Build on the canvas',
+  '把点子写成故事，或接着修改已有稿。': 'Turn an idea into a story or revise an existing draft.',
+  '把剧本和对白拆成有时长、有机位的镜头。': 'Break a script into timed shots and camera setups.',
+  '列出每场的人物、道具、场景和状态变化。': 'Track characters, props, locations and continuity by scene.',
+  '用人物设定写出可复用的角色参考板提示词。': 'Turn a character brief into a reusable reference-board prompt.',
+  '从同一场景换机位，保持布局和光源连贯。': 'Change the camera angle while preserving the set and lighting.',
+  '把定稿、参考图和分镜接成可执行的节点。': 'Connect approved text, references and shots into runnable nodes.',
+  '请先读取 {skill} 技能，根据下面的点子或原稿写故事。如果是改稿，保留已定的人物和结局，只修改我指定的部分。这一轮交付故事文本。\n我的想法或修改要求：': 'Read the {skill} skill first. Write a story from my idea or draft. For revisions, keep the established characters and ending and change only the parts I specify. Deliver the story text this turn.\nMy idea or revision notes:',
+  '请先读取 {skill} 技能，保留原剧情和逐字对白。新项目先给开拍确认卡；已有确认条件就沿用，按分镜号、时间、镜长、画面重点给我预览，供我挑选需要细化的镜头。\n剧本、对白或画布节点：': 'Read the {skill} skill first. Preserve the plot and dialogue verbatim. Start a new project with the setup confirmation card, or reuse confirmed choices. Give me a preview with shot number, time, duration and visual focus so I can select shots to refine.\nScript, dialogue or canvas nodes:',
+  '请先读取 {skill} 技能，从指定场次提取人物、道具和场景。沿用已有资产编号，标明首次出场、原文依据，以及后续场次要接上的服装、道具或环境变化。\n剧本和场次范围：': 'Read the {skill} skill first. Extract characters, props and locations for the specified scenes. Reuse existing asset IDs. Record first appearances, supporting passages and changes in costume, props or setting that carry into later scenes.\nScript and scene range:',
+  '请先读取 {skill} 技能，用指定角色卡或参考图写一份中文角色板提示词。保持各视图中的脸型、服装和身形一致，区分固定特征与本场变化。先交付可复制的提示词。\n角色设定或参考节点：': 'Read the {skill} skill first. Write a Chinese character-board prompt from the specified character card or reference image. Keep the face, clothing and silhouette consistent across views. Separate permanent features from changes for this scene. Deliver a prompt I can copy.\nCharacter brief or reference nodes:',
+  '请先读取 {skill} 技能，依据我指定的场景参考图，为新机位写中文提示词。保持空间布局、固定物件和光源位置，说明新角度能看到什么、哪些会被遮挡。如果缺少可查看的原图，请先向我要图。\n场景参考与目标机位：': 'Read the {skill} skill first. Use my scene reference image to write a Chinese prompt for another camera position. Preserve the layout, fixtures and light sources. Describe what becomes visible or occluded. If the original image is unavailable, ask me for it first.\nScene reference and desired camera position:',
+  '请先用 canvas_read 查看当前画布，按我指定的范围复用已有文案和素材。用 canvas_edit 把缺少的文本、图片或视频生成节点补齐，连接提示词和参考素材，核对参考图或首帧的用途。列出已准备的节点和仍缺的素材，等我确认后再提交生成。\n要落实的分镜或节点：': 'Inspect the current canvas with canvas_read and reuse the text and assets within my scope. Use canvas_edit to add missing text, image-generation or video-generation nodes. Connect prompts and assets, checking which images serve as references or first frames. List the prepared nodes and missing inputs, then wait for my confirmation before generating media.\nShots or nodes to prepare:',
   // 状态和类型（util.js 里的 STATUS_LABEL、KIND_LABEL）
   '大纲': 'Outline',
   '草稿': 'Draft',

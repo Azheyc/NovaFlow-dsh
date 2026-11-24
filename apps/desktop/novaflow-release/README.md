@@ -6,6 +6,8 @@ This directory contains public packaging settings only. The application id selec
 
 ## Build
 
+Before packaging, run `node --import tsx apps/desktop/scripts/check-novaflow-plugin-versions.ts --refresh` and commit the refreshed registry pins and lockfile. Both target builds check npm `latest`. For the customized market, DSH-IM, DS Bot, dsh-auto-memory and Media Desk, assess upstream features, conflicts and test coverage, then request maintainer approval before merging. NovaFlow-owned plugins follow this repository.
+
 Build from the repository root with the pinned pnpm and a new increasing version. This command builds Windows x64.
 
 ```powershell

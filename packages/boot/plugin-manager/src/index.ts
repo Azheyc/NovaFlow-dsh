@@ -359,6 +359,8 @@ export class PluginManager extends TypertRemoteService {
   private readonly versionListLimit: number
   private readonly versionLookupConcurrency: number
   private readonly configuredRegistries: Omit<PluginRegistries, 'resolved'>
+  private readonly managedBundles = new Set(['@local/novaflow-dsh-plugin'])
+  private readonly managedRows = new Map<string, string>()
   private readonly ownerContext: Context
   private readonly abort = new AbortController()
   /** Installations by request id, from their call until it settles. */
@@ -370,6 +372,12 @@ export class PluginManager extends TypertRemoteService {
     this.ownerEntryId = ctx.fiber.entry?.id
     this.ownerContext = ctx
     this.profile = ctx.profileContext
+    for (const name of this.profile.managedBundles ?? []) {
+      this.managedBundles.add(name)
+      if (this.profile.startedBundles.includes(name)) {
+        for (const row of this.bundleRows(name)) this.managedRows.set(row.id, row.name)
+      }
+    }
     for (const name of this.profile.startedBundles) this.protectsManager(name)
     this.outputBytes = (config as Required<Config>).outputBytes
     this.lockWaitMs = (config as Required<Config>).lockWaitMs
@@ -480,7 +488,8 @@ export class PluginManager extends TypertRemoteService {
       const actual = [...this.ctx.loader.entries()].find(row => row.id === entry.entryId)
       const candidates = rows.filter(row => row.id === actual?.options.id)
       const candidate = candidates[0]
-      if (PROTECTED_PLUGINS.has(entry.moduleName) || entry.entryId === this.ownerEntryId) {
+      if ((actual && this.managedRows.get(actual.options.id) === entry.moduleName)
+        || PROTECTED_PLUGINS.has(entry.moduleName) || entry.entryId === this.ownerEntryId) {
         return { ...entry, readOnlyReason: 'management-required' as const }
       }
       if (candidate === undefined || candidates.length > 1 || candidate.name !== entry.moduleName
@@ -517,7 +526,7 @@ export class PluginManager extends TypertRemoteService {
     const bundles: Omit<BundleInfo, 'update'>[] = []
     const runtimeVersion = getDshRuntimeVersion()
     for (const name of names) {
-      if (name === '@local/novaflow-dsh-plugin') continue
+      if (this.managedBundles.has(name)) continue
       const installed = dependencies.includes(name)
       const optional = OPTIONAL_BUNDLES.includes(name)
       const enabled = selected.includes(name)
@@ -947,6 +956,7 @@ export class PluginManager extends TypertRemoteService {
   @Remote
   setBundleEnabled(name: string, enabled: boolean): Promise<ChangeResult> {
     return this.change(result => this.configure(async () => {
+      if (this.managedBundles.has(name)) throw new ManagementFailure('management-required')
       await this.selectBundle(name, enabled)
       Object.assign(result, enabled ? await this.publishAndReload(this.bundleRows(name).map(row => row.id)) : await this.reload())
     }), { stage: 'enable', target: name, enabled }, 'bundle')
@@ -981,7 +991,7 @@ export class PluginManager extends TypertRemoteService {
       const before = readProfileManifest('dsh', this.profile.dir).dependencies ?? {}
       // With HMR, an installed package is removed before another version is installed, so its plugins stop first.
       const known = specPackageName(spec, before, this.profile.dir)
-      if (known === '@local/novaflow-dsh-plugin') throw new ManagementFailure('management-required')
+      if (known !== undefined && this.managedBundles.has(known)) throw new ManagementFailure('management-required')
       if (this.ownerContext.get('hmr') !== undefined && known !== undefined && Object.hasOwn(before, known)) {
         throw new ManagementFailure('already-installed')
       }
@@ -1084,7 +1094,7 @@ export class PluginManager extends TypertRemoteService {
         name = target
         const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
         const manifest = bundleManifest(name, this.profile.dir, this.profile.installAnchor)
-        if (name === '@local/novaflow-dsh-plugin') throw new ManagementFailure('management-required')
+        if (this.managedBundles.has(name)) throw new ManagementFailure('management-required')
         if (manifest?.dsh?.bundle === undefined) throw new ManagementFailure('not-bundle')
         const compatibility = evaluatePluginCompatibility(manifest, readProfileVersionExemptions(this.profile.dir))
         if (compatibility !== undefined && !compatibility.exempted) throw new ManagementFailure('incompatible-version', [incompatiblePlugin(compatibility)])

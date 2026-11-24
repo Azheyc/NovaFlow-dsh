@@ -143,10 +143,10 @@ body[data-ds-dark-theme] .md-root { color-scheme: dark; }
 .md-node.is-dim:hover { opacity: .85; filter: none; }
 .md-pop { will-change: transform; }
 
-.md-node .md-card { transform: rotate(var(--r, 0deg)); transition: transform .5s cubic-bezier(.2, 1.3, .4, 1), box-shadow .3s var(--ease); }
-.md-node:hover .md-card { transform: rotate(0deg) translateY(-4px) scale(1.025); }
-.md-node.is-dragging .md-card { transform: rotate(calc(var(--r, 0deg) * .4)) scale(1.05); box-shadow: 0 0 0 .5px var(--line-strong), 0 24px 48px -12px rgb(0 0 0 / .32); cursor: grabbing; }
-.md-node.is-selected .md-card { transform: none; box-shadow: 0 0 0 1.5px var(--ink), 0 22px 54px -14px rgb(0 0 0 / .28); }
+:is(.md-node, .md-bnode):where(:not(.is-group)) .md-card { transform: rotate(var(--r, 0deg)); transition: transform .5s cubic-bezier(.2, 1.3, .4, 1), box-shadow .3s var(--ease); }
+:is(.md-node, .md-bnode):where(:not(.is-group)):hover .md-card { transform: rotate(0deg) translateY(-4px) scale(1.025); }
+:is(.md-node, .md-bnode):where(:not(.is-group)).is-dragging .md-card { transform: rotate(calc(var(--r, 0deg) * .4)) scale(1.05); box-shadow: 0 0 0 .5px var(--line-strong), 0 24px 48px -12px rgb(0 0 0 / .32); cursor: grabbing; }
+:is(.md-node, .md-bnode):where(:not(.is-group, .md-bnode.is-dragging)).is-selected .md-card { transform: none; box-shadow: 0 0 0 1.5px var(--ink), 0 22px 54px -14px rgb(0 0 0 / .28); }
 
 .md-card {
   position: relative; display: block; width: 100%; border-radius: var(--r-xl); background: var(--card);

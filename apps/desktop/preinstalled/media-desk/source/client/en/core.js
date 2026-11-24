@@ -1,5 +1,9 @@
 // 英文词典（core）。key 是中文原文，value 是英文。
 export const CORE = {
+  '拖动': 'Pan', '框选': 'Marquee select',
+  '调整大小': 'Resize', '将所选节点分组': 'Group selection', '加入分组': 'Add to group', '移出分组': 'Remove from group', '解散分组': 'Ungroup',
+  '提示词来自「{name}」，请到该文本节点修改。': 'The prompt comes from “{name}”. Edit it in that text node.',
+  '放大预览': 'Expand preview', '请在已连接的文本节点中填写提示词': 'Enter the prompt in the connected text node.',
   '添加{type}节点': 'Add {type} node',
   '输入连接点': 'Input socket', '输出连接点': 'Output socket', '编辑节点': 'Edit node', '节点名称': 'Node name', '收起编辑器': 'Close editor', '替换文件': 'Replace file', '画布视图': 'Canvas view', '画布工具': 'Canvas tools', '节点操作': 'Node actions', '框选节点': 'Select by area',
   'NovaFlow 内容工作台': 'NovaFlow Media Desk', '画布': 'Canvas', '存储位置': 'Storage location', '选择文件夹': 'Choose folder', '选择中…': 'Choosing…', '选择一个文件夹': 'Select a folder',

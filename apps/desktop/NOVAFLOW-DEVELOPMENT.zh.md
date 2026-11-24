@@ -11,7 +11,7 @@
 | 开屏、自动校验授权 | src/novaflow-account-backend.ts、src/client/WelcomePage.tsx；[账户整合](../novaflow-plugin/INTEGRATION.zh.md) |
 | 账户、余额、模型同步 | apps/novaflow-plugin；[整合说明](../novaflow-plugin/INTEGRATION.zh.md)优先于历史独立插件说明 |
 | 离线预装 | preinstalled/package.json、scripts/prepare-novaflow-preinstalled.ts、src/novaflow-preinstalled.ts |
-| MCP 连接器 | [`dsh-mcp-connector`](https://github.com/duhu2000/dsh-mcp-connector) 由桌面预装清单锁定版本，首次安装即可使用。用户在连接器中自行配置服务和授权。 |
+| 插件市场账户权限 | 账户插件根据平台的 `identity_scope` 控制市场加载。登录企业账号后，Host 撤下市场接口和客户端入口。权限随身份切换重新计算。 |
 | 连接手机 | `prepareLocalIm()` 将 [`@xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) 的客户端适配纳入离线预装。插件启用时始终注册「连接手机」入口。客户端更新替换本地插件文件，沿用现有包名和机器人配置。 |
 | 自媒体工作台 | 从 `preinstalled/media-desk/source/` 编译 `novaflow-media-desk`，随客户端离线预装。该目录基于 [dsh-media-desk v2.7.2](https://github.com/woniuniuniu/dsh-media-desk/tree/v2.7.2)，MIT 许可随包保留。 |
 | 全局技能、旧预设兼容与首次指引 | [NovaFlow 技能与预设](../novaflow-modes/README.zh.md) |
@@ -36,6 +36,8 @@ macOS 的 NovaFlow 开发版快捷方式会在启动 Electron 前从仓库执行
 
 | 插件 | 合并上游时保留的行为与源码 |
 | --- | --- |
+| 团队模式 | 内置 DS Bot 补丁保留团队模式之外的经典设置入口。连接手机负责渠道配置，并提供团队 Bot 对话对象选择。 |
+| 持久记忆 | 内置 dsh-auto-memory 补丁在获取设置锁之前创建数据目录。「陪伴（日常）」默认使用 32 KB 预算和重要度门槛 1。已有的用户设置优先。 |
 | 插件市场 | `preinstalled/patches/dshmarket@<version>.patch`。在线目录继续更新，隐藏赞助区及顶部检查失败提示，市场自身随客户端更新。市场因 Host 重载时正常返回插件安装和更新结果。 |
 | 连接手机 | `prepareLocalIm()`。保留包名和机器人配置，隐藏 GitHub 和插件自身更新入口，启用插件时始终显示「连接手机」。页面副标题为「让NovaFlow触手可及」。 |
 | 自媒体工作台 | 保留独立「无限画布」入口、每张画布独立的 DSH 会话和 NovaFlow Image 接入。默认目录是 `$DSH_HOME/media-desk/files`，用户可修改或恢复默认，旧文件按原目录读取。图像节点支持 1K、2K，使用客户端模型页选中的生图模型。 |

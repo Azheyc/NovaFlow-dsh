@@ -1,5 +1,6 @@
 /** Build one release target with matching Electron and dsh architecture. */
 
+import { checkNovaFlowPluginVersions } from './check-novaflow-plugin-versions.ts'
 import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
@@ -349,6 +350,7 @@ async function main(): Promise<void> {
     : loadDesktopPackageEnvironment(target.platform, process.env, APP_ROOT, {
       unsigned: invocation.unsigned, prepareOnly: invocation.prepareOnly,
     })
+  if (environment.DSH_DESKTOP_APP_ID === 'vip.ycnovaflow.desktop') await checkNovaFlowPluginVersions()
   const productVersion = packageVersion(join(APP_ROOT, 'package.json'), 'desktop package')
   // Release settings come from the selected configuration files, so the version this run publishes is an
   // argument; the environment variable below only carries it to the child processes that build.

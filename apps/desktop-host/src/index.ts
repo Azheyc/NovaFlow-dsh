@@ -1,5 +1,6 @@
 /** Launch the Desktop profile through the Web application and report its URL to Electron. */
 
+import { existsSync, readFileSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
@@ -26,7 +27,9 @@ async function main(): Promise<void> {
   const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
   const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
   reportSkippedBundles('dsh', profile)
+  const policy = join(runtimeDir, 'novaflow-preinstalled', 'novaflow-builtins.json')
   const application = runProfile({
+    managedBundles: existsSync(policy) ? (JSON.parse(readFileSync(policy, 'utf8')) as { names: string[] }).names : [],
     environment: loadLayeredEnv('dsh'),
     profile: 'desktop',
     resolvedProfile: { profile, installAnchor },

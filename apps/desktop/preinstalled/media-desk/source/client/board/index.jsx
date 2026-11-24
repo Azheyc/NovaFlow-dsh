@@ -7,13 +7,23 @@ import { Dialog, DockAddButton, DockBar, Icon, IconButton } from '../ui.jsx'
 import { call, fileUrl, NODE_INFO, report, toast, uid, uploadFile } from './api.js'
 import { BoardChat } from './chat.jsx'
 import { createHistory, record, restore, snapshot, step } from './history.js'
-import { arrangeAll, arrangeSelection, availablePosition, boundsOf, portPoint, sizeOf } from '../../src/board-layout.js'
+import { arrangeAll, arrangeSelection, availablePosition, boundsOf, expandParentFrames, frameMembers, portPoint, resizedNode, settleGroupDrop, sizeOf } from '../../src/board-layout.js'
 import { allowsVideoMode, appendConnection, isVideoImageUse, resolveConnection, VIDEO_IMAGE_USE_KEY } from './connections.js'
 import { BoardNode, NodeEditor } from './node.jsx'
 import { canvasDocument } from './document.js'
+import { imagePromptSource } from '../../src/board-schema.js'
 
+const ZOOM_STEP = 1.05
 const SNAP = 16
 const ADDABLE = ['text', 'image', 'video', 'imageGen', 'videoGen', 'group']
+
+function NodeChoices({ onChoose }) {
+  return ADDABLE.map(type => <button type="button" key={type} onClick={() => onChoose(type)}>{t(NODE_INFO[type].label)}</button>)
+}
+
+function canPreview(node) {
+  return node?.data.src && ['image', 'video', 'imageGen', 'videoGen'].includes(node.type)
+}
 
 function usePopover() {
   const ref = React.useRef(null)
@@ -146,6 +156,7 @@ function Board({ canvas, setCanvas, onSaved }) {
   }, [])
   const { cam, flyTo, halt } = useCamera(stageRef, worldRef, positionEditor)
   const [selected, setSelected] = React.useState(() => new Set())
+  const [sizePreview, setSizePreview] = React.useState(null)
   const [editingId, setEditingId] = React.useState(null)
   const editor = selected.size === 1 && selected.has(editingId) ? canvas.nodes.find(n => n.id === editingId) : null
   React.useLayoutEffect(() => {
@@ -159,12 +170,23 @@ function Board({ canvas, setCanvas, onSaved }) {
     return () => observer.disconnect()
   }, [editor, cam, positionEditor])
   const additions = usePopover()
+  const contextMenu = usePopover()
+  const [menuPoint, setMenuPoint] = React.useState(null)
+  const [previewId, setPreviewId] = React.useState(null)
+  React.useLayoutEffect(() => {
+    const menu = contextMenu.ref.current, stage = stageRef.current
+    if (!menu || !contextMenu.open || !menuPoint) return
+    menu.style.left = `${Math.max(0, Math.min(menuPoint.x, stage.clientWidth - menu.offsetWidth))}px`
+    menu.style.top = `${Math.max(0, Math.min(menuPoint.y, stage.clientHeight - menu.offsetHeight))}px`
+    menu.querySelector('button')?.focus({ preventScroll: true })
+  }, [contextMenu.open, contextMenu.ref, menuPoint])
   const addMenuId = React.useId()
   const views = usePopover()
   const [linking, setLinking] = React.useState(null)
   const [lasso, setLasso] = React.useState(null)
   const [busy, setBusy] = React.useState(() => new Set())
-  const [options, setOptions] = React.useState({ snap: true, edges: true, map: false, select: false })
+  const [pointerTool, setPointerTool] = React.useState('pan')
+  const [options, setOptions] = React.useState({ snap: false, edges: true, map: false })
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [historyNode, setHistoryNode] = React.useState(null)
   const [zoom, setZoom] = React.useState(1)
@@ -198,11 +220,11 @@ function Board({ canvas, setCanvas, onSaved }) {
 
   /** 结构变化：先记撤销点，再改；保存由外层防抖。 */
   const change = React.useCallback((mutate, { structural = true } = {}) => {
-    const current = latest.current
+    const current = onSaved.snapshot()
     if (structural) record(history.current, snapshot(current))
     const next = mutate(structuredClone(current))
     if (next) { latest.current = next; setCanvas(next) }
-  }, [setCanvas])
+  }, [setCanvas, onSaved])
 
   const patchNode = (id, data, structural = false) => change((draft) => {
     const node = draft.nodes.find(n => n.id === id)
@@ -211,15 +233,16 @@ function Board({ canvas, setCanvas, onSaved }) {
   }, { structural })
 
   const addNode = (type, at) => {
+    if (!at && type === 'group' && chosenCards.length && chosenGroups.length <= 1) return group()
     const info = NODE_INFO[type]
     const center = at ?? toWorld(stageRef.current.getBoundingClientRect().left + stageRef.current.clientWidth / 2, stageRef.current.getBoundingClientRect().top + stageRef.current.clientHeight / 2)
-    const position = availablePosition(latest.current.nodes, type, center)
+    const position = at ?? availablePosition(latest.current.nodes, type, center)
     const node = { id: uid('n'), type, position, data: type === 'imageGen' ? { tier: '2K', ratio: '16:9' } : type === 'videoGen' ? { ratio: '16:9' } : {} }
     change((draft) => { draft.nodes.push(node); return draft })
     setEditingId(null)
     setSelected(new Set([node.id]))
     const c = cam.current, stage = stageRef.current
-    if (position.x * c.s + c.x < 8 || (position.x + info.w) * c.s + c.x > stage.clientWidth - 8 || position.y * c.s + c.y < 90 || (position.y + info.h) * c.s + c.y > stage.clientHeight - 64) {
+    if (!at && (position.x * c.s + c.x < 8 || (position.x + info.w) * c.s + c.x > stage.clientWidth - 8 || position.y * c.s + c.y < 90 || (position.y + info.h) * c.s + c.y > stage.clientHeight - 64)) {
       flyTo({ x: stage.clientWidth / 2 - (position.x + info.w / 2) * c.s, y: stage.clientHeight / 2 - (position.y + info.h / 2) * c.s, s: c.s })
     }
     return node
@@ -255,29 +278,66 @@ function Board({ canvas, setCanvas, onSaved }) {
   }
 
   const group = () => {
-    const nodes = latest.current.nodes.filter(n => selected.has(n.id) && n.type !== 'group')
-    const box = boundsOf(nodes)
-    if (!box) return
-    const id = uid('n')
+    if (!chosenCards.length || chosenGroups.length > 1) return
+    const id = chosenGroups[0]?.id ?? uid('n')
     change((draft) => {
-      draft.nodes.unshift({ id, type: 'group', position: { x: box.x - 24, y: box.y - 48 }, width: box.w + 48, height: box.h + 72, data: { label: t('分组') } })
-      for (const node of draft.nodes) if (selected.has(node.id) && node.type !== 'group') node.parentId = id
+      const members = draft.nodes.filter(n => selected.has(n.id) && n.type !== 'group')
+      let frame = draft.nodes.find(n => n.id === id)
+      if (!frame) {
+        frame = { id, type: 'group', position: members[0].position, width: 0, height: 0, data: { label: t('分组') } }
+        draft.nodes.unshift(frame)
+      }
+      frameMembers(frame, members)
+      for (const node of members) node.parentId = id
       return draft
     })
+    setEditingId(null)
     setSelected(new Set([id]))
   }
 
-  const ungroup = () => change((draft) => {
-    const groups = new Set(draft.nodes.filter(n => selected.has(n.id) && n.type === 'group').map(n => n.id))
-    if (!groups.size) return null
-    draft.nodes = draft.nodes.filter(n => !groups.has(n.id)).map(n => (groups.has(n.parentId) ? { ...n, parentId: undefined } : n))
+  const ungroup = () => {
+    const groups = new Set(chosenGroups.map(n => n.id))
+    if (!groups.size && !chosenCards.some(n => n.parentId)) return
+    const released = new Set()
+    change(draft => {
+      draft.nodes = draft.nodes.filter(n => !groups.has(n.id))
+      for (const node of draft.nodes) {
+        if (groups.has(node.parentId) || (!groups.size && selected.has(node.id))) {
+          delete node.parentId
+          released.add(node.id)
+        }
+      }
+      return draft
+    })
+    setSelected(released)
+  }
+
+  const applyMoves = moves => change((draft) => {
+    const origins = new Map(draft.nodes.map(n => [n.id, n.position]))
+    for (const node of draft.nodes) {
+      const parent = origins.get(node.parentId)
+      if (parent && moves[node.parentId]) node.position = { x: node.position.x + moves[node.parentId].x - parent.x, y: node.position.y + moves[node.parentId].y - parent.y }
+      else if (moves[node.id]) node.position = moves[node.id]
+    }
+    expandParentFrames(draft.nodes, new Set(Object.keys(moves)))
     return draft
   })
 
-  const applyMoves = moves => change((draft) => {
-    for (const node of draft.nodes) if (moves[node.id]) node.position = moves[node.id]
-    return draft
-  })
+  const resize = (node, dx, dy, commit, keyboard = false) => {
+    if (!node) { setSizePreview(null); return }
+    const scale = keyboard ? 1 : cam.current.s
+    const size = resizedNode(node, dx / scale, dy / scale, latest.current.nodes)
+    setEditingId(null)
+    if (!commit) { setSizePreview({ id: node.id, ...size }); return }
+    setSizePreview(null)
+    const old = sizeOf(node)
+    if (size.width === old.w && size.height === old.h) return
+    change(draft => {
+      const target = draft.nodes.find(n => n.id === node.id)
+      if (target) { Object.assign(target, size); expandParentFrames(draft.nodes, new Set([target.id])) }
+      return draft
+    })
+  }
 
   const fit = React.useCallback((nodes = latest.current.nodes) => {
     const box = boundsOf(nodes)
@@ -299,17 +359,42 @@ function Board({ canvas, setCanvas, onSaved }) {
     if (target) setCanvas(restore(latest.current, target))
   }
 
-  // 选中、移动和端口拖线都在 stage 上统一处理
+  const pan = React.useRef(null)
+  const startPan = event => {
+    if (pan.current || event.target.closest('.md-board-chrome,.md-dialog-mask')) return
+    const leftPan = event.button === 0 && pointerTool === 'pan' && !event.target.closest('[data-bnode],.md-board-edge,input,textarea,select,button')
+    if (!leftPan && event.button !== 1) return
+    event.preventDefault()
+    event.stopPropagation()
+    halt()
+    const stage = stageRef.current
+    stage.setPointerCapture(event.pointerId)
+    pan.current = { id: event.pointerId, leftPan, moved: false, x: cam.current.x, y: cam.current.y, startX: event.clientX, startY: event.clientY }
+    stage.classList.add('is-panning')
+  }
+  const endPan = event => {
+    if (pan.current?.id !== event.pointerId) return
+    if (event.type === 'pointerup' && pan.current.leftPan && !pan.current.moved) {
+      setEditingId(null)
+      setLinking(null)
+      setSelected(new Set())
+    }
+    pan.current = null
+    stageRef.current.classList.remove('is-panning')
+    if (stageRef.current.hasPointerCapture(event.pointerId)) stageRef.current.releasePointerCapture(event.pointerId)
+  }
+
   const onPointerDown = (event) => {
-    if (event.button !== 0 && event.button !== 1) return
-    if (event.target.closest('input,textarea,select,button,video[controls],.md-board-chrome,[role="dialog"]')) return
+    if (event.button !== 0 || pan.current) return
+    if (event.target.closest('input,textarea,select,button,video[controls],.md-board-chrome,.md-dialog-mask')) return
     setEditingId(null)
     setLinking(null)
     const nodeEl = event.target.closest('[data-bnode]')
     const c = cam.current
     const start = { x: event.clientX, y: event.clientY }
     halt()
-    if (nodeEl && event.button === 0) {
+    const selectInFrame = nodeEl?.classList.contains('is-group') && event.shiftKey && !event.target.closest('.md-bnode-caption')
+    if (nodeEl && !selectInFrame && event.button === 0) {
       const id = nodeEl.dataset.bnode
       const additive = event.shiftKey || event.metaKey || event.ctrlKey
       let ids = selected
@@ -328,23 +413,32 @@ function Board({ canvas, setCanvas, onSaved }) {
         let dy = (e.clientY - start.y) / c.s
         if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return
         moved = true
+        nodeEl.classList.add('is-dragging')
+        const anchor = origin.get(id)
+        if (options.snap && anchor) {
+          dx = Math.round((anchor.x + dx) / SNAP) * SNAP - anchor.x
+          dy = Math.round((anchor.y + dy) / SNAP) * SNAP - anchor.y
+        }
         setCanvas((current) => ({
           ...current,
           nodes: current.nodes.map((node) => {
             const from = origin.get(node.id)
             if (!from) return node
-            let x = from.x + dx
-            let y = from.y + dy
-            if (options.snap) { x = Math.round(x / SNAP) * SNAP; y = Math.round(y / SNAP) * SNAP }
-            return { ...node, position: { x, y } }
+            return { ...node, position: { x: from.x + dx, y: from.y + dy } }
           }),
         }))
       }
       const onUp = (e) => {
+        nodeEl.classList.remove('is-dragging')
         window.removeEventListener('pointermove', onMove)
         window.removeEventListener('pointerup', onUp)
         window.removeEventListener('pointercancel', onUp)
-        if (moved) record(history.current, before)
+        if (moved) {
+          if (e.type === 'pointerup' && latest.current.nodes.some(n => n.type === 'group')) {
+            change(draft => { settleGroupDrop(draft.nodes, moving); return draft }, { structural: false })
+          }
+          record(history.current, before)
+        }
         else if (e.type === 'pointerup' && !additive && nodeEl.contains(document.elementFromPoint(e.clientX, e.clientY))) {
           setSelected(new Set([id]))
           setEditingId(id)
@@ -355,45 +449,32 @@ function Board({ canvas, setCanvas, onSaved }) {
       window.addEventListener('pointercancel', onUp)
       return
     }
-    // 空白处：Shift 拖动框选，其余拖动平移画布
-    if ((event.shiftKey || options.select) && event.button === 0) {
-      const from = toWorld(event.clientX, event.clientY)
-      const onMove = (e) => setLasso({ from, to: toWorld(e.clientX, e.clientY) })
-      const onUp = (e) => {
-        window.removeEventListener('pointermove', onMove)
-        window.removeEventListener('pointerup', onUp)
-        const to = toWorld(e.clientX, e.clientY)
-        const box = { x1: Math.min(from.x, to.x), y1: Math.min(from.y, to.y), x2: Math.max(from.x, to.x), y2: Math.max(from.y, to.y) }
-        setSelected(new Set(latest.current.nodes.filter((n) => {
-          const s = sizeOf(n)
-          return n.position.x < box.x2 && n.position.x + s.w > box.x1 && n.position.y < box.y2 && n.position.y + s.h > box.y1
-        }).map(n => n.id)))
-        setLasso(null)
-      }
-      window.addEventListener('pointermove', onMove)
-      window.addEventListener('pointerup', onUp)
-      return
-    }
-    setSelected(new Set())
-    const base = { x: c.x, y: c.y }
-    stageRef.current.classList.add('is-panning')
-    let previous = { ...start, time: performance.now() }
-    let velocity = { x: 0, y: 0 }
-    const onMove = e => {
-      const time = performance.now()
-      const elapsed = Math.max(1, time - previous.time)
-      velocity = { x: (e.clientX - previous.x) / elapsed, y: (e.clientY - previous.y) / elapsed }
-      previous = { x: e.clientX, y: e.clientY, time }
-      flyTo({ x: base.x + e.clientX - start.x, y: base.y + e.clientY - start.y, s: c.s }, { instant: true })
-    }
-    const onUp = () => {
+    const from = toWorld(event.clientX, event.clientY)
+    const onMove = (e) => setLasso({ from, to: toWorld(e.clientX, e.clientY) })
+    const onUp = (e) => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
-      stageRef.current?.classList.remove('is-panning')
-      if (performance.now() - previous.time < 80) flyTo({ x: c.x + velocity.x * 160, y: c.y + velocity.y * 160, s: c.s }, { stiffness: 42, damping: 13 })
+      window.removeEventListener('pointercancel', onUp)
+      setLasso(null)
+      if (e.type === 'pointercancel') return
+      const to = toWorld(e.clientX, e.clientY)
+      if (selectInFrame && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) {
+        const ids = new Set(event.shiftKey ? selected : [])
+        const id = nodeEl.dataset.bnode
+        if (ids.has(id)) ids.delete(id); else ids.add(id)
+        setSelected(ids)
+        return
+      }
+      const box = { x1: Math.min(from.x, to.x), y1: Math.min(from.y, to.y), x2: Math.max(from.x, to.x), y2: Math.max(from.y, to.y) }
+      setSelected(new Set(latest.current.nodes.filter((n) => {
+        if (n.type === 'group') return false
+        const s = sizeOf(n)
+        return n.position.x < box.x2 && n.position.x + s.w > box.x1 && n.position.y < box.y2 && n.position.y + s.h > box.y1
+      }).map(n => n.id)))
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
   }
 
   const editNode = (node, data) => {
@@ -509,27 +590,28 @@ function Board({ canvas, setCanvas, onSaved }) {
     }
   }
 
-  // 滚轮：平移；Ctrl/⌘ + 滚轮或触控板捏合：缩放
+  // Scale around the pointer; normalize wheel units before applying a fine zoom step.
   React.useEffect(() => {
     const el = stageRef.current
     if (!el) return undefined
     const onWheel = (event) => {
-      if (event.target.closest('textarea,.md-board-chrome')) return
+      if (event.target.closest('textarea,.md-board-chrome,.md-dialog-mask')) return
+      contextMenu.setOpen(false)
       event.preventDefault()
       const c = cam.current
-      if (event.ctrlKey || event.metaKey) {
-        const rect = el.getBoundingClientRect()
-        const s = Math.max(0.2, Math.min(8, c.ts * Math.exp(-event.deltaY * 0.01)))
-        const k = s / c.ts
-        const cx = event.clientX - rect.left
-        const cy = event.clientY - rect.top
-        flyTo({ x: cx - (cx - c.tx) * k, y: cy - (cy - c.ty) * k, s }, { instant: true })
-        setZoom(s)
-      } else flyTo({ x: c.tx - event.deltaX, y: c.ty - event.deltaY, s: c.ts }, { instant: true })
+      const rect = el.getBoundingClientRect()
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1
+      const ticks = Math.max(-1, Math.min(1, event.deltaY * unit / 100))
+      const s = Math.max(0.2, Math.min(8, c.s * ZOOM_STEP ** -ticks))
+      if (s === c.s) return
+      const k = s / c.s
+      const cx = event.clientX - rect.left, cy = event.clientY - rect.top
+      flyTo({ x: cx - (cx - c.x) * k, y: cy - (cy - c.y) * k, s }, { instant: true })
+      setZoom(s)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [cam, flyTo])
+  }, [cam, flyTo, contextMenu.setOpen])
 
   // 视口跟着画布一起保存
   React.useEffect(() => {
@@ -553,16 +635,16 @@ function Board({ canvas, setCanvas, onSaved }) {
 
   React.useEffect(() => {
     const onKey = (event) => {
-      if (event.defaultPrevented || document.querySelector('.md-root [aria-modal="true"]') || event.target.closest?.('.md-board-chrome, .md-dock')) return
+      if (event.defaultPrevented || document.querySelector('.md-root [aria-modal="true"]') || event.target.closest?.('.md-board-chrome:not(.md-board-selection), .md-dock')) return
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return
       const mod = event.metaKey || event.ctrlKey
       if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); removeSelected() }
-      else if (mod && event.key === 'z') { event.preventDefault(); undo(event.shiftKey ? 'redo' : 'undo') }
+      else if (mod && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(event.shiftKey ? 'redo' : 'undo') }
       else if (mod && event.key === 'y') { event.preventDefault(); undo('redo') }
       else if (mod && event.key === 'c') copySelected()
       else if (mod && event.key === 'v') paste()
       else if (mod && event.key === 'a') { event.preventDefault(); setSelected(new Set(latest.current.nodes.map(n => n.id))) }
-      else if (mod && event.key === 'g') { event.preventDefault(); event.shiftKey ? ungroup() : group() }
+      else if (mod && event.key.toLowerCase() === 'g') { event.preventDefault(); event.shiftKey ? ungroup() : group() }
       else if (mod && event.key === 'f') { event.preventDefault(); setSearchOpen(true) }
       else if (event.key === 'Escape') { setEditingId(null); setLinking(null); setSelected(new Set()) }
     }
@@ -570,8 +652,14 @@ function Board({ canvas, setCanvas, onSaved }) {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const byId = new Map(canvas.nodes.map(n => [n.id, n]))
+  const displayedNodes = sizePreview ? canvas.nodes.map(n => n.id === sizePreview.id ? { ...n, ...sizePreview } : n) : canvas.nodes
+  const byId = new Map(displayedNodes.map(n => [n.id, n]))
+  const preview = byId.get(previewId)
   const chosen = canvas.nodes.filter(n => selected.has(n.id))
+  const chosenCards = chosen.filter(n => n.type !== 'group')
+  const chosenGroups = chosen.filter(n => n.type === 'group')
+  const canRelease = chosenGroups.length > 0 || chosenCards.some(n => n.parentId)
+  const arrangeable = chosen.filter(n => !selected.has(n.parentId))
   const zoomTo = (s) => {
     const el = stageRef.current
     const c = cam.current
@@ -581,9 +669,29 @@ function Board({ canvas, setCanvas, onSaved }) {
   }
 
   return (
-    <div className={`md-stage md-flow-stage${options.select ? ' is-selecting' : ''}`} ref={stageRef} onPointerDown={onPointerDown}
-      onPointerMove={moveLink} onPointerUp={dropLink}
-      onLostPointerCapture={e => { if (e.target === stageRef.current && linking?.pointerId === e.pointerId) setLinking(null) }}
+    <div className="md-stage md-flow-stage" data-pointer-tool={pointerTool} ref={stageRef} onPointerDownCapture={startPan} onPointerDown={onPointerDown}
+      onContextMenu={event => {
+        if (event.target.closest('.md-board-chrome,.md-dialog-mask,input,textarea,select')) return
+        event.preventDefault()
+        halt()
+        setEditingId(null)
+        setLinking(null)
+        additions.setOpen(false)
+        views.setOpen(false)
+        const rect = stageRef.current.getBoundingClientRect()
+        setMenuPoint({ x: event.clientX - rect.left, y: event.clientY - rect.top, world: toWorld(event.clientX, event.clientY) })
+        contextMenu.setOpen(true)
+      }}
+      onPointerMove={e => {
+        const drag = pan.current
+        if (drag && drag.id === e.pointerId) {
+          const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY
+          if (dx || dy) drag.moved = true
+          flyTo({ x: drag.x + dx, y: drag.y + dy, s: cam.current.s }, { instant: true })
+        } else moveLink(e)
+      }}
+      onPointerUp={e => { if (pan.current) endPan(e); else dropLink(e) }} onPointerCancel={endPan}
+      onLostPointerCapture={e => { endPan(e); if (e.target === stageRef.current && linking?.pointerId === e.pointerId) setLinking(null) }}
       onDragOver={e => e.preventDefault()} onDrop={dropFiles}>
       <div className="md-world" ref={worldRef}>
         {options.edges || linking ? (
@@ -596,19 +704,21 @@ function Board({ canvas, setCanvas, onSaved }) {
               return (
                 <g key={edge.id} className="md-board-edge">
                   <path d={d} />
-                  <path d={d} className="md-board-edge-hit" onPointerDown={(e) => { e.stopPropagation(); removeEdge(edge.id) }}><title>{t('点击断开连接')}</title></path>
+                  <path d={d} className="md-board-edge-hit" onPointerDown={(e) => { e.stopPropagation(); if (e.button === 0) removeEdge(edge.id) }}><title>{t('点击断开连接')}</title></path>
                 </g>
               )
             })}
             {linking ? <path className="md-board-edge-draft" d={linking.side === 'source' ? curve(linking.from, linking.to) : curve(linking.to, linking.from)} /> : null}
           </svg>
         ) : null}
-        {canvas.nodes.map(node => (
+        {displayedNodes.map(node => (
           <BoardNode
             key={node.id}
             node={node}
             selected={selected.has(node.id)}
             editing={editor?.id === node.id}
+            resize={resize}
+            onPreview={canPreview(node) ? () => setPreviewId(node.id) : undefined}
             onOpen={() => { setSelected(new Set([node.id])); setEditingId(node.id) }}
             onPortDown={onPortDown}
             onPortKey={onPortKey}
@@ -618,6 +728,7 @@ function Board({ canvas, setCanvas, onSaved }) {
       </div>
 
       {editor && <NodeEditor key={editor.id} panelRef={panelRef} node={editor} busy={busy.has(editor.id)} model={models[editor.type === 'videoGen' ? 'video' : 'image']}
+        promptSource={imagePromptSource(canvas, editor)} onPreview={canPreview(editor) ? () => setPreviewId(editor.id) : undefined}
         imageInputCount={canvas.edges.filter(edge => edge.target === editor.id && isVideoImageUse(edge.targetHandle)).length}
         onClose={() => { setEditingId(null); stageRef.current.querySelector(`[data-bnode="${editor.id}"] .md-bnode-face`)?.focus({ preventScroll: true }) }}
         onChange={data => editNode(editor, data)} onRun={() => run(editor)} onStatus={() => status(editor)} onUpload={file => upload(editor, file)} onHistory={() => setHistoryNode(editor.id)} />}
@@ -630,13 +741,16 @@ function Board({ canvas, setCanvas, onSaved }) {
         </div>
       )}
 
-      {chosen.length > 1 ? (
+      {chosen.length > 1 || canRelease ? (
         <div className="md-toolrow md-board-selection md-board-chrome" onPointerDown={e => e.stopPropagation()}>
           <span className="md-muted">{t('已选 {n} 个', { n: chosen.length })}</span>
-          <IconButton icon="list" label={t('水平排列')} onClick={() => applyMoves(arrangeSelection(chosen, 'horizontal'))} />
-          <IconButton icon="wall" label={t('垂直排列')} onClick={() => applyMoves(arrangeSelection(chosen, 'vertical'))} />
-          <IconButton icon="scatter" label={t('宫格排列')} onClick={() => applyMoves(arrangeSelection(chosen, 'grid'))} />
-          <IconButton icon="folder" label={t('分组')} onClick={group} />
+          {arrangeable.length > 1 && <>
+            <IconButton icon="list" label={t('水平排列')} onClick={() => applyMoves(arrangeSelection(arrangeable, 'horizontal'))} />
+            <IconButton icon="wall" label={t('垂直排列')} onClick={() => applyMoves(arrangeSelection(arrangeable, 'vertical'))} />
+            <IconButton icon="scatter" label={t('宫格排列')} onClick={() => applyMoves(arrangeSelection(arrangeable, 'grid'))} />
+          </>}
+          {chosenCards.length > 0 && chosenGroups.length <= 1 && <button type="button" className="md-btn" onClick={group}>{chosenGroups.length ? t('加入分组') : t('将所选节点分组')}</button>}
+          {canRelease && <button type="button" className="md-btn" onClick={ungroup}>{chosenGroups.length ? t('解散分组') : t('移出分组')}</button>}
           <IconButton icon="copy" label={t('复制')} onClick={copySelected} />
           <IconButton icon="trash" label={t('删除')} onClick={removeSelected} />
         </div>
@@ -656,23 +770,24 @@ function Board({ canvas, setCanvas, onSaved }) {
           </div>}
         </div>
         <IconButton icon="expand" label={t('适应视图')} onClick={() => fit()} />
-        <IconButton icon="zoomOut" label={t('缩小')} onClick={() => zoomTo(Math.max(0.2, cam.current.ts / 1.25))} />
+        <IconButton icon="zoomOut" label={t('缩小')} onClick={() => zoomTo(Math.max(0.2, cam.current.ts / ZOOM_STEP))} />
         <button type="button" className="md-board-zoom" title={t('重置缩放')} onClick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
-        <IconButton icon="zoomIn" label={t('放大')} onClick={() => zoomTo(Math.min(8, cam.current.ts * 1.25))} />
+        <IconButton icon="zoomIn" label={t('放大')} onClick={() => zoomTo(Math.min(8, cam.current.ts * ZOOM_STEP))} />
       </DockBar>
 
       <DockBar label={t('节点操作')} className="md-flow-actions md-board-chrome" addAction={
         <div className="md-flow-menu-anchor" ref={additions.ref}>
           <DockAddButton label={t('添加节点')} aria-expanded={additions.open} aria-controls={additions.open ? addMenuId : undefined} onClick={() => additions.setOpen(!additions.open)} />
-          {additions.open && <div id={addMenuId} className="md-flow-menu" role="group" aria-label={t('添加节点')}>{ADDABLE.map(type => <button type="button" key={type} onClick={() => {
+          {additions.open && <div id={addMenuId} className="md-flow-menu" role="group" aria-label={t('添加节点')}><NodeChoices onChoose={type => {
             additions.ref.current?.querySelector('button')?.focus({ preventScroll: true })
             additions.setOpen(false)
             addNode(type)
-          }}>{t(NODE_INFO[type].label)}</button>)}</div>}
+          }} /></div>}
         </div>
       }>
         <div className="md-flow-node-tools">
-          <IconButton icon="select" label={t('框选节点')} aria-pressed={options.select} active={options.select} onClick={() => setOptions(o => ({ ...o, select: !o.select }))} />
+          <IconButton icon="hand" label={t('拖动')} active={pointerTool === 'pan'} aria-pressed={pointerTool === 'pan'} onClick={() => setPointerTool('pan')} />
+          <IconButton icon="marquee" label={t('框选')} active={pointerTool === 'select'} aria-pressed={pointerTool === 'select'} onClick={() => setPointerTool('select')} />
           <IconButton icon="search" label={t('搜索节点')} onClick={() => setSearchOpen(true)} />
         </div>
         <span className="md-dockbar-sep md-flow-shortcuts" aria-hidden="true" />
@@ -682,6 +797,17 @@ function Board({ canvas, setCanvas, onSaved }) {
       </DockBar>
 
       {options.map ? <div className="md-board-chrome"><MiniMap canvas={canvas} cam={cam} stageRef={stageRef} flyTo={flyTo} /></div> : null}
+      {contextMenu.open && menuPoint && <div ref={contextMenu.ref} className="md-flow-menu md-context-menu md-board-chrome" role="group" aria-label={t('添加节点')}>
+        <NodeChoices onChoose={type => { contextMenu.setOpen(false); addNode(type, menuPoint.world) }} />
+      </div>}
+      {canPreview(preview) && <Dialog title={preview.data.label || t(NODE_INFO[preview.type].label)} width={1000} onClose={() => {
+        setPreviewId(null)
+        stageRef.current?.querySelector(`[data-bnode="${preview.id}"] .md-bnode-face`)?.focus({ preventScroll: true })
+      }}>
+        {['video', 'videoGen'].includes(preview.type)
+          ? <video className="md-expanded-media" src={fileUrl(preview.data.src)} controls playsInline autoFocus />
+          : <img className="md-expanded-media" src={fileUrl(preview.data.src)} alt={preview.data.label || t('图片')} />}
+      </Dialog>}
       {searchOpen ? <NodeSearch canvas={canvas} onClose={() => setSearchOpen(false)} onPick={(node) => { setSearchOpen(false); setEditingId(null); setSelected(new Set([node.id])); fit([node]) }} /> : null}
       {historyNode && byId.get(historyNode) ? <HistoryDialog node={byId.get(historyNode)} onClose={() => setHistoryNode(null)} onPick={(src) => { patchNode(historyNode, { src }); setHistoryNode(null) }} /> : null}
     </div>

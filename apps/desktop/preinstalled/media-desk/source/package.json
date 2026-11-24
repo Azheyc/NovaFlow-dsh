@@ -1,6 +1,6 @@
 {
   "name": "novaflow-media-desk",
-  "version": "2.7.2+novaflow.6",
+  "version": "2.7.2+novaflow.12",
   "description": "NovaFlow 自媒体工作台 · 无限画布、灵感、内容、排期与复盘",
   "type": "module",
   "main": "src/host.js",

@@ -128,12 +128,12 @@ describe('the new-session chip', () => {
 
   it('omits deployment-hidden choices while showing the current preset and allowing another selection', () => {
     const actions = renderSeat({ current: 'ops-ptc', options: [
-      { id: 'standard' }, { id: 'cordis' }, { id: 'ops-ptc', name: 'OPS (PTC)' },
+      { id: 'standard' }, { id: 'cordis' }, { id: 'ops-ptc', name: 'OPS (PTC)' }, { id: 'ptc' },
       { id: 'novaflow-modeling', name: 'Modeling' }, { id: 'novaflow-media-creation', name: 'Content platform' },
-    ] }, undefined, undefined, true, ['cordis', 'ops-ptc'])
+    ] }, undefined, undefined, true, ['cordis', 'ops-ptc', 'ptc'])
     fireEvent.click(screen.getByRole('button', { name: 'OPS (PTC)' }))
     expect(screen.getAllByRole('menuitem')).toHaveLength(3)
-    expect(screen.queryByRole('menuitem', { name: /Creator|OPS/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Creator|PTC/ })).toBeNull()
     expect(screen.getByRole('menuitem', { name: /^Standard mode/ })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /^Content platform/ })).toBeTruthy()
     fireEvent.click(screen.getByRole('menuitem', { name: /^Modeling/ }))

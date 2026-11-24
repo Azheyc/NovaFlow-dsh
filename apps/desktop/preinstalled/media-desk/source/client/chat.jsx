@@ -39,7 +39,7 @@ function Message({ message, canUndoThis }) {
 }
 
 /** 对话面板：首页的助手和成稿工作区共用。每条灵感有自己的对话。 */
-export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, disabled = false, intro = true, session }) {
+export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, disabled = false, intro = true, session, renderPromptPicker }) {
   const all = useDesk(s => s.state.chat)
   const deskChat = React.useMemo(() => all.filter(m => (m.itemId ?? null) === (itemId ?? null)), [all, itemId])
   const chat = session?.messages ?? deskChat
@@ -49,10 +49,15 @@ export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, 
   const [text, setText] = React.useState('')
   const scroller = React.useRef(null)
   const input = React.useRef(null)
+  const promptPrefix = React.useRef('')
+  const pickingPrompt = Boolean(renderPromptPicker)
 
   React.useEffect(() => {
-    if (scroller.current) scroller.current.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
-  }, [chat.length, thinking])
+    const el = scroller.current
+    if (el && el.scrollHeight > el.clientHeight) {
+      el.scrollTo({ top: pickingPrompt ? 0 : el.scrollHeight, behavior: pickingPrompt ? 'instant' : 'smooth' })
+    }
+  }, [chat.length, thinking, pickingPrompt])
   React.useLayoutEffect(() => {
     const el = input.current
     if (!el) return
@@ -63,11 +68,18 @@ export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, 
     if (quote) input.current?.focus()
   }, [quote])
 
+  const fillPrompt = prompt => {
+    const prefix = promptPrefix.current
+    const material = prefix && text.startsWith(prefix) ? text.slice(prefix.length) : text
+    promptPrefix.current = `${prompt}\n`
+    setText(promptPrefix.current + material)
+    input.current?.focus()
+  }
   const send = (value) => {
     const message = (value ?? text).trim()
     if (!message || thinking || disabled) return
     setText('')
-    if (session) session.send(message).catch(() => setText(message))
+    if (session) session.send(message).catch(() => setText(current => current || message))
     else sendChat(message)
   }
   const lastBot = [...chat].reverse().find(m => m.role === 'assistant')
@@ -77,7 +89,7 @@ export function ChatPanel({ itemId, head, top = null, suggestions, placeholder, 
       <header className="md-dock-head" data-window-drag="">{head}</header>
       <div className="md-dock-scroll" ref={scroller} aria-live="polite">
         {top}
-        {chat.length === 0 && intro ? (
+        {renderPromptPicker ? renderPromptPicker(fillPrompt) : chat.length === 0 && intro ? (
           <div className="md-dock-intro">
             <h3>{t('说一句话，')}<br />{t('剩下的我来补全。')}</h3>
             <p>{t('选题、灵感、内容、排期、风格和写作标准，都可以直接说。每一步都能撤销。')}</p>

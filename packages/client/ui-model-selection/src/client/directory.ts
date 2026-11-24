@@ -44,6 +44,7 @@ export class ModelDirectory {
 
   /** Latest selection operation wins; an older response never overwrites a newer one. */
   private generation = 0
+  private confirmedSelection: ModelSelection | undefined
   private disposed = false
   private readonly unsubscribeCatalog: () => void
   private readonly unsubscribeSelection: () => void
@@ -67,7 +68,10 @@ export class ModelDirectory {
     private readonly track?: TrackProductEvent,
   ) {
     this.unsubscribeCatalog = catalog.store.subscribe(() => { this.syncInputs() })
-    this.unsubscribeSelection = projected.subscribe(() => { this.syncInputs() })
+    this.unsubscribeSelection = projected.subscribe(() => {
+      this.confirmedSelection = undefined
+      this.syncInputs()
+    })
     this.syncInputs()
   }
 
@@ -92,6 +96,7 @@ export class ModelDirectory {
   async select(selection: ModelSelection): Promise<RemoteResult<void>> {
     this.assertAvailable()
     const previous = this.store.getSnapshot().current
+    const initialProjection = this.projected.getSnapshot()
     const previousEffort = previous?.reasoningEffort ?? (previous === null ? undefined : this.catalog.reasoningFor(previous)?.defaultEffort)
     const nextEffort = selection.reasoningEffort ?? this.catalog.reasoningFor(selection)?.defaultEffort
     const generation = ++this.generation
@@ -123,7 +128,13 @@ export class ModelDirectory {
         ...this.isBlank() ? {} : { session_id: this.sessionId }, model_name: to, switch_from: previousEffort ?? 'default', switch_to: nextEffort ?? 'default',
       })
     }
-    this.store.update((s) => { s.status = 'ready'; s.pending = null; s.error = null })
+    if (this.projected.getSnapshot() === initialProjection) {
+      this.confirmedSelection = result.value.selected
+    }
+    this.store.update((s) => {
+      s.current = this.confirmedSelection ?? s.current
+      s.status = 'ready'; s.pending = null; s.error = null
+    })
     this.syncInputs()
     return { ok: true, value: undefined }
   }
@@ -134,6 +145,7 @@ export class ModelDirectory {
   resetConnected(): void {
     if (this.disposed) return
     ++this.generation
+    this.confirmedSelection = undefined
     this.store.update((state) => {
       if (state.status === 'selecting') state.status = 'idle'
       state.pending = null
@@ -159,7 +171,7 @@ export class ModelDirectory {
     if (this.disposed) return
     const catalog = this.catalog.store.getSnapshot()
     const projected = modelSelectionProjection(this.projected.getSnapshot())
-    const intended = projected?.next ?? catalog.value?.default
+    const intended = this.confirmedSelection ?? projected?.next ?? catalog.value?.default
     const reasoning = intended === undefined ? undefined : this.catalog.reasoningFor(intended)
     const effort = intended?.reasoningEffort ?? reasoning?.defaultEffort
     const retainedEffort = effort === undefined ? undefined
@@ -177,7 +189,7 @@ export class ModelDirectory {
       })
       return
     }
-    const selection = projected.next ?? catalog.value.default
+    const selection = intended ?? catalog.value.default
     const routable = catalog.value.groups.some(group => group.id === selection.provider
       && group.models.some(model => model.id === selection.model))
     this.store.set({

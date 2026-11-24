@@ -11,7 +11,7 @@ This reference maps NovaFlow customization to its owning source and validation. 
 | Welcome, automatic authorization validation | src/novaflow-account-backend.ts, src/client/WelcomePage.tsx; [account integration](../novaflow-plugin/INTEGRATION.md) |
 | Account, balance, model synchronization | apps/novaflow-plugin; [integration](../novaflow-plugin/INTEGRATION.md) takes precedence over historical standalone-plugin instructions |
 | Offline plugin seeding | preinstalled/package.json, scripts/prepare-novaflow-preinstalled.ts, src/novaflow-preinstalled.ts |
-| MCP Connector | The desktop seed pins [`dsh-mcp-connector`](https://github.com/duhu2000/dsh-mcp-connector) for first launch. Users configure and authorize their own services in the connector. |
+| Plugin market account access | The account plugin uses the platform’s `identity_scope` to control market activation. Enterprise sign-in removes the market routes and client entry. Account changes re-evaluate access. |
 | Connect phone | `prepareLocalIm()` adapts the [`@xmanrui/dsh-im`](https://github.com/xmanrui/dsh-im) client for the offline seed. The plugin always registers its sidebar entry when enabled. Desktop updates replace the bundled files with the same package name and bot configuration. |
 | NovaFlow Media Desk | Desktop builds compile `novaflow-media-desk` from `preinstalled/media-desk/source/` for offline installation. The source is based on [dsh-media-desk v2.7.2](https://github.com/woniuniuniu/dsh-media-desk/tree/v2.7.2) and ships its MIT license. |
 | Shared skills, legacy presets and first guide | [NovaFlow skills and presets](../novaflow-modes/README.md) |
@@ -36,6 +36,8 @@ Read versions from the [seed manifest](preinstalled/package.json) and [lockfile]
 
 | Plugin | Behavior and source to preserve when merging upstream |
 | --- | --- |
+| Team mode | The bundled DS Bot patch keeps the classic settings entry outside Team mode. DSH-IM provides the channel setup and lets users select a team Bot as the conversation target. |
+| Persistent memory | The bundled dsh-auto-memory patch creates its data directory before acquiring the settings lock. The default Companion preset uses a 32 KB budget and minimum importance 1. Existing user overrides take precedence. |
 | Plugin market | `preinstalled/patches/dshmarket@<version>.patch` keeps the online catalog live, hides the sponsor area and top-level update-check notice, and ships market updates with the desktop. Route requests return the install or update result after a Host remount. |
 | Connect phone | `prepareLocalIm()` retains the package name and bot settings, removes the GitHub and self-update actions, and always registers the sidebar entry while the plugin is enabled. The page subtitle is “NovaFlow at your fingertips”. |
 | Media Desk | Preserve the separate Infinite canvas entry, per-canvas DSH sessions and NovaFlow Image integration. The default directory is `$DSH_HOME/media-desk/files`. Users can change or restore it, and older files resolve to their original roots. Image nodes offer 1K and 2K and use the image model selected in client settings. |

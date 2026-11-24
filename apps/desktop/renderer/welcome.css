@@ -95,7 +95,7 @@ body {
   font-weight: 500;
 }
 
-.brand-lockup .brand { width: 48px; height: 48px; border-radius: 8px; }
+.brand-lockup .brand { width: 48px; height: 48px; }
 
 .welcome > .tagline,
 .welcome > .key-form,

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { checkEdge, NODE_TYPES, normalizeNode, PORTS } from './canvas.js'
-import { arrangeAll, boundsOf } from './board-layout.js'
+import { arrangeAll, boundsOf, settleGroupDrop } from './board-layout.js'
 import { tr } from './i18n.js'
 
 const BATCH = 64
@@ -14,6 +14,7 @@ const fail = message => Object.assign(new Error(message), { status: 400 })
 export const CANVAS_GUIDE = `你在 NovaFlow 内容工作台的无限画布会话里。画布由节点和连线组成：
 - 节点类型：text（文本，输出 TEXT）、image（图片素材，输出 IMAGE）、video（视频素材，输出 VIDEO）、imageGen（图片生成，输入 prompt:TEXT、reference:IMAGE 多张，输出 IMAGE）、videoGen（视频生成，输入 prompt:TEXT、firstFrame:IMAGE、reference:IMAGE 多张，输出 VIDEO）、group（分组）。
 - 用 canvas_read 查看画布，用 canvas_edit 新增、修改、移动、删除节点和连线，用 canvas_generate 让生成节点出图或出视频，用 canvas_generation_status 查进度。
+- 图片生成节点的 prompt 输入接有文本节点时，使用该文本节点的正文生成。断开后恢复使用图片节点自己的提示词。
 - 图片生成只支持 1K 和 2K（tier 字段），不支持 4K；比例用 ratio，例如 16:9。视频比例和时长以 NovaFlow 当前视频模型能力为准。
 - 先连好真实的参考素材再生成。生成会消耗算力：一次方案统一确认，结果不明时先查状态，不要重复提交。
 - 需要专业流程（剧本、分镜、角色、场景）时，按会话技能目录调用对应技能，画布工具只负责落地。`
@@ -197,12 +198,19 @@ export function applyOperation(canvas, op, created) {
     case 'moveNode': {
       const node = find(op.id)
       if (!node || !op.position) throw fail(tr('节点不存在：{id}', { id: op.id }))
+      const previous = node.position
       node.position = normalizeNode({ ...node, position: op.position }).position
+      if (node.type === 'group') {
+        for (const member of canvas.nodes.filter(n => n.parentId === node.id)) {
+          member.position = { x: member.position.x + node.position.x - previous.x, y: member.position.y + node.position.y - previous.y }
+        }
+      } else settleGroupDrop(canvas.nodes, new Set([node.id]))
       return
     }
     case 'deleteNode':
       if (find(op.id)?.data.job?.status === 'running') throw fail(tr('生成中的节点需要保留到任务结束'))
       canvas.nodes = canvas.nodes.filter(node => node.id !== op.id)
+      for (const node of canvas.nodes) if (node.parentId === op.id) delete node.parentId
       canvas.edges = canvas.edges.filter(edge => edge.source !== op.id && edge.target !== op.id)
       return
     case 'connect': {

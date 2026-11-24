@@ -62,6 +62,21 @@ describe('task-board browser plugin', () => {
     await b.fiber.dispose()
   })
 
+  it('omits the model option and its overlay when the deployment hides the teamwork switch', async () => {
+    vi.stubGlobal('__DSH_HIDE_TEAM_MODEL_OPTION__', true)
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    const b = await bench()
+    b.ctx.slots.register({
+      name: 'conversation.input.model',
+      children: { 'conversation.input.model.options': { kind: 'list', scope: 'session' } },
+    } as never, () => null)
+    new TestRemote(b.ctx, { agentTeams: { setEnabled: vi.fn() } })
+    await b.ctx.fiber.await()
+    expect(b.ctx.slots.entries('conversation.input.model.options')).toHaveLength(0)
+    expect(b.ctx.slots.entries('shell.overlay').some(row => row.component === TeamDisableConfirmation)).toBe(false)
+    expect(b.entry()).toBeDefined()
+  })
+
   it('registers the mode switch when Agent Teams arrives and reports each execution outcome', async () => {
     const b = await bench()
     b.ctx.slots.register({

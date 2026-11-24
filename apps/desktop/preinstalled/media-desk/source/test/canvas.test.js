@@ -4,11 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { CanvasStore, imagePixels } from '../src/canvas.js'
-import { CanvasGenerator } from '../src/canvas-generate.js'
+import { CanvasGenerator, promptOf } from '../src/canvas-generate.js'
 import { Settings } from '../src/settings.js'
 import { Storage, StorageRoots, validateRoot } from '../src/storage.js'
 import { canvasDocument } from '../client/board/document.js'
-import { createCanvasTools } from '../src/canvas-agent.js'
+import { applyOperation, createCanvasTools } from '../src/canvas-agent.js'
+import { settleGroupDrop, resizedNode } from '../src/board-layout.js'
 
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'desk-board-'))
@@ -23,6 +24,28 @@ async function fixture(t) {
   await settings.update({ exportDir: await validateRoot(output) })
   return { settings, output, second, storage, canvases, defaultDir }
 }
+
+test('frames keep only their members across drops, resizing, disk reload and assistant moves', async t => {
+  const { canvases } = await fixture(t)
+  const canvas = await canvases.create({ name: '分组' })
+  const group = { id: 'g', type: 'group', position: { x: 0, y: 0 }, width: 4900, height: 250, data: {} }
+  const a = { id: 'a', type: 'text', position: { x: 25, y: 50 }, data: {} }
+  const b = { ...a, id: 'b', position: { x: 4200, y: 50 } }
+  canvas.nodes = [group, a, b]
+  settleGroupDrop(canvas.nodes, new Set(['a']))
+  assert.equal(a.parentId, 'g')
+  assert.equal(b.parentId, undefined)
+  assert.deepEqual(resizedNode(group, -6000, -200, canvas.nodes), { width: 289, height: 234 })
+  const saved = await canvases.save(canvas.id, canvas.revision, canvas)
+  const reopened = await canvases.get(saved.id)
+  assert.equal(reopened.nodes[0].width, 4900)
+  assert.equal(reopened.nodes[1].parentId, 'g')
+  applyOperation(reopened, { op: 'moveNode', id: 'g', position: { x: -200, y: 100 } }, [])
+  assert.deepEqual(reopened.nodes[1].position, { x: -175, y: 150 })
+  assert.deepEqual(reopened.nodes[2].position, b.position)
+  applyOperation(reopened, { op: 'moveNode', id: 'a', position: { x: -3000, y: 0 } }, [])
+  assert.equal(reopened.nodes[1].parentId, undefined)
+})
 
 test('the default data directory works without a saved path and retains earlier custom files', async t => {
   const { settings, output, defaultDir, storage, canvases } = await fixture(t)
@@ -72,6 +95,18 @@ test('old boards and ordered reference images remain available after changing th
   await assert.rejects(canvases.save(canvas.id, updated.revision, graph), { code: 'CANVAS_CONFLICT' })
   const results = await Promise.allSettled([1, 2].map(() => canvases.save(canvas.id, saved.revision, graph)))
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1)
+})
+
+test('a connected text node owns the image prompt until disconnected', async () => {
+  const image = { id: 'image', type: 'imageGen', data: { prompt: 'local draft' } }
+  const text = { id: 'script', type: 'text', data: { text: '  linked draft  ' } }
+  const canvas = { nodes: [image, text], edges: [{ source: text.id, target: image.id, targetHandle: 'prompt' }] }
+  assert.equal(promptOf(canvas, image), 'linked draft')
+  assert.equal(promptOf(canvas, { ...image, type: 'videoGen' }), 'local draft\n\nlinked draft')
+  text.data.text = ' '
+  await assert.rejects(new CanvasGenerator({}).image(canvas, image), /已连接的文本节点/)
+  canvas.edges = []
+  assert.equal(promptOf(canvas, image), 'local draft')
 })
 
 test('only supported image tiers and compatible edges reach generation', async t => {

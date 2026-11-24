@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { createMediaService } from './src/media-service.js'
 import { createMediaContexts } from './src/media-context.js'
 import { createMediaMcp } from './src/media-mcp.js'
+import { createMarketAccess } from './src/market-access.js'
 import { clientDelivery } from './src/release.js'
 
 export const name = 'novaflow-account'
@@ -22,14 +23,19 @@ export async function apply(ctx, rawConfig) {
   let binding, media
   const modelStartup = Promise.withResolvers()
   ctx.effect(() => () => modelStartup.resolve())
-  const account = new NovaAccount({ credentials: ctx.credentials, api: new NovaApi(), origin, onCatalog: (...args) => binding.update(...args), onClear: (...args) => {media?.clear();return binding?.clear(...args)} })
+  const marketAccess = createMarketAccess(ctx)
+  let identityReady = false
+  const syncMarket = state => marketAccess.set(identityReady && (state.hasCredential
+    ? state.account?.role === 'personal'
+    : state.attempt?.phase !== 'exchanging'))
+  const account = new NovaAccount({ credentials: ctx.credentials, api: new NovaApi(), origin, onState: syncMarket, onCatalog: (...args) => binding.update(...args), onClear: (...args) => {media?.clear();return binding?.clear(...args)} })
   binding = await createModelBinding(ctx, account, config, libraries, {whenReady:()=>modelStartup.promise})
   ctx.provide('novaFlowModelTransport', { async fetch(provider, key, input, init) {
     await modelStartup.promise
     return binding.bridge.platformFetch(provider, key, input, init)
   } })
   ctx.provide('novaflowAccount', account)
-  ctx.effect(() => () => account.dispose(false))
+  ctx.effect(() => () => { identityReady = false; marketAccess.set(false); return account.dispose(false) })
   media = createMediaService({account,credentials:ctx.credentials,api:new NovaApi(),workspace:ctx.workingDirectory.defaultDirectory})
   ctx.effect(() => () => media.dispose())
   ctx.provide('novaflowImage', { available: media.imageAvailable, generate: media.renderSelectedImage })
@@ -57,6 +63,8 @@ export async function apply(ctx, rawConfig) {
   // until apply has returned so Loader activation never waits on its own lock.
   const ready = new Promise(resolve => setImmediate(resolve)).then(async()=>{
     const state=await account.initialize()
+    identityReady = !account.disposed
+    await syncMarket(state)
     return state
   }).catch(error => account.publish({ error: safeCode(error) })).finally(() => modelStartup.resolve())
   const view=async state=>({...state,delivery:clientDelivery(ctx),media:{

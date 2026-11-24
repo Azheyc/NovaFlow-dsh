@@ -1,8 +1,8 @@
 diff --git a/client/client.js b/client/client.js
-index a3906a4..05269aa 100644
+index 3f6a5ff12b..3de3127df6 100644
 --- a/client/client.js
 +++ b/client/client.js
-@@ -16096,7 +16096,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+@@ -16878,7 +16878,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
  				const updatable = isPluginUpdatable(name, spec, status, updatedNames);
  				const showExempt = !localDev || exempt || updatable;
  				const showBootIgnore = bootId !== null && !exempt && !ignoredUpdateSet.has(name) && updatable;
@@ -11,8 +11,8 @@ index a3906a4..05269aa 100644
  				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
  					open: installedMenuName === name,
  					onClose: () => setInstalledMenuName(null),
-@@ -18006,11 +18006,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
- 									children: t("tabAdvanced")
+@@ -19000,28 +19000,10 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 									}
  								}),
  								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 -									className: surface === "plugins" ? `${Market_module_css_default.grow} ${Market_module_css_default.sponsorSlot}` : Market_module_css_default.grow,
@@ -21,10 +21,6 @@ index a3906a4..05269aa 100644
 -										t
 -									})
 +									className: Market_module_css_default.grow
- 								}),
- 								surface === "plugins" && batchActions,
- 								surface === "plugins" && exportLogButton,
-@@ -18056,20 +18052,6 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
  								})
  							]
  						}),
@@ -45,8 +41,57 @@ index a3906a4..05269aa 100644
  						!marketGone && restartHold !== null && restartHold.boot === bootId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
  							className: Market_module_css_default.updateCheckNotice,
  							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+@@ -24012,8 +23994,8 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 				regionAuto: body.regionAuto === true,
+ 				githubProxyCustom: typeof body.githubProxyCustom === "string" ? body.githubProxyCustom : null,
+ 				githubProxyManaged: body.githubProxyManaged === true,
+-				selfManaged: body.selfManaged !== false,
+-				selfUninstallReachable: body.selfUninstallReachable !== false,
++				selfManaged: false,
++				selfUninstallReachable: false,
+ 				buildEnv: body.buildEnv ?? {},
+ 				anonymousCount: typeof body.anonymousCount === "boolean" ? body.anonymousCount : null,
+ 				anonymousCountLocked: body.anonymousCountLocked === true,
+@@ -24146,8 +24128,8 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
+ 							regionAuto: false,
+ 							githubProxyCustom: null,
+ 							githubProxyManaged: false,
+-							selfManaged: true,
+-							selfUninstallReachable: true,
++							selfManaged: false,
++							selfUninstallReachable: false,
+ 							buildEnv: {},
+ 							anonymousCount: null,
+ 							anonymousCountLocked: false,
+diff --git a/lib/catalogs.js b/lib/catalogs.js
+index e4e619de3e..eed4192ecd 100644
+--- a/lib/catalogs.js
++++ b/lib/catalogs.js
+@@ -22,6 +22,7 @@
+  * never put into a message — {@link scrub} removes any configured header value
+  * and URL credentials from every failure text before it leaves this module.
+  */
++import builtins from './novaflow-builtins.json' with { type: 'json' };
+ import { createHash } from 'node:crypto';
+ import { readFileSync, statSync } from 'node:fs';
+ import { basename, dirname, extname, isAbsolute, join } from 'node:path';
+@@ -431,8 +432,13 @@ export async function loadExtra(source, options = {}) {
+ }
+ // ---------------------------------------------------------------------------
+ // Merging and filtering.
+-/** Whether the policy's `allow` list lets this entry be shown and installed. */
++const desktopNames = new Set([...builtins.names, 'dsh-market', 'dsh-media-desk']);
++const desktopRepos = new Set(builtins.repositories);
++/** Whether NovaFlow and the organization's policy allow this catalog entry. */
+ export function entryAllowed(entry, allow) {
++    const repository = String(entry.url).replace(/(?:\.git)?\/?$/, '').toLowerCase();
++    if (desktopNames.has(entry.npm) || desktopNames.has(entry.name) || desktopRepos.has(repository))
++        return false;
+     if (allow === null)
+         return true;
+     const names = [entry.name, typeof entry.npm === 'string' ? entry.npm : ''].filter(name => name !== '');
 diff --git a/lib/drain.js b/lib/drain.js
-index 86abef2..fe409aa 100644
+index 86abef257a..fe409aae4d 100644
 --- a/lib/drain.js
 +++ b/lib/drain.js
 @@ -17,6 +17,7 @@
@@ -195,7 +240,7 @@ index 86abef2..fe409aa 100644
      view(operation) {
          return {
 diff --git a/lib/official-desktop.js b/lib/official-desktop.js
-index 5984ded..8fda453 100644
+index 5984dedf91..8fda453634 100644
 --- a/lib/official-desktop.js
 +++ b/lib/official-desktop.js
 @@ -642,6 +642,9 @@ packageManager) {
@@ -217,11 +262,64 @@ index 5984ded..8fda453 100644
          repairPendingUpdates,
          busy,
          packageWritesSettled: () => pendingManagerWrites().size === 0,
+diff --git a/lib/patch.js b/lib/patch.js
+index c00d839af5..9d768066ea 100644
+--- a/lib/patch.js
++++ b/lib/patch.js
+@@ -475,7 +475,10 @@ function foreignDisableIds(rows) {
+             continue;
+         const record = row;
+         const id = record.id;
+-        if (typeof id === 'string' && record.disabled === true && !ids.includes(id))
++        // The Host evaluates !!js when composing the profile. A disabled bundle
++        // must relinquish this override even if its current value is unknown here.
++        const disablesForeignRow = record.disabled === true || typeof record.disabled?.__jsExpr === 'string';
++        if (typeof id === 'string' && disablesForeignRow && !ids.includes(id))
+             ids.push(id);
+     }
+     return ids;
+diff --git a/lib/profile.js b/lib/profile.js
+index 5d661c0cc4..c81fc72dce 100644
+--- a/lib/profile.js
++++ b/lib/profile.js
+@@ -47,7 +47,9 @@ export function profileDir(profile, explicitDir) {
+  * filter would make them invisible and fail install validation.
+  * (Diagnosis and fix proposed in #28 by @Lograthmic.)
+  */
++import builtins from './novaflow-builtins.json' with { type: 'json' };
+ export const INBOX_BUNDLES = new Set([
++    ...builtins.names,
+     '@deepseek-ai/dsh-base',
+     '@deepseek-ai/dsh-web-app',
+     '@deepseek-ai/dsh-headless',
+diff --git a/lib/registry.js b/lib/registry.js
+index f26d59bf4e..1d89fa5d32 100644
+--- a/lib/registry.js
++++ b/lib/registry.js
+@@ -8,7 +8,7 @@ import { configuredProxy, marketFetch } from './net.js';
+ import { catalogFromPackage } from './catalog-npm.js';
+ import { activeRegion, catalogSourcesFor, routesFor } from './regions.js';
+ import { NPM_NAME_RE } from './sources.js';
+-import { catalogConfig, forgetExtraCatalogs, loadExtra, mergeSources, PUBLIC_LABEL, } from './catalogs.js';
++import { catalogConfig, entryAllowed, forgetExtraCatalogs, loadExtra, mergeSources, PUBLIC_LABEL, } from './catalogs.js';
+ /**
+  * How long a successful catalog load may take before it leaves a line behind.
+  *
+@@ -129,8 +129,8 @@ function asRegistry(value) {
+             return { ...rest, category };
+         }
+         return { ...plugin, category, previousNpm };
+-    });
+-    return { ...data, plugins };
++    }).filter(plugin => entryAllowed(plugin, null));
++    return { ...data, count: plugins.length, plugins };
+ }
+ /**
+  * Drop the validator and detach any earlier load, so the next call starts an
 diff --git a/lib/routes.js b/lib/routes.js
-index 5b9e085..badc2bf 100644
 --- a/lib/routes.js
 +++ b/lib/routes.js
-@@ -490,6 +490,14 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -551,6 +551,14 @@
      // re-applies the same choice on every boot (ported from dsh-plugin-hub).
      const userPatchPath = findUserPatchPath(host, activeProfileDir);
      const commands = commandRuntime ?? { runPlugin: runDshPlugin, probePnpm, provisionPnpm, cancelActive };
@@ -236,7 +334,7 @@ index 5b9e085..badc2bf 100644
      const checkoutLinks = new PendingCheckoutLinks(activeProfileDir);
      const drainCalls = new WeakMap();
      const drainCallOf = (request) => drainCalls.get(request);
-@@ -534,6 +542,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -595,6 +603,7 @@
              }) ?? null,
          },
          journal: drainJournal,
@@ -244,7 +342,24 @@ index 5b9e085..badc2bf 100644
          bootId: BOOT_ID,
          log: (level, event, detail) => logEvent(level, event, detail),
          abortMutation: () => commands.cancelActive(),
-@@ -1576,9 +1585,9 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -865,6 +874,7 @@
+      * contract a live carrier toggle already has.
+      */
+     async function replayDisabledPackage(name) {
++        if (INBOX_BUNDLES.has(name)) return;
+         const carrierRows = carrierRowIds(activeProfileDir, name);
+         if (carrierRows.length > 0
+             && declaresBundle(activeProfileDir, name)
+@@ -937,7 +947,7 @@
+     host.on?.('internal/plugin', (payload) => {
+         const fiber = payload;
+         const name = fiber.entry?.options?.name;
+-        if (name === undefined || !disabled.has(name) || followOutsideEnable(name))
++        if (name === undefined || INBOX_BUNDLES.has(name) || !disabled.has(name) || followOutsideEnable(name))
+             return;
+         // A carrier is reconciled by removing its bundle for the next
+         // composition, not by disabling its entries. Pushing a matching entry
+@@ -1681,9 +1691,9 @@
       * the source of truth for verifyActivation's `live` state — without the
       * loader side, every boot-loaded bundle plugin would read as "restart".
       */
@@ -256,16 +371,48 @@ index 5b9e085..badc2bf 100644
              if (entry.fiber === undefined)
                  continue;
              if (entry.options.name !== undefined) {
-@@ -5244,7 +5253,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -3238,13 +3248,15 @@
+      */
+     const enforceHostGate = config.desktopHost !== true;
+     const registerRoute = (route) => {
+-        if (!enforceHostGate)
+-            return host.webServer.register(route);
+         const handler = route.handler;
+         return host.webServer.register({
+             ...route,
+             handler: (request, response) => {
+-                if (refuseUnadmitted(request, response))
++                if (host.get('novaflowMarketPolicy')?.allowed !== true) {
++                    sendJson(response, 403, { error: 'Plugin market unavailable for this account.' });
++                    return;
++                }
++                if (enforceHostGate && refuseUnadmitted(request, response))
+                     return;
+                 return handler(request, response);
+             },
+@@ -4473,8 +4485,8 @@
+                     activation,
+                     diagnostics,
+                     live: listLiveHotMounts(),
+-                    disabled: [...disabled],
+-                    groups,
++                    disabled: [...disabled].filter(name => !INBOX_BUNDLES.has(name)),
++                    groups: Object.fromEntries(Object.entries(groups).map(([id, members]) => [id, members.filter(name => !INBOX_BUNDLES.has(name))])),
+                     groupOrder,
+                     notes: readMarketState(activeProfileDir).notes ?? {},
+                     // When this market installed/updated each package (#1142). Read
+@@ -5763,8 +5775,8 @@
+                     restartReachable: restartReachableFrom(request),
                      // Same door, one notch wider for the desktop proxy (#903): the
                      // card hides a remove button that could only ever answer 403.
-                     selfUninstallReachable: selfUninstallReachableFrom(request),
+-                    selfUninstallReachable: selfUninstallReachableFrom(request),
 -                    selfManaged: installed.dshmarket !== undefined || installed['dsh-market'] !== undefined,
++                    selfUninstallReachable: false,
 +                    selfManaged: false,
-                     // Whether the host took the market's settings namespace (#677).
-                     // `unsupported-by-host` is 0.1.7 and newer, where settings come from
-                     // a plugin's Config schema and no third-party namespace is served —
-@@ -5720,6 +5729,10 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+                     // Whether POST /dsh-market/reload-self can swap a newer build of the
+                     // market in without restarting DSH. The page that has just loaded a
+                     // newer client than this server reads it to choose between "reload
+@@ -6245,6 +6257,10 @@
                  try {
                      const body = (await readJsonBody(request));
                      const name = typeof body.name === 'string' ? body.name : '';
@@ -276,7 +423,7 @@ index 5b9e085..badc2bf 100644
                      const drainCall = drainCallOf(request);
                      if (drainCall === undefined && body.busyPolicy === 'drain') {
                          if (body.restore === true) {
-@@ -6995,7 +7008,8 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -7519,7 +7535,8 @@
                              if (wasLive)
                                  replacedWhileLive.add(name);
                              activation = {
@@ -286,7 +433,7 @@ index 5b9e085..badc2bf 100644
                              };
                              const after = assessProfile(config.profile, activeProfileDir);
                              const risks = introducedRisks(compatibilityBefore, after);
-@@ -7175,6 +7189,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -7699,6 +7716,7 @@
                          // A user-cancelled run is a quiet outcome, not an error.
                          sendJson(response, ok || cancelled ? 200 : result.busy === true ? 409 : 502, {
                              ok,
@@ -294,7 +441,7 @@ index 5b9e085..badc2bf 100644
                              cancelled: cancelled || undefined,
                              busy: result.busy || undefined,
                              stale: stale || undefined,
-@@ -8704,6 +8719,28 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -9298,6 +9316,28 @@
                          }
                          drainPhaseOf(request)?.('verifying');
                          const cancelled = result.cancelled;
@@ -323,7 +470,7 @@ index 5b9e085..badc2bf 100644
                          const portCollisionLanded = !cancelled
                              && isHostPortCollision(result)
                              && installApplied(config.profile, before, activeProfileDir);
-@@ -9061,7 +9098,7 @@ export function mountMarketRoutes(host, config, commandRuntime, agentsLookup, ho
+@@ -9655,7 +9695,7 @@
          // Release Agent maintenance holds before the routes disappear. This is the
          // disposer half of the single-finally + disposer guarantee (#411): an
          // unloaded market must never leave an Agent parked behind a hold.
@@ -333,10 +480,10 @@ index 5b9e085..badc2bf 100644
          configurePersistentLog(null);
          for (const dispose of disposers)
 diff --git a/lib/updates.js b/lib/updates.js
-index 461faa5..096c91c 100644
+index a89c97a09b..6721f099f9 100644
 --- a/lib/updates.js
 +++ b/lib/updates.js
-@@ -805,6 +805,8 @@ options = {}) {
+@@ -823,6 +823,8 @@ options = {}) {
      const result = {};
      let nextCandidateMaturityAt = Infinity;
      await Promise.all(Object.entries(installed).map(async ([name, spec]) => {
@@ -345,3 +492,10 @@ index 461faa5..096c91c 100644
          const version = readInstalledVersion(profile, name, activeProfileDir);
          const normalizedSpec = spec.toLowerCase();
          if (normalizedSpec.startsWith('file:')) {
+diff --git a/cordis.patch.yml b/cordis.patch.yml
+--- a/cordis.patch.yml
++++ b/cordis.patch.yml
+@@ -3,2 +3,3 @@
+     - id: dsh-market
+       name: 'dshmarket'
++      disabled: !!js ctx.get('novaflowMarketPolicy')?.allowed !== true
