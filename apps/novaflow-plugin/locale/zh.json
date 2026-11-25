@@ -74,6 +74,7 @@
     "modelFooterHelp": "NovaFlow 登录后会在此保存原生提供商配置。可直接使用上方编辑器获取、新增或编辑模型；退出登录会保留这些配置，但需重新登录后才能调用。",
     "mediaTitle": "NovaFlow Image",
     "imageModel": "图片生成模型",
+    "imageResolutionHint": "建议优先1k分辨率，效果最好。",
     "videoModel": "视频生成模型",
     "chooseMedia": "选择模型",
     "noMedia": "当前账户暂无可用模型",

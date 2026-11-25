@@ -59,6 +59,26 @@ test('a fresh account lists its effective image model and uses it on the first g
   if (process.platform !== 'win32') assert.equal((await fs.stat(job.files[0])).mode&0o777,0o600)
 })
 
+test('image MCP preserves the original bytes and reports the measured size when a 4K request returns smaller', async t => {
+  const h = await fixture(t)
+  const result = await h.service.generateImage({prompt:'4K image',resolution:'4K',size:'16:9'})
+  assert.equal(h.requests.length,1)
+  assert.equal(JSON.parse(h.requests[0].body).size,'3840x2160')
+  assert.equal(result.status,'completed')
+  assert.equal(result.submittedSize,'3840x2160')
+  assert.deepEqual(result.images,[{path:result.files[0],width:1,height:1,sizeMatchesRequest:false}])
+  assert.match(result.sizeWarning,/saved without resizing/)
+  assert.deepEqual(await fs.readFile(result.files[0]),PNG)
+  const reopened=createMediaService({account:h.account,credentials:h.credentials,workspace:h.workspace,fetchImpl:async()=>{throw Error('no fetch expected')}})
+  t.after(()=>reopened.dispose())
+  assert.deepEqual(await reopened.generationResult({id:result.id}),result)
+  const exact = await h.service.generateImage({prompt:'explicit pixel size',size:'1x1',resolution:'4K'})
+  assert.equal(exact.submittedSize,'1x1')
+  assert.deepEqual(exact.images,[{path:exact.files[0],width:1,height:1,sizeMatchesRequest:true}])
+  assert.equal(exact.sizeWarning,undefined)
+  assert.deepEqual(await fs.readFile(exact.files[0]),PNG)
+})
+
 test('workbench image generation follows the current client model and group on every request', async t => {
   const workbenchModel={model_id:'image-workbench',group_id:'团队 B',kind:'image',supported_endpoint_types:['image-generation']}
   const catalog=[rows[0],workbenchModel]
@@ -72,7 +92,7 @@ test('workbench image generation follows the current client model and group on e
   await h.service.setModel({kind:'image',model:workbenchModel.model_id,group:workbenchModel.group_id,owner})
   await h.service.renderSelectedImage({prompt:'Storyboard',size:'3840x2160'})
   assert.equal(h.requests[1].headers['X-NovaFlow-Group'],encodeURIComponent(workbenchModel.group_id))
-  assert.deepEqual(JSON.parse(h.requests[1].body),{model:workbenchModel.model_id,prompt:'Storyboard',stream:false,size:'2048x1152',n:1})
+  assert.deepEqual(JSON.parse(h.requests[1].body),{model:workbenchModel.model_id,prompt:'Storyboard',stream:false,size:'3840x2160',n:1})
   await assert.rejects(h.service.renderSelectedImage({prompt:'Cancelled',signal:AbortSignal.abort()}),{name:'AbortError'})
   h.setRecord(undefined)
   assert.equal(await h.service.imageAvailable(),false)
@@ -80,30 +100,72 @@ test('workbench image generation follows the current client model and group on e
   assert.equal(h.requests.length,2)
 })
 
-test('only 4K image requests are submitted at 2K, including multipart edits and prompt-only sizes', async t => {
-  const h = await fixture(t)
+test('image resolution uses the selected model and explicit dimensions win', async t => {
+  const nano = {model_id:'nano-banana-2.1',group_id:'研发 A',kind:'image',supported_endpoint_types:['image-generation']}
+  const fixed = {...nano, model_id:'gpt-image-1.5'}
+  const h = await fixture(t, {rows:[rows[0], nano, fixed]})
   await fs.writeFile(join(h.workspace, 'reference.png'), PNG)
-  for (const [size, prompt, expected, edit] of [
-    ['3840x2160', 'floor plan', '2048x1152'],
-    ['2160 × 3840', 'edit', '1152x2048', true],
-    ['4096x2160', 'wide', '2048x1088'],
-    ['４Ｋ', 'square portrait of a cat, 1:1', '2048x2048'],
-    [undefined, '生成一张建筑设计图，4k', '2048x1152'],
-    ['auto', '生成一张 4K 竖版海报', '1152x2048'],
-    ['2560x1440', 'an ad for a 4K TV', '2560x1440'],
-    ['2048x1152', 'floor plan', '2048x1152'],
-    ['7680x4320', '8K', '7680x4320'],
-    [undefined, 'floor plan', undefined],
+  for (const [model, size, resolution, expected, edit] of [
+    [DEFAULT_IMAGE_MODEL, '3840 × 2160', '2K', '3840x2160'],
+    [DEFAULT_IMAGE_MODEL, '16:9', '4K', '3840x2160'],
+    [DEFAULT_IMAGE_MODEL, '9:16', '4K', '2160x3840', true],
+    [DEFAULT_IMAGE_MODEL, '1:1', '4K', '2880x2880'],
+    [DEFAULT_IMAGE_MODEL, '16:9', '2K', '2048x1152'],
+    [DEFAULT_IMAGE_MODEL, '16:9', 'auto', '16:9'],
+    [DEFAULT_IMAGE_MODEL, undefined, undefined, undefined],
+    [DEFAULT_IMAGE_MODEL, '7680x4320', undefined, '7680x4320'],
+    [nano.model_id, '16:9', '4K', '4K', true],
+    [nano.model_id, '４Ｋ', undefined, '4K'],
+    [nano.model_id, '2048x1152', undefined, '2048x1152'],
+    [fixed.model_id, undefined, '4K', undefined],
   ]) {
-    const job = await h.service.generateImage({size, prompt, ...(edit ? {reference_images:['reference.png']} : {})})
+    const job = await h.service.generateImage({model, size, resolution, prompt:'4K wallpaper', ...(edit ? {reference_images:['reference.png']} : {})})
     assert.equal(job.status, 'completed')
     const body = h.requests.at(-1).body
-    assert.equal(edit ? body.get('size') : JSON.parse(body).size, expected)
-    const polled = await h.service.generationResult({id:job.id})
-    assert.equal(polled.downgradedSize, size !== expected ? expected : undefined)
+    const fields = edit ? Object.fromEntries(body) : JSON.parse(body)
+    assert.equal(fields.size, expected)
+    assert.equal(fields.resolution, undefined)
+    assert.equal(fields.response_format, model === nano.model_id ? 'b64_json' : undefined)
+    assert.equal(job.downgradedSize, undefined)
+    if (model === nano.model_id && edit) assert.equal(fields.prompt, '4K wallpaper\n\nOutput aspect ratio: 16:9.')
   }
-  await h.service.generateVideo({model:'video-test',prompt:'4K',size:'3840x2160'})
-  assert.equal(JSON.parse(h.requests.at(-1).body).size, '3840x2160')
+  const submitted = h.requests.length
+  await assert.rejects(h.service.generateImage({prompt:'test',resolution:'8K'}), code('INVALID_REQUEST'))
+  assert.equal(h.requests.length, submitted)
+})
+
+test('multi-megabyte base64 results are decoded and saved without re-submission', async t => {
+  const image = Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024)])
+  const requestId = '202611251049201904327758268d9d6cOfeZoNZ'
+  const h = await fixture(t, {fetch:async()=>Response.json({data:[{b64_json:image.toString('base64')}]}, {headers:{'x-oneapi-request-id':requestId}})})
+  const job = await h.service.generateImage({prompt:'test',resolution:'4K'})
+  assert.equal(job.status, 'completed')
+  assert.equal(job.requestId, requestId)
+  assert.deepEqual(await fs.readFile(job.files[0]), image)
+  assert.equal(h.requests.length, 1)
+})
+
+test('incomplete platform responses, malformed JSON, and image download failures have distinct outcomes', async t => {
+  for (const [name, result, error, status] of [
+    ['incomplete response', () => new Response(new ReadableStream({start(controller){controller.error(Error('interrupted'))}})), 'MEDIA_RESPONSE_INCOMPLETE', 'unknown'],
+    ['malformed JSON', () => new Response('{'), 'MEDIA_RESPONSE_INVALID', 'failed'],
+    ['failed fetch', () => response({data:[{url:'https://image.example/test.jpg'}]}), 'MEDIA_DOWNLOAD_FAILED', 'failed'],
+  ]) await t.test(name, async t => {
+    const h = await fixture(t, {fetch:async url=> {
+      if (url.startsWith(ORIGIN)) {
+        const res = result()
+        res.headers.set('x-oneapi-request-id', '202611251049201904327758268d9d6Synthetic')
+        return res
+      }
+      return new Response(null, {status:503})
+    }})
+    const job = await h.service.generateImage({prompt:'test'})
+    assert.equal(job.error, error)
+    assert.equal(job.status, status)
+    assert.equal(job.requestId, '202611251049201904327758268d9d6Synthetic')
+    assert.equal((await h.service.generationResult({id:job.id})).requestId, '202611251049201904327758268d9d6Synthetic')
+    assert.equal(h.requests.filter(r=>r.method==='POST').length, 1)
+  })
 })
 
 test('video model is mandatory and rejects before catalog, token or fetch calls',async t=>{
@@ -127,11 +189,11 @@ test('catalog lists only image/video rows and ambiguous paid groups require an e
 
 test('local image references use multipart edits and preserve reference magic and parameters',async t=>{
   const h=await fixture(t);await fs.writeFile(join(h.workspace,'reference.png'),PNG)
-  const job=await h.service.generateImage({prompt:'edit',reference_images:['reference.png'],n:1,size:'1024x1024',quality:'high'})
+  const job=await h.service.generateImage({prompt:'edit',reference_images:['reference.png'],n:1,size:'1024x1024',quality:'high',complexity:'medium'})
   assert.equal(job.status,'completed');const req=h.requests[0]
   assert.equal(req.url,ORIGIN+'/v1/images/edits');assert.ok(req.body instanceof FormData)
-  assert.equal(req.headers['content-type'],undefined);assert.equal(req.body.get('model'),DEFAULT_IMAGE_MODEL);assert.equal(req.body.get('quality'),'high')
-  const ref=req.body.get('image[]');assert.equal(ref.type,'image/png');assert.deepEqual(Buffer.from(await ref.arrayBuffer()),PNG)
+  assert.equal(req.headers['content-type'],undefined);assert.equal(req.body.get('model'),DEFAULT_IMAGE_MODEL);assert.equal(req.body.get('quality'),'high');assert.equal(req.body.get('complexity'),'medium')
+  const ref=req.body.get('image');assert.equal(ref.type,'image/png');assert.deepEqual(Buffer.from(await ref.arrayBuffer()),PNG)
 })
 
 test('default and custom sessions submit their own reference bytes and retain jobs in their own workspace', async t => {
@@ -160,7 +222,7 @@ test('default and custom sessions submit their own reference bytes and retain jo
     assert.equal(job.status, 'completed')
     assert.deepEqual(job.files, [join(session.directory, 'out/result.png')])
     const body = h.requests.find(req => req.body.get('prompt') === session.directory).body
-    assert.deepEqual(Buffer.from(await body.get('image[]').arrayBuffer()), session.bytes)
+    assert.deepEqual(Buffer.from(await body.get('image').arrayBuffer()), session.bytes)
     assert.deepEqual(await h.service.generationResult({ id: job.id }, call(session, 'generation_result')), job)
     await assert.rejects(h.service.generationResult({ id: job.id }, call(sessions[1-index], 'generation_result')), code('MEDIA_JOB_NOT_FOUND'))
   }
@@ -266,13 +328,98 @@ test('video creates, polls and saves content with selected model, group and dime
   assert.equal((await h.service.generationResult({id:queued.id})).status,'completed');assert.equal(h.requests.length,3)
 })
 
-test('video references are uploaded as multipart and a remote task failure is persisted safely',async t=>{
-  const h=await fixture(t,{fetch:async(url,init)=>url.endsWith('/videos')?response({task_id:'task_1'}):response({status:'failed',error:{message:'nfds_SECRET'}})})
+test('video failures retain only a safe reason, upstream IDs and progress and can use an authorized alternative',async t=>{
+  const alternate = {model_id:'video-other',group_id:'另一个视频组',kind:'video',supported_endpoint_types:['openai-video']}
+  const requestId = '202611251049201904327758268d9d6Synthetic'
+  let polled = false
+  const h=await fixture(t,{rows:[...rows,alternate],fetch:async(url,init)=>{
+    if (url.endsWith('/videos')) return Response.json({task_id:init.body instanceof FormData ? 'task_1':'task_2'},{headers:{'x-oneapi-request-id':requestId}})
+    if (!polled) {polled = true; return response({status:'in_progress',progress:30})}
+    return Response.json({status:'failed',error:{code:'unsupported_parameter',message:'nfds_SECRET'}},{headers:{'x-oneapi-request-id':requestId}})
+  }})
+  const {owner} = await h.service.preferences([])
+  await h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'})
   await fs.writeFile(join(h.workspace,'input.png'),PNG)
-  const queued=await h.service.generateVideo({prompt:'test',model:'video-test',image:'input.png'})
+  const queued=await h.service.generateVideo({prompt:'test',image:'input.png'})
   assert.ok(h.requests[0].body instanceof FormData);assert.equal(h.requests[0].body.get('input_reference').type,'image/png')
-  const result=await h.service.generationResult({id:queued.id});assert.equal(result.error,'MEDIA_VIDEO_FAILED');assert.equal(JSON.stringify(result).includes('SECRET'),false)
+  assert.equal(queued.model,'video-test')
+  assert.equal(queued.requestId,requestId)
+  const retry = {prompt:'test',retry_of:queued.id,model:alternate.model_id,group:alternate.group_id}
+  await assert.rejects(h.service.generateVideo(retry),code('MEDIA_VIDEO_RETRY_UNAVAILABLE'))
+  await assert.rejects(h.service.generateVideo({...retry,retry_of:undefined}),code('MEDIA_SELECTION_CONFLICT'))
+  const running = await h.service.generationResult({id:queued.id})
+  assert.equal(running.platformStatus,'in_progress');assert.equal(running.progress,30)
+  const result=await h.service.generationResult({id:queued.id})
+  assert.equal(result.error,'MEDIA_VIDEO_FAILED');assert.equal(result.platformTaskId,'task_1');assert.equal(result.canChangeModel,true)
+  assert.deepEqual(result.diagnostic,{stage:'generation',code:'MEDIA_VIDEO_FAILED',reason:'INVALID_PARAMETERS',requestId})
+  assert.equal(JSON.stringify(result).includes('SECRET'),false)
   const saved=await fs.readFile(join(h.workspace,'.novaflow-media','jobs',queued.id+'.json'),'utf8');assert.equal(saved.includes('SECRET'),false)
+  await assert.rejects(h.service.generateVideo({...retry,group:undefined}),code('MEDIA_VIDEO_RETRY_ROUTE_REQUIRED'))
+  await assert.rejects(h.service.generateVideo({...retry,model:'video-test',group:'视频组'}),code('MEDIA_VIDEO_RETRY_SAME_MODEL'))
+  await assert.rejects(h.service.generateVideo({...retry,group:'unavailable'}),code('MEDIA_MODEL_UNAVAILABLE'))
+  assert.equal(h.requests.filter(req=>req.method==='POST').length,1)
+  const [replacement,repeat] = await Promise.all([h.service.generateVideo(retry),h.service.generateVideo(retry)])
+  assert.equal(replacement.id,repeat.id)
+  assert.equal(replacement.retryOf,queued.id)
+  assert.equal(replacement.model,alternate.model_id)
+  assert.equal(replacement.group,alternate.group_id)
+  const second=createMediaService({account:h.account,credentials:h.credentials,workspace:h.workspace,fetchImpl:async()=>{throw Error('no fetch expected')}})
+  t.after(()=>second.dispose())
+  assert.equal((await second.generateVideo(retry)).id,replacement.id)
+  assert.equal((await second.generationResult({id:queued.id})).replacementJobId,replacement.id)
+  assert.equal(h.requests.filter(req=>req.method==='POST').length,2)
+  assert.deepEqual(h.getRecord().payload.mediaModels.video,{id:'video-test',group:'视频组'})
+})
+
+test('video request rejection is diagnosable but uncertain submissions and failed polls cannot change model', async t=>{
+  const failure = {error:{code:'content_policy_violation',message:'private response'}}
+  for (const [status,state,retryable] of [[422,'failed',true],[502,'unknown',false]]) {
+    const h = await fixture(t,{fetch:async()=>Response.json(failure,{status})})
+    const job = await h.service.generateVideo({prompt:'test',model:'video-test'})
+    assert.equal(job.status,state)
+    assert.equal(job.canChangeModel,retryable)
+    assert.deepEqual(job.diagnostic,{stage:'submission',code:'MEDIA_PLATFORM_ERROR',httpStatus:status,reason:'CONTENT_REJECTED'})
+    assert.equal(JSON.stringify(job).includes('private response'),false)
+    if (!retryable) await assert.rejects(h.service.generateVideo({prompt:'test',retry_of:job.id,model:'other',group:'other'}),code('MEDIA_VIDEO_RETRY_UNAVAILABLE'))
+  }
+  let poll = 0
+  const h = await fixture(t,{fetch:async url=>url.endsWith('/videos') ? response({id:'task_1'}) : ++poll === 1 ? Response.json({}, {status:503}) : response({status:'in_progress',progress:45})})
+  const queued = await h.service.generateVideo({prompt:'test',model:'video-test'})
+  const delayed = await h.service.generationResult({id:queued.id})
+  assert.equal(delayed.status,'running');assert.equal(delayed.canChangeModel,false)
+  assert.deepEqual(delayed.diagnostic,{stage:'status',code:'MEDIA_PLATFORM_ERROR',httpStatus:503,reason:'UPSTREAM_UNAVAILABLE'})
+  const resumed = await h.service.generationResult({id:queued.id})
+  assert.equal(resumed.progress,45);assert.equal(resumed.diagnostic,undefined)
+  assert.equal(h.requests.filter(req=>req.method==='POST').length,1)
+})
+
+test('a generic video error reads the original platform task for its reason', async t=>{
+  const h = await fixture(t,{fetch:async url=>{
+    if (url.endsWith('/videos')) return response({id:'task_1'})
+    if (url.endsWith('/tasks/task_1')) return response({status:'FAILURE',fail_reason:'upstream connection timed out, authorization: nfds_SECRET'})
+    return response({status:'failed',error:{code:'video_generation_failed',message:'The video generation task failed.'}})
+  }})
+  const job = await h.service.generateVideo({prompt:'test',model:'video-test'})
+  const failure = await h.service.generationResult({id:job.id})
+  assert.equal(failure.diagnostic.reason,'UPSTREAM_TIMEOUT')
+  assert.equal(JSON.stringify(failure).includes('SECRET'),false)
+  assert.deepEqual(h.requests.map(req=>new URL(req.url).pathname), ['/v1/videos','/v1/videos/task_1','/v1/tasks/task_1'])
+})
+
+test('a revoked saved video selection offers a replacement without submitting to the old route', async t=>{
+  const replacement = {model_id:'video-replacement',group_id:'替代分组',kind:'video',supported_endpoint_types:['openai-video']}
+  const catalog = [...rows,replacement]
+  const h = await fixture(t,{rows:catalog})
+  const {owner} = await h.service.preferences([])
+  await h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'})
+  catalog.splice(catalog.indexOf(rows[3]),1)
+  const failure = await h.service.generateVideo({prompt:'test'})
+  assert.equal(failure.status,'failed');assert.equal(failure.canChangeModel,true)
+  assert.deepEqual(failure.diagnostic,{stage:'selection',code:'MEDIA_MODEL_UNAVAILABLE',reason:'MODEL_UNAVAILABLE'})
+  assert.equal(h.requests.length,0)
+  const started = await h.service.generateVideo({prompt:'test',retry_of:failure.id,model:replacement.model_id,group:replacement.group_id})
+  assert.equal(started.model,replacement.model_id);assert.equal(started.group,replacement.group_id)
+  assert.equal(h.requests.length,1)
 })
 
 test('account switching while an image response is pending prevents saving its result',async t=>{
@@ -443,15 +590,25 @@ test('dispose aborts running generation, persists failure and disallows new work
   await assert.rejects(h.service.listModels(),code('MEDIA_UNAVAILABLE'))
 })
 
- test('account settings persist the exact image and video groups and reject revoked or conflicting routes',async t=>{
-  const catalog = [...rows]; const h = await fixture(t,{rows:catalog})
+test('account settings persist the exact image and video routes and reject revoked or conflicting routes',async t=>{
+  const selectedImage = 'gpt-image-2.6-sunburst'
+  const image = {model_id:selectedImage,group_id:'生图分组',kind:'image',supported_endpoint_types:['image-generation']}
+  const catalog = [...rows,image]; const h = await fixture(t,{rows:catalog})
   const {owner} = await h.service.preferences([])
-  await h.service.setModel({owner,kind:'image',model:DEFAULT_IMAGE_MODEL,group:'团队 B'})
+  await h.service.setModel({owner,kind:'image',model:selectedImage,group:image.group_id})
   await h.service.setModel({owner,kind:'video',model:'video-test',group:'视频组'})
-  assert.equal((await h.service.generateImage({prompt:'test'})).group,'团队 B')
+  const job = await h.service.generateImage({prompt:'test',resolution:'4K',size:'16:9'})
+  assert.equal(job.status,'completed')
+  assert.equal(job.group,image.group_id)
+  assert.equal(job.model,selectedImage)
+  assert.equal(h.requests.length,1)
+  assert.equal(h.requests[0].headers['X-NovaFlow-Group'],encodeURIComponent(image.group_id))
+  assert.equal(JSON.parse(h.requests[0].body).model,selectedImage)
+  assert.equal(JSON.parse(h.requests[0].body).size,'3840x2160')
   assert.equal((await h.service.generateVideo({prompt:'test'})).model,'video-test')
   assert.equal(JSON.parse(h.requests[1].body).model,'video-test')
   await assert.rejects(h.service.generateImage({prompt:'test',group:'研发 A'}),code('MEDIA_SELECTION_CONFLICT'))
+  catalog.pop()
   catalog.splice(1,1)
   await assert.rejects(h.service.generateImage({prompt:'test'}),code('MEDIA_MODEL_UNAVAILABLE'))
   h.setRecord(grant('x'))

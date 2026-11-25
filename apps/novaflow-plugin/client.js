@@ -75,6 +75,7 @@ window.__ModuleLoader__.load({
     "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again.",
     "mediaTitle": "NovaFlow Image",
     "imageModel": "Image generation model",
+    "imageResolutionHint": "For best results, use 1K resolution.",
     "videoModel": "Video generation model",
     "chooseMedia": "Choose a model",
     "noMedia": "No models available for this account",
@@ -152,6 +153,7 @@ window.__ModuleLoader__.load({
     "modelFooterHelp": "NovaFlow 登录后会在此保存原生提供商配置。可直接使用上方编辑器获取、新增或编辑模型；退出登录会保留这些配置，但需重新登录后才能调用。",
     "mediaTitle": "NovaFlow Image",
     "imageModel": "图片生成模型",
+    "imageResolutionHint": "建议优先1k分辨率，效果最好。",
     "videoModel": "视频生成模型",
     "chooseMedia": "选择模型",
     "noMedia": "当前账户暂无可用模型",
@@ -198,6 +200,8 @@ window.__ModuleLoader__.load({
       .nf-account-page .nf-button.nf-top-up:hover {background:var(--dsw-alias-button-primary-hover)}
       .nf-picker {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
       .nf-picker select {max-width:100%;min-width:min(200px,100%)}
+      .nf-picker-field {display:flex;flex-direction:column;gap:4px}
+      .nf-picker-hint {font-size:12px;line-height:18px}
     `;
     return {
       inject: ['slots', 'locale'],
@@ -396,13 +400,15 @@ window.__ModuleLoader__.load({
         function SignIn() { return h(Account, { compact: true }); }
         function MediaModelSettings() {
           const { state, busy, loaded, error, t } = useView();
-          function picker(kind, title) {
+          const imageHintId = React.useId();
+          function picker(kind, title, descriptionId) {
             const rows = (state.mediaModels || []).filter(row => row.kind === kind);
             const key = row => JSON.stringify([row.group, row.id]);
             const selected = state.media?.selected?.[kind];
             const available = selected && rows.some(row => key(row) === key(selected));
             return h('label', {className:'nf-picker'}, h('span', null, t(title)),
               h('select', {className:'nf-button', value:available ? key(selected) : '',
+                'aria-describedby': descriptionId,
                 disabled:!!busy || !state.media?.owner || !rows.length,
                 onChange:event => {
                   const row = rows.find(item => key(item) === event.target.value);
@@ -414,7 +420,9 @@ window.__ModuleLoader__.load({
             h('div', {className:'nf-card'}, h('h3', null, t('mediaTitle')),
               !loaded ? h('p', {role:'status'}, t('loading')) : !state?.connected ? h('p', null, t('mediaSignin')) :
               h(React.Fragment, null, h('p', {className:'nf-muted'}, t('mediaHelp')),
-                picker('image','imageModel'), picker('video','videoModel')),
+                h('div', {className:'nf-picker-field'}, picker('image','imageModel',imageHintId),
+                  h('p', {id:imageHintId,className:'nf-muted nf-picker-hint'}, t('imageResolutionHint'))),
+                picker('video','videoModel')),
               error && h('p', {role:'alert'}, errorText(t,error))));
         }
         ctx.slots.inject('settings.section', () => ctx.slots.register({

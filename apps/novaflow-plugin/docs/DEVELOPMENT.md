@@ -157,9 +157,13 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 
 ## 7. 媒体 MCP 与作业
 
-内置服务提供 `generate_image`、`generate_video`、`generation_result`、`list_models`，经官方 MCP 客户端形成 `mcp__novaflow-image__*` 工具名。图片与视频工具均可省略 model 和 group，使用当前设备授权记录内的选择。同名模型跨组时要明确 group，避免擅自选择计费路由。
+内置服务提供 `generate_image`、`generate_video`、`generation_result`、`list_models`，经官方 MCP 客户端形成 `mcp__novaflow-image__*` 工具名。`generate_image` 的参数由生成内容和输出规格组成，Host 在提交前根据设备授权记录和最新目录解析模型与计费分组。`generate_video` 可省略 `model` 和 `group` 以使用当前选择。
+
+图片结果只读取原始栅格头部的宽高，并用原始字节保存文件。作业结果包含提交的尺寸和每张图的实测宽高。显式像素要求精确匹配，分辨率档位按长边校验，4K 接受 3840 像素起。尺寸不符时保留原图并返回提示。
 
 长任务返回 ID 后查询原作业。提交结果未知时不自动重提；重启恢复依据元数据及结果哈希判断。会话相对路径使用本次调用时的工作目录。默认输出子目录为 `generated-images/` 和 `generated-videos/`。本机 MCP 通过单次调用标识取得会话目录及其已上传图片的只读访问能力。独立调用 MCP 且没有会话时使用 Host 的默认目录。
+
+视频失败返回 `diagnostic`，包含阶段、错误码、可用的 HTTP 状态、原因分类和请求 ID。视频查询仅返回通用失败时，Host 可通过已授权的 `/v1/tasks/{id}` 补查原因。`retry_of` 引用当前账户和工作区内允许改选的失败作业，替代模型及分组须出现在当前授权目录。对同一个失败作业重复提交已选的替代路由时，返回已创建的替代作业。
 
 路径不得越出该目录或穿过符号链接，提交前检查输出冲突。外部 HTTPS 图像下载校验公共地址并固定已校验 DNS 结果。退出／卸载中止本机工作；这不等于上游已经停止计费任务。
 

@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  ds-bot@0.3.10: 7a594de7ced34f65e17681252bc03bef79a30f352213cce2af5aa63ae07a7b4f
+  ds-bot@0.3.10: 5475c83b2ba84e0d849bfb410ef3b8f93864b85df0e425a6fffad288066945cd
   dsh-auto-memory@1.11.0: aac7e338bdbd700423b118368a178049af036264b9b9bfaa601169e2bcee791c
   dshmarket@1.80.1: ea1922e23241dc7d2fd301af5a3ab0f7b8fa184d28ec3a29f04460611ae5d77b
 
@@ -27,7 +27,7 @@ importers:
         version: 5.10.0(debug@4.4.3)
       ds-bot:
         specifier: 0.3.10
-        version: 0.3.10(patch_hash=7a594de7ced34f65e17681252bc03bef79a30f352213cce2af5aa63ae07a7b4f)
+        version: 0.3.10(patch_hash=5475c83b2ba84e0d849bfb410ef3b8f93864b85df0e425a6fffad288066945cd)
       dsh-auto-memory:
         specifier: 1.11.0
         version: 1.11.0(patch_hash=aac7e338bdbd700423b118368a178049af036264b9b9bfaa601169e2bcee791c)
@@ -1365,7 +1365,7 @@ snapshots:
       domelementtype: 2.3.0
       domhandler: 5.0.3
 
-  ds-bot@0.3.10(patch_hash=7a594de7ced34f65e17681252bc03bef79a30f352213cce2af5aa63ae07a7b4f):
+  ds-bot@0.3.10(patch_hash=5475c83b2ba84e0d849bfb410ef3b8f93864b85df0e425a6fffad288066945cd):
     dependencies:
       '@modelcontextprotocol/client': 2.4.0
       deep-view: 0.1.2

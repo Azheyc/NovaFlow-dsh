@@ -427,6 +427,29 @@ index 30e9d8f..040a587 100644
 -  let settingsShell = null;
    let agentSessionCache = /* @__PURE__ */ new Set();
    try {
+@@ -52985,5 +52915,5 @@ function apply(ctx) {
+   const pull = async () => {
+     const order = ++pulls;
+     const known = roster.getSnapshot();
+-    const value = await call("state", { since: known.revision, models: known.modelsKey ?? "", live: liveKey, locale: language() });
++    const value = await call("state", { since: known.revision, models: known.modelsKey ?? "", live: liveKey, locale: language(), bootstrap: surface.getSnapshot().mode === "bot" });
+     if (order < applied) return;
+@@ -53375,11 +53305,9 @@ function apply(ctx) {
+   const ensureBotHome = () => {
+-    if (roster.getSnapshot().ready) homeToMainBot();
++    if (roster.getSnapshot().mainBotId) homeToMainBot();
+     else {
+-      const off = roster.subscribe(() => {
+-        if (!roster.getSnapshot().ready) return;
+-        off();
+-        homeToMainBot();
+-      });
++      void pull().then(() => {
++        if (surface.getSnapshot().mode === "bot") homeToMainBot();
++      }).catch(quietly("initialize team"));
+     }
+   };
+   const actions = {
 @@ -53626,5 +53556,4 @@ function apply(ctx) {
    actions.openPlugins = () => ctx.get("pluginNavigation")?.openList();
    actions.speech = () => ctx.get("remote.speech") ?? void 0;
@@ -500,6 +523,13 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 index c911d2b..55f0e52 100644
 --- a/src/host/channel.js
 +++ b/src/host/channel.js
+@@ -266,5 +266,5 @@ export function install(rt) {
+         case 'state': {
+           if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
+-          if (readOnly === undefined) await rt.bootstrap()
++          if (readOnly === undefined) await rt.bootstrap(body.bootstrap !== false)
+           await rt.catalog()
+           await rt.loadSecrets()
 @@ -837,12 +837,4 @@ export function install(rt) {
            await rt.load()
            return ok(await rt.imEndpoint(endpoint, body))
@@ -557,7 +587,8 @@ index b3dada3..98fe8c5 100644
      state.workspaceId = workspace.id
      await rt.save()
 @@ -1032,4 +1032,10 @@ export function install(rt) {
-   async function bootstrap() {
+-  async function bootstrap() {
++  async function bootstrap(createMain = true) {
      await rt.load()
 +    if (!state.novaflowWorkspaceTitleMigrated) {
 +      const workspace = state.workspaceId && ctx.workspaceRegistry.get(state.workspaceId)
@@ -566,7 +597,8 @@ index b3dada3..98fe8c5 100644
 +      await rt.save()
 +    }
      void rt.syncModels()
-     if (state.mainBotIds.some(id => rt.botOf(id))) return
+-    if (state.mainBotIds.some(id => rt.botOf(id))) return
++    if (!createMain || state.mainBotIds.some(id => rt.botOf(id))) return
 diff --git a/src/host/skills/ds-bot-manual/SKILL.md b/src/host/skills/ds-bot-manual/SKILL.md
 index ed9e0e1..338b9b8 100644
 --- a/src/host/skills/ds-bot-manual/SKILL.md

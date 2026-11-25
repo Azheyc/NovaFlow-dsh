@@ -74,6 +74,7 @@
     "modelFooterHelp": "Signing in to NovaFlow saves native provider configuration here. Use the editors above to fetch, add, or edit models. Signing out keeps this configuration, but model requests require you to sign in again.",
     "mediaTitle": "NovaFlow Image",
     "imageModel": "Image generation model",
+    "imageResolutionHint": "For best results, use 1K resolution.",
     "videoModel": "Video generation model",
     "chooseMedia": "Choose a model",
     "noMedia": "No models available for this account",
