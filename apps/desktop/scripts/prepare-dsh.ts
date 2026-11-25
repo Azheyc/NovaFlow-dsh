@@ -148,7 +148,7 @@ async function main(): Promise<void> {
     mkdirSync(DSH_OUTPUT_ROOT, { recursive: true })
     const preinstalled = join(DSH_OUTPUT_ROOT, 'novaflow-preinstalled')
     // Match archive cleanup before the immutable inventory is sealed.
-    cpSync(prepareNovaFlowPreinstalled(), preinstalled, {
+    cpSync(prepareNovaFlowPreinstalled(targetName), preinstalled, {
       recursive: true, dereference: true, filter: source => basename(source) !== '.gitkeep',
     })
     await prepareRuntimeManifests(preinstalled)

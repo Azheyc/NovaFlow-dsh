@@ -1,5 +1,7 @@
 /** Accessible menu groups with shared sticky-heading presentation and viewport observation. */
 import { useId, type ReactNode } from 'react'
+import { Tooltip } from './Tooltip.tsx'
+import { IconWarningOutlineRegular } from './icons/index.tsx'
 import css from './MenuGroup.module.css'
 
 /**
@@ -7,12 +9,27 @@ import css from './MenuGroup.module.css'
  * @param props - Caller-localized label and optional menu rows.
  * @returns A section named by its direct heading, followed by the supplied children.
  */
-export function MenuGroup({ label, children }: { label: string; children?: ReactNode }) {
+export function MenuGroup({ label, description, badge, children }: {
+  label: string
+  description?: string | undefined
+  badge?: string | undefined
+  children?: ReactNode
+}) {
   const headingId = useId()
+  const note = [badge, description].filter(Boolean).join(' · ')
   return (
     <section role="group" aria-labelledby={headingId} data-menu-group="" className={css.group}>
       <span aria-hidden="true" data-menu-group-start="" className={css.start} />
-      <div id={headingId} data-menu-group-heading="" className={css.heading}>{label}</div>
+      <div id={note ? undefined : headingId} data-menu-group-heading="" className={css.heading}>
+        {note ? <span id={headingId}>{label}</span> : label}
+        {note && <Tooltip label={note} portal side="top" maxWidth={300} openOnClick>
+          <button type="button" className={css.note} data-badge={badge ? '' : undefined} aria-label={note}
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }}>
+            <IconWarningOutlineRegular size={12} aria-hidden="true" />
+            {badge}
+          </button>
+        </Tooltip>}
+      </div>
       {children}
     </section>
   )

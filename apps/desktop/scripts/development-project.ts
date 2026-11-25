@@ -167,6 +167,6 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   const runtime: DesktopRuntimeDescriptor = { schemaVersion: 1, release: options.release,
     ...desktopTargetPlatform(options.target), sharedPackages, files: [] }
   writeFileSync(join(options.projectDir, DESKTOP_RUNTIME_FILE), `${JSON.stringify(runtime, undefined, 2)}\n`)
-  cpSync(prepareNovaFlowPreinstalled(), join(options.projectDir, 'novaflow-preinstalled'), { recursive: true, dereference: true })
+  cpSync(prepareNovaFlowPreinstalled(options.target), join(options.projectDir, 'novaflow-preinstalled'), { recursive: true, dereference: true })
   return options.projectDir
 }

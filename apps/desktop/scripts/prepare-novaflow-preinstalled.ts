@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { imBundle, novaFlowMediaDesk } from '../src/novaflow-preinstalled.ts'
+import { desktopTargetPlatform, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
 
 function prepareLocalMediaDesk(target: string, source: string): string {
   const local = join(target, 'node_modules', novaFlowMediaDesk)
@@ -141,9 +142,12 @@ function prepareLocalIm(target: string): void {
 
 /**
  * Prepare a self-contained hoisted dependency tree; no package downloads occur on user startup.
+ * @param buildTarget - Desktop target whose optional dependencies and native worker are shipped.
  * @returns Directory copied into the Desktop runtime as novaflow-preinstalled.
  */
-export function prepareNovaFlowPreinstalled(): string {
+export function prepareNovaFlowPreinstalled(buildTarget = resolveDesktopBuildTarget()): string {
+  const { platform, arch } = desktopTargetPlatform(buildTarget)
+  const nativeTarget = `${platform}-${arch}`
   const desktop = fileURLToPath(new URL('../', import.meta.url))
   const source = join(desktop, 'preinstalled')
   const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
@@ -154,7 +158,7 @@ export function prepareNovaFlowPreinstalled(): string {
   const promptSource = resolve(desktop, '../../plugins/prompt-presets')
   const promptFiles = ['package.json', 'index.js', 'catalog.js', 'cordis.patch.yml', 'README.md']
   const promptManifest = JSON.parse(readFileSync(join(promptSource, 'package.json'), 'utf8')) as { name: string; version: string }
-  const hash = createHash('sha256').update(readFileSync(import.meta.filename))
+  const hash = createHash('sha256').update(nativeTarget).update(readFileSync(import.meta.filename))
   for (const file of ['setup-partner-client.js', 'setup-partner.mjs']) hash.update(readFileSync(join(source, 'im', file)))
   for (const file of files) hash.update(readFileSync(join(source, file)))
   const deskSource = join(source, 'media-desk', 'source')
@@ -173,13 +177,15 @@ export function prepareNovaFlowPreinstalled(): string {
   if (ready()) return completed
   mkdirSync(cache, { recursive: true })
   const target = mkdtempSync(join(cache, '.building-'))
+  const payload = join(target, 'payload')
   const promptTarget = join(target, 'node_modules', promptManifest.name)
   try {
     mkdirSync(join(target, 'patches'), { recursive: true })
     for (const file of files) cpSync(join(source, file), join(target, file))
     const pnpm = fileURLToPath(new URL('../../../node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
-    execFileSync(process.execPath, [pnpm, 'install', '--frozen-lockfile', '--ignore-scripts', '--config.registry=https://registry.npmjs.org'],
-      { cwd: target, stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1' } })
+    const installArgs = [pnpm, 'install', '--os', platform, '--cpu', arch,
+      '--frozen-lockfile', '--ignore-scripts', '--config.registry=https://registry.npmjs.org']
+    execFileSync(process.execPath, installArgs, { cwd: target, stdio: 'inherit', env: { ...process.env, NODE_USE_ENV_PROXY: '1' } })
     for (const name of Object.keys(manifest.dependencies)) {
       includeLocalDependencies(target, name, name === 'dshmarket' ? ['@deepseek-ai/schemastery'] : [])
     }
@@ -197,11 +203,24 @@ export function prepareNovaFlowPreinstalled(): string {
       return typeof url === 'string' ? [url.replace(/^git\+/, '').replace(/\.git$/, '').toLowerCase()] : []
     })
     const policy = JSON.stringify({ names, repositories }, null, 2)
-    writeFileSync(join(target, 'novaflow-builtins.json'), policy)
     writeFileSync(join(target, 'node_modules/dshmarket/lib/novaflow-builtins.json'), policy)
-    writeFileSync(join(target, 'package.json'), JSON.stringify(manifest, null, 2))
-    writeFileSync(join(target, stamp), digest)
-    try { renameSync(target, completed) }
+    const opsRuntime = join(target, 'node_modules', 'dsh-ops', 'runtime')
+    const requiredRuntimes = platform === 'win32' ? [nativeTarget, 'linux-x64'] : [nativeTarget]
+    for (const required of requiredRuntimes) {
+      const worker = join(opsRuntime, required, required === 'win32-x64' ? 'dsh-ops-worker.exe' : 'dsh-ops-worker')
+      if (!lstatSync(worker).isFile()) throw new Error(`Missing packaged dsh-ops worker: ${worker}`)
+    }
+    const foreignRuntimes = new Set(['darwin-arm64', 'darwin-x64', 'linux-x64', 'win32-x64']
+      .filter(name => !requiredRuntimes.includes(name)).map(name => join(opsRuntime, name)))
+    for (const name of Object.keys(manifest.dependencies)) {
+      const origin = join(target, 'node_modules', name)
+      cpSync(origin, join(payload, 'node_modules', name), { recursive: true, dereference: true,
+        filter: path => !foreignRuntimes.has(path) })
+    }
+    writeFileSync(join(payload, 'novaflow-builtins.json'), policy)
+    writeFileSync(join(payload, 'package.json'), JSON.stringify(manifest, null, 2))
+    writeFileSync(join(payload, stamp), digest)
+    try { renameSync(payload, completed) }
     catch (error) { if (!ready()) throw error }
     return completed
   } finally {
@@ -215,10 +234,13 @@ export function prepareNovaFlowPreinstalled(): string {
  * @returns Once the current seed is installed in the development project.
  */
 export async function syncDevelopmentPreinstalled(project: string): Promise<void> {
-  if (!existsSync(join(project, 'desktop-runtime.json'))) throw new Error(`Desktop development project is missing at ${project}`)
+  const descriptor = join(project, 'desktop-runtime.json')
+  if (!existsSync(descriptor)) throw new Error(`Desktop development project is missing at ${project}`)
+  const runtime = JSON.parse(readFileSync(descriptor, 'utf8')) as { platform?: NodeJS.Platform; arch?: string }
+  const buildTarget = resolveDesktopBuildTarget({}, runtime.platform, runtime.arch)
   const destination = join(project, 'novaflow-preinstalled')
   await withFileLock(destination, async () => {
-    const seed = prepareNovaFlowPreinstalled()
+    const seed = prepareNovaFlowPreinstalled(buildTarget)
     const stamp = 'market-build.sha256'
     const existingStamp = join(destination, stamp)
     if (existsSync(existingStamp) && readFileSync(existingStamp, 'utf8') === readFileSync(join(seed, stamp), 'utf8')

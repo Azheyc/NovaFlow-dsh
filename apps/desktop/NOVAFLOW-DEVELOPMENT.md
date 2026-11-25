@@ -34,11 +34,13 @@ On macOS, the NovaFlow development shortcut runs `node --import tsx apps/desktop
 
 Read versions from the [seed manifest](preinstalled/package.json) and [lockfile](preinstalled/pnpm-lock.yaml). `prepareNovaFlowPreinstalled()` applies the market patch, prepares the IM and Media Desk variants, and compiles the prompt plugin. Read the shipped inventory from the generated `novaflow-preinstalled/package.json`.
 
+The build caches a separate seed for each target OS and architecture. Only the manifest's plugins and their private dependencies are copied from the pnpm installation into the deliverable. `dsh-ops` includes the target worker and its receipt. Windows x64 also includes Niubash, Git and the Linux x64 worker used for offline WSL reads.
+
 | Plugin | Behavior and source to preserve when merging upstream |
 | --- | --- |
 | Team mode | Signing in from the welcome page opens the standard interface. Enter team mode opens DS Bot. Its shell withdraws the standard home's prompt categories and recommendations until the user returns to standard mode. DSH-IM provides channel setup and team Bot selection. |
 | Persistent memory | The bundled dsh-auto-memory patch creates its data directory before acquiring the settings lock. The default Companion preset uses a 32 KB budget and minimum importance 1. Existing user overrides take precedence. |
-| Plugin market | `preinstalled/patches/dshmarket@<version>.patch` keeps the online catalog live, hides the sponsor area and top-level update-check notice, and ships market updates with the desktop. Route requests return the install or update result after a Host remount. |
+| Plugin market | `preinstalled/patches/dshmarket@<version>.patch` keeps the online catalog live, hides the sponsor area and top-level update-check notice, and ships market updates with the desktop. The Plugins page tab is available by default. The sidebar entry is opt-in. Route requests return the install or update result after a Host remount. |
 | Connect phone | `prepareLocalIm()` retains the package name and bot settings, removes the GitHub and self-update actions, and always registers the sidebar entry while the plugin is enabled. The page subtitle is “NovaFlow at your fingertips”. |
 | Media Desk | Preserve the separate Infinite canvas entry, per-canvas DSH sessions and NovaFlow Image integration. The default directory is `$DSH_HOME/media-desk/files`. Users can change or restore it, and older files resolve to their original roots. Image nodes offer 1K and 2K and use the image model selected in client settings. |
 | Prompt presets | `plugins/prompt-presets/` supplies one built-in library across all modes and shows only custom presets in Settings. Desktop updates replace built-ins and retain user presets. |

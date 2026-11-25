@@ -21,6 +21,8 @@ export interface SelectConfirmation {
 export interface SelectOptionGroup {
   readonly name: string
   readonly label: string
+  readonly description?: string
+  readonly badge?: string
 }
 
 /** Search behavior selected by the popup owner. */

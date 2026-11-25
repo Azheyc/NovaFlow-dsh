@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -39,7 +39,7 @@ describe('desktop development project', () => {
     const profile = join(root, 'home', 'profiles', 'desktop')
     mkdirSync(seed, { recursive: true })
     mkdirSync(profile, { recursive: true })
-    writeFileSync(join(project, 'desktop-runtime.json'), '{}\n')
+    writeFileSync(join(project, 'desktop-runtime.json'), '{"platform":"darwin","arch":"arm64"}\n')
     writeFileSync(join(seed, '.prepared'), 'legacy')
     writeFileSync(join(profile, 'cordis.patch.yml'), '[]\n')
 
@@ -67,6 +67,10 @@ describe('desktop development project', () => {
     writeFileSync(join(dependency, 'package.json'), JSON.stringify({ name: 'unhoisted', version: '1.2.3' }))
     symlinkSync(dependency, join(cli, 'node_modules/unhoisted'), process.platform === 'win32' ? 'junction' : 'dir')
     const project = prepareDevelopmentProject({ projectDir: join(root, 'runtime'), cliDir: cli, hostDir: host, dependencyDir: hoisted, release: release(), target: 'mac-arm64' })
+    const seedModules = join(project, 'novaflow-preinstalled/node_modules')
+    expect(readdirSync(join(seedModules, 'dsh-ops/runtime'))).toEqual(['darwin-arm64'])
+    expect(existsSync(join(seedModules, 'playwright-core'))).toBe(false)
+    expect(existsSync(join(seedModules, 'ds-bot/node_modules/playwright-core/package.json'))).toBe(true)
     expect(realpathSync(join(project, 'node_modules/unhoisted'))).toBe(realpathSync(dependency))
     const descriptor = JSON.parse(readFileSync(join(project, 'desktop-runtime.json'), 'utf8')) as { platform: string; arch: string; sharedPackages: unknown[] }
     expect(descriptor).toMatchObject({ platform: 'darwin', arch: 'arm64' })
@@ -99,6 +103,10 @@ describe('desktop development project', () => {
       release: release(),
       target: 'win-x64',
     })
+    const seedModules = join(project, 'novaflow-preinstalled/node_modules')
+    expect(readdirSync(join(seedModules, 'dsh-ops/runtime')).sort()).toEqual(['linux-x64', 'win32-x64'])
+    expect(existsSync(join(seedModules, 'dsh-ops/runtime/win32-x64/niubash/niu.exe'))).toBe(true)
+    expect(existsSync(join(seedModules, '@xmanrui/dsh-im/node_modules/@img/sharp-win32-x64/package.json'))).toBe(true)
     expect(realpathSync(join(project, 'node_modules', '@deepseek-ai', 'dsh'))).toBe(realpathSync(cli))
     expect(realpathSync(join(project, 'node_modules', '@deepseek-ai', 'dsh-desktop-host'))).toBe(realpathSync(host))
     expect(realpathSync(join(project, 'node_modules', 'plain-dependency')))

@@ -31,12 +31,13 @@ export function installDesktopUpdateTaskControl(ctx: Context): (action: 'inspect
   let stopped = false
   ctx.effect(() => () => { stopped = true })
   const pendingRequests = new Set<Promise<void>>()
-  ctx.on('connection/request', async (_request, response, next) => {
+  ctx.on('connection/request', async (request, response, next) => {
     if (locked) {
       response.writeHead(503)
       response.end()
       return
     }
+    if (request.method === 'GET' && request.url?.split('?', 1)[0] === '/api/bot/feed') return next()
     const finished = Promise.withResolvers<void>()
     pendingRequests.add(finished.promise)
     try { await next() }

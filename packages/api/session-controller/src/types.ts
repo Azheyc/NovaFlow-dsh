@@ -121,6 +121,8 @@ export interface ModelCatalogModel {
 export interface ModelProviderGroup {
   readonly id: string
   readonly name: string
+  readonly description?: string
+  readonly priceMultiplier?: number
   readonly models: readonly ModelCatalogModel[]
 }
 

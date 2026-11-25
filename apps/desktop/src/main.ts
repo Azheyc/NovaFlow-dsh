@@ -703,6 +703,8 @@ async function main(): Promise<void> {
 
   const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
   const packagedChannel = desktopUpdateChannel(manifest)
+  const manualMacUpdate = novaFlowDesktop && process.platform === 'darwin' && typeof manifest === 'object' && manifest !== null
+    && 'novaFlowManualMacUpdate' in manifest && manifest.novaFlowManualMacUpdate === true
   const channelSettings = new DesktopUpdateSettings(app.getPath('userData'), packagedChannel)
   const initialChannel = await channelSettings.load()
   channelState = { channel: initialChannel.kind === 'ready' ? initialChannel.channel : null,
@@ -782,6 +784,13 @@ async function main(): Promise<void> {
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
   const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
+    if (manualMacUpdate) {
+      const state = updates.state
+      if (revision === updates.revision && state.phase === 'available' && state.version === version) {
+        await shell.openExternal(`https://github.com/Azheyc/NovaFlow-dsh/releases/tag/v${encodeURIComponent(version)}`)
+      }
+      return state
+    }
     void track('desktop_upgrade_click', {})
     updateJournal?.action('download-requested')
     const state = await updates.download(version, revision)
@@ -1081,11 +1090,11 @@ async function main(): Promise<void> {
           return
         }
         if (state.phase !== 'available' && !(state.phase === 'error' && state.failedOperation === 'download')) return
-        if (manual) {
+        if (manual || manualMacUpdate) {
           const result = await ordinaryMessageBox({ title: locale.messages.updateCheckTitle,
             message: formatDesktopMessage(locale.messages.updateAvailable, { version: state.version ?? '' }),
-            detail: locale.messages.updateDetail,
-            buttons: [locale.messages.updateDownload], cancelId: 1 })
+            detail: manualMacUpdate ? locale.messages.updateMacDmgDetail : locale.messages.updateDetail,
+            buttons: [manualMacUpdate ? locale.messages.mandatoryViewDownload : locale.messages.updateDownload], cancelId: 1 })
           if (result.response !== 0) return
         }
         if (!isMandatory() && state.version !== undefined) {

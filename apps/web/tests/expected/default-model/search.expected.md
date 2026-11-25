@@ -4,4 +4,5 @@
   - menu "模型":
     - group "Acme Gateway":
       - text: Acme Gateway
+      - button "分组备注：适合日常任务。"
       - menuitemradio "Acme Large"

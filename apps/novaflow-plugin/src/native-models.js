@@ -314,6 +314,11 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       })}
       for (const donor of donors) if (current[donor].modelOverrides) next.modelOverrides={...current[donor].modelOverrides,...next.modelOverrides}
       if (!ownedItems) {
+        const details = catalog.group_details?.[groupId]
+        delete next.description
+        delete next.priceMultiplier
+        if (typeof details?.description === 'string' && details.description.trim()) next.description = details.description.trim()
+        if (Number.isFinite(details?.ratio) && details.ratio >= 0) next.priceMultiplier = details.ratio
         const catalogIds = new Set(rows.map(row => row.id))
         next.defaultContextWindow = MODEL_CAPACITY.contextWindow
         next.defaultMaxTokens = MODEL_CAPACITY.maxTokens

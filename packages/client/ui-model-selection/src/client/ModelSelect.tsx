@@ -697,7 +697,8 @@ export function ModelSelect(
               >
                 {filteredGroups.map((group) => {
                   return (
-                    <MenuGroup key={group.id} label={group.provider.name}>
+                    <MenuGroup key={group.id} label={group.provider.name} description={group.description || t('provider.noNote')}
+                      badge={group.priceMultiplier === undefined ? undefined : `${group.priceMultiplier}×`}>
                       {group.models.map((model) => {
                         const index = modelIndex++
                         const selected = state.current?.provider === group.id && state.current.model === model.id

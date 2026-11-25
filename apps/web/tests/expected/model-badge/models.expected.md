@@ -1,13 +1,16 @@
 - menu "模型":
   - group "DeepSeek 账号":
     - text: DeepSeek 账号
+    - button "暂无分组备注"
     - menuitemradio "DeepSeek-V4.1-Flash 1017"
   - group "DeepSeek":
     - text: DeepSeek
+    - button "暂无分组备注"
     - menuitemradio "DeepSeek-V4.1-Flash 新" [checked]
     - menuitemradio "DeepSeek-V4-Pro"
     - menuitemradio "DeepSeek model with a very long release and capability description that exceeds the selector width Preview"
     - menuitemradio "Invalid badge model"
   - group "External":
     - text: External
+    - button "暂无分组备注"
     - menuitemradio "DeepSeek-V4.1-Flash"

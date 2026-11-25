@@ -2147,6 +2147,27 @@ describe('desktop main startup', () => {
       message: en.updateDownloadFailed, technicalDetails: 'desktop update: download confirmation is stale' }))
   })
 
+  it.each([0, 1])('uses the release page for an ad-hoc Mac update only after confirmation (%i)', async (response) => {
+    vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64' })
+    vi.stubEnv('DSH_HOME', harness.app.getPath('userData'))
+    vi.stubEnv('DSH_AGENTS_HOME', harness.app.getPath('userData'))
+    const root = harness.app.getPath('userData')
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ novaFlowManualMacUpdate: true }))
+    vi.spyOn(harness.app, 'getAppPath').mockReturnValue(root)
+    const previousName = harness.app.name
+    harness.app.name = 'NovaFlow'
+    onTestFinished(() => { harness.app.name = previousName })
+    await readyForUpdate()
+    harness.updateState = { phase: 'available', version: '1.1.0' }
+    harness.dialog.showMessageBox.mockResolvedValue({ response })
+    await invoke(DESKTOP_IPC.updatesOpen, 'app')
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ detail: en.updateMacDmgDetail }))
+    if (response === 0) expect(harness.openExternal).toHaveBeenCalledWith('https://github.com/Azheyc/NovaFlow-dsh/releases/tag/v1.1.0')
+    else expect(harness.openExternal).not.toHaveBeenCalled()
+    expect(harness.updateDownload).not.toHaveBeenCalled()
+    expect(harness.updateInstall).not.toHaveBeenCalled()
+  })
+
   it('keeps policy failures silent while an ordinary update proceeds', async () => {
     harness.embeddedPolicy = { origin: 'https://policy.example.com',
       allowedPageOrigins: ['https://downloads.example.com'] }

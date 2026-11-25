@@ -13,6 +13,7 @@ import { selectUpdateChannel } from './updates/electron-updater/channel.ts'
 import { discardDesktopUpdate } from './updates/electron-updater/discard.ts'
 
 const { autoUpdater } = electronUpdater
+const interruptedDownload = /^(?:net::)?(?:ETIMEDOUT|ECONNRESET|ERR_CONNECTION_(?:RESET|CLOSED)|ERR_NETWORK_CHANGED|ERR_TIMED_OUT)$/u
 
 /** Owns one updater target until its download and installation settle. */
 export class DesktopUpdateCoordinator {
@@ -183,7 +184,13 @@ export class DesktopUpdateCoordinator {
       if (version !== this.candidate) throw new Error('desktop update: download confirmation is stale')
       this.setState({ phase: 'downloading', version, percent: 0 })
       try {
-        await this.updater.downloadUpdate(this.cancellation)
+        try { await this.updater.downloadUpdate(this.cancellation) } catch (error) {
+          const transportError = error instanceof Error && ('code' in error ? error.code : error.message)
+          if (typeof transportError !== 'string' || !interruptedDownload.test(transportError)
+            || generation !== this.generation || this.disposed || this.switching > 0
+            || this.cancellation?.cancelled || this.downloaded) throw error
+          await this.updater.downloadUpdate(this.cancellation)
+        }
         if (generation !== this.generation || this.disposed) return this.current
         if (!this.downloaded) throw new Error('desktop update: platform preparation did not report readiness')
         this.downloadResult?.(true)

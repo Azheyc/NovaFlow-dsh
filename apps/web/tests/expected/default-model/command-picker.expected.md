@@ -3,12 +3,15 @@
 - listbox "/model 匹配项":
   - group "DeepSeek":
     - text: DeepSeek
+    - button "暂无分组备注"
     - option "DeepSeek-V4-Flash"
     - option "DeepSeek-V4-Flash-Vision-Exp"
   - group "Origin Gateway":
     - text: Origin Gateway
+    - button "暂无分组备注"
     - option "Origin Large"
   - group "Acme Gateway":
     - text: Acme Gateway
+    - button "分组备注：适合日常任务。"
     - option "Acme Large" [selected]
     - option "Acme Small"

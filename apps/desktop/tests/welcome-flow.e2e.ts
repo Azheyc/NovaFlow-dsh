@@ -162,6 +162,18 @@ globalThis.fetch = (input, init) => {
       expect(seedManifest.dependencies['ds-bot']).toBeDefined()
       const marketListing = await fetch(`${hostOrigin}/dsh-market/installed`, { headers: { cookie } })
       expect(marketListing.status).toBe(200)
+      const sidebarEntry = `${hostOrigin}/dsh-market/sidebar-entry`
+      const sidebarStatus = async (): Promise<unknown> => {
+        const state: unknown = await (await fetch(sidebarEntry, { headers: { cookie } })).json()
+        return state
+      }
+      await expect(sidebarStatus()).resolves.toMatchObject({ enabled: false, chosen: false })
+      for (const enabled of [true, false]) {
+        const response = await fetch(sidebarEntry, { method: 'POST',
+          headers: { cookie, origin: hostOrigin, 'content-type': 'application/json' }, body: JSON.stringify({ enabled }) })
+        expect(response.status).toBe(200)
+        await expect(sidebarStatus()).resolves.toMatchObject({ enabled, chosen: true })
+      }
       const marketInstalled = (await marketListing.json()).installed
       for (const [name, version] of Object.entries(seedManifest.dependencies)) {
         expect(bundles.some(row => row.name === name), name).toBe(false)

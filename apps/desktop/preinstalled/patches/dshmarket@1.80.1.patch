@@ -342,7 +342,27 @@ diff --git a/lib/routes.js b/lib/routes.js
          bootId: BOOT_ID,
          log: (level, event, detail) => logEvent(level, event, detail),
          abortMutation: () => commands.cancelActive(),
-@@ -865,6 +874,7 @@
+@@ -643,16 +652,15 @@
+      * The saved answer to "which doors into the market are open" (#1015).
+      *
+      * The HOST decides which doors exist; this only combines the user's
+      * preferences, because a request handler cannot see the browser's slots.
+-     * The Plugins page tab and the sidebar row default on; the settings page
+-     * entry defaults off (it is the old door, kept for hosts without the other
+-     * two — the browser shows it there anyway). "Every door closed" is still
++     * The Plugins page tab defaults on. The sidebar and settings entries are opt-in.
++     * "Every door closed" is still
+      * expressible, and has to be refused before it reaches disk. A market with no entry can only be recovered by editing
+      * state.json or removing the package, which the card must never cause.
+      */
+     const entryDoors = (state = marketState) => ({
+         settingsSection: state.settingsSection === true,
+         pluginsTab: state.pluginsTab !== false,
+-        sidebarEntry: state.sidebarEntry !== false,
++        sidebarEntry: state.sidebarEntry === true,
+     });
+     const closesEveryDoor = (doors) => !doors.settingsSection && !doors.pluginsTab && !doors.sidebarEntry;
+@@ -865,6 +873,7 @@
       * contract a live carrier toggle already has.
       */
      async function replayDisabledPackage(name) {
@@ -401,7 +421,16 @@ diff --git a/lib/routes.js b/lib/routes.js
                      groupOrder,
                      notes: readMarketState(activeProfileDir).notes ?? {},
                      // When this market installed/updated each package (#1142). Read
-@@ -5763,8 +5775,8 @@
+@@ -5743,7 +5754,7 @@
+                     // by the user — the card explains a choice it made on their behalf
+                     // exactly once, so nobody has to wonder why downloads moved.
+                     regionAuto,
+-                    sidebarEntry: marketState.sidebarEntry !== false,
++                    sidebarEntry: entryDoors().sidebarEntry,
+                     // Whether DSH Desktop owns this process (the market cannot restart it).
+                     desktopHost: config.desktopHost === true,
+                     restart: restartAllowed(config),
+@@ -5763,8 +5774,8 @@
                      restartReachable: restartReachableFrom(request),
                      // Same door, one notch wider for the desktop proxy (#903): the
                      // card hides a remove button that could only ever answer 403.
@@ -441,7 +470,17 @@ diff --git a/lib/routes.js b/lib/routes.js
                              cancelled: cancelled || undefined,
                              busy: result.busy || undefined,
                              stale: stale || undefined,
-@@ -9298,6 +9316,28 @@
+@@ -7911,8 +7927,7 @@
+             handler: async (request, response) => {
+                 if (request.method === 'GET') {
+                     sendJson(response, 200, {
+-                        // Shown unless turned off (the default changed from off to on).
+-                        enabled: marketState.sidebarEntry !== false,
++                        enabled: entryDoors().sidebarEntry,
+                         // Absent means nobody has ever chosen. On a host with no settings
+                         // page the row is then shown by default, because it is the only
+                         // way into the market (#846).
+@@ -9298,6 +9314,28 @@
                          }
                          drainPhaseOf(request)?.('verifying');
                          const cancelled = result.cancelled;

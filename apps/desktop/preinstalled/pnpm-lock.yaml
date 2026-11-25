@@ -7,15 +7,15 @@ settings:
 patchedDependencies:
   ds-bot@0.3.10: 7a594de7ced34f65e17681252bc03bef79a30f352213cce2af5aa63ae07a7b4f
   dsh-auto-memory@1.11.0: aac7e338bdbd700423b118368a178049af036264b9b9bfaa601169e2bcee791c
-  dshmarket@1.80.1: 9f1e4b191c22c825593593a647b35767d53dd579f0fcbe1d2faab06a56433e62
+  dshmarket@1.80.1: ea1922e23241dc7d2fd301af5a3ab0f7b8fa184d28ec3a29f04460611ae5d77b
 
 importers:
 
   .:
     dependencies:
       '@michengai/dsh-archive-manager':
-        specifier: 1.4.2
-        version: 1.4.2
+        specifier: 1.5.0
+        version: 1.5.0
       '@michengai/dsh-skills-manager':
         specifier: 1.5.5
         version: 1.5.5
@@ -39,7 +39,7 @@ importers:
         version: 0.24.1(@deepseek-ai/schemastery@3.19.0)
       dshmarket:
         specifier: 1.80.1
-        version: 1.80.1(patch_hash=9f1e4b191c22c825593593a647b35767d53dd579f0fcbe1d2faab06a56433e62)(@deepseek-ai/schemastery@3.19.0)
+        version: 1.80.1(patch_hash=ea1922e23241dc7d2fd301af5a3ab0f7b8fa184d28ec3a29f04460611ae5d77b)(@deepseek-ai/schemastery@3.19.0)
 
 packages:
 
@@ -217,8 +217,8 @@ packages:
   '@matrix-org/olm@3.2.15':
     resolution: {integrity: sha512-S7lOrndAK9/8qOtaTq/WhttJC/o4GAzdfK0MUPpo8ApzsJEC0QjtwrkC3KBXdFP1cD1MXi/mlKR7aaoVMKgs6Q==}
 
-  '@michengai/dsh-archive-manager@1.4.2':
-    resolution: {integrity: sha512-J7HAwM7hBrjK5EX7GzsCYgH90myit0UvuQHO5DtnY+QNASXk2AF89RXqTj3OYag/1vsUJVr4HRutzCNS5bjPjw==}
+  '@michengai/dsh-archive-manager@1.5.0':
+    resolution: {integrity: sha512-aGJzTJ2W6iPUat6LD4sPzvq+eU86v6YW8TeT9h2IgsnPDUDXxotZxk993OUB8rGXBfsYVkJhjp6ZA6+iHlPw8g==}
     engines: {dsh: '>=0.2.2-rc.1 <0.3.0-0', node: ^22.19.0 || >=24.0.0}
     peerDependencies:
       '@deepseek-ai/cordis': '>=4.0.1 <5.0.0'
@@ -1143,7 +1143,7 @@ snapshots:
 
   '@matrix-org/olm@3.2.15': {}
 
-  '@michengai/dsh-archive-manager@1.4.2': {}
+  '@michengai/dsh-archive-manager@1.5.0': {}
 
   '@michengai/dsh-skills-manager@1.5.5':
     dependencies:
@@ -1393,7 +1393,7 @@ snapshots:
     optionalDependencies:
       '@deepseek-ai/schemastery': 3.19.0
 
-  dshmarket@1.80.1(patch_hash=9f1e4b191c22c825593593a647b35767d53dd579f0fcbe1d2faab06a56433e62)(@deepseek-ai/schemastery@3.19.0):
+  dshmarket@1.80.1(patch_hash=ea1922e23241dc7d2fd301af5a3ab0f7b8fa184d28ec3a29f04460611ae5d77b)(@deepseek-ai/schemastery@3.19.0):
     dependencies:
       js-yaml: 4.3.2
       undici: 7.30.2

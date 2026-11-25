@@ -115,6 +115,7 @@ export function createElectronBuilderConfig(
     extraMetadata: {
       ...(novaFlow ? { name: '@novaflow/desktop', productName:'NovaFlow' } : {}),
       dshDesktopAppId: appId,
+      ...(novaFlow && unsigned && resolvedPlatform === 'darwin' ? { novaFlowManualMacUpdate: true } : {}),
       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
       ...buildVersion === productVersion ? {} : { version: buildVersion },

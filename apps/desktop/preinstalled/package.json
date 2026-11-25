@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@michengai/dsh-archive-manager": "1.4.2",
+    "@michengai/dsh-archive-manager": "1.5.0",
     "@michengai/dsh-skills-manager": "1.5.5",
     "@tonydua/dsh-web-search-exa": "0.2.3",
     "@xmanrui/dsh-im": "5.10.0",

@@ -13,5 +13,5 @@ minimumReleaseAgeExclude:
   - dsh-rewind-plugin@0.24.1
   - ds-bot@0.3.10
   - dsh-auto-memory@1.11.0
-  - "@michengai/dsh-archive-manager@1.4.2"
   - "@michengai/dsh-skills-manager@1.5.5"
+  - "@michengai/dsh-archive-manager@1.5.0"

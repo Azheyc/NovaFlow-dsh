@@ -52,7 +52,7 @@ flowchart TD
 | 字段 | 默认值 | 范围与语义 |
 |---|---|---|
 | `enableAllCapabilities` | `true` | 控制首次图片输入等能力增强，协议按模型家族选择；`configure_models`显式重新启用能力。无论此开关取值，受管模型均应用明确的思考策略：移除default/off、补足high、提供商默认high |
-| `modelsRefreshInterval` | `600000` | 60000～3600000 毫秒；仅已连接时定时刷新 |
+| `modelsRefreshInterval` | `86400000` | 60000～86400000 毫秒。仅已连接时定时同步授权模型目录 |
 
 Host 必需注入 `credentials`、`connection`、`webServer`、`llm`、`agentDefaultModel`、`tools`、`configEditor`、`mcpManager`、`workingDirectory`、`pluginManager`、`storageDomain`。可选的 `clientModules` 用于分发诊断，不应作为登录前置条件。
 
@@ -106,6 +106,8 @@ Responses提供商的baseURL为 `http://127.0.0.1:<port>/novaflow/models/<provid
 | MCP 本机连接凭据 | Credentials 名称 `NOVAFLOW_IMAGE_MCP_KEY` |
 | 首次提醒标记、安装结果与 request ID | StorageDomain `novaflow_plugin_bootstrap`，version 1；含 `loginReminderSeen`，无设备令牌 |
 | 媒体作业元数据 | 发起调用的会话工作目录下的 `.novaflow-media/jobs/`；无平台凭据 |
+
+`GET /api/novaflow/v1/creator/models` 的 `data.group_details` 按已授权 `group_id` 返回 `ratio`（当前账户的计费倍率，允许为零）和 `description`（平台分组备注）。登录、恢复连接、手动刷新和每日自动刷新都会同步这些字段。选择器用倍率排序并显示数值，悬停标记可查看备注。旧平台缺少字段时仍可选择模型。
 
 仅 `kind=text` 的授权目录进入 DSH 模型提供商。名称默认采用原始模型ID，不加分组后缀；请求继续按授权group路由，不能仅凭显示名判断路由相同。`protocolForModel`不区分大小写地识别原始ID开头及常见vendor前缀后的Claude（支持斜杠、冒号、点等边界）；Claude选择 `anthropic-messages`，其他文本模型选择 `openai-responses`。
 

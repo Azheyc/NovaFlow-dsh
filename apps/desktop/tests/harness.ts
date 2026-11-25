@@ -8,6 +8,7 @@ import { DesktopProjectManager } from '../src/project-manager.ts'
 import { resolveDesktopPaths, type DesktopPaths } from '../src/paths.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { prepareDevelopmentProject } from '../scripts/development-project.ts'
+import { resolveDesktopBuildTarget } from '../scripts/desktop-build-paths.mjs'
 
 /** Repository root of this checkout. */
 export const repository = fileURLToPath(new URL('../../../', import.meta.url))
@@ -46,7 +47,7 @@ export async function prepareDesktopHome(root: string): Promise<{ home: string; 
       hostProtocolVersion: DESKTOP_HOST_PROTOCOL_VERSION,
     },
     // The synthetic project is not packaged, so nothing compares its descriptor target with this host.
-    target: 'mac-x64',
+    target: process.platform === 'darwin' || process.platform === 'win32' ? resolveDesktopBuildTarget() : 'mac-x64',
   })
   const paths = resolveDesktopPaths(home)
   await new DesktopProjectManager(paths, { dsh: project }).applyRelease()

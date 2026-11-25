@@ -27,6 +27,8 @@ test 预设将发布配置与上游测试策略服务隔离。NovaFlow 安装包
 
 ## 发布
 
+使用临时签名构建的 macOS 客户端检查到更新后，引导用户从对应版本发布页下载 DMG。退出应用后，将新版拖入「应用程序」并替换即可保留用户数据。旧版若提示签名验证失败，也使用这一安装方式。应用内原位更新需要旧版与新版满足同一 Developer ID 签名身份要求，正式发布前应实测从已安装版本更新。
+
 在仓库根目录运行 `node apps/desktop/scripts/prepare-novaflow-release.mjs <产物目录> <版本>`。Windows 生成 `stable.yml`、`nightly.yml`，macOS 生成 `stable-mac.yml`、`nightly-mac.yml`。两个频道使用同一版本，下载 URL 通过 gh-proxy.com 引用不可变的 GitHub 版本标签。用两个平台产物的摘要合并生成一份 `SHA256SUMS`。
 
 保留现有版本比较、下载进度、NSIS 安装与重启行为。镜像需支持 HTTPS Release 资产与差分下载的字节范围请求；上游更新器仍保留完整下载回退。不会回退至 DeepSeek 更新源。保留旧 Release 资产可访问。

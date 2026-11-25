@@ -10,5 +10,3 @@
 - insert:
     - id: novaflow-account
       name: '@local/novaflow-dsh-plugin'
-      config:
-        modelsRefreshInterval: 600000

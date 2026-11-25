@@ -473,6 +473,10 @@ interface LlmProviderInfo {
   id: string
   /** Human-readable provider name for selectors and diagnostics. */
   name: string
+  /** Operator's note for users choosing this group. */
+  description?: string
+  /** Relative cost for the same model on this route for the current account. */
+  priceMultiplier?: number
 }
 ```
 

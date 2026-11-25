@@ -32,6 +32,36 @@
   background: var(--dsw-alias-menu-group-header-fill);
 }
 
+.note {
+  display: inline-flex;
+  vertical-align: middle;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: 4px;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: help;
+}
+
+.note:hover, .note:focus-visible {
+  color: var(--dsw-alias-label-primary);
+}
+
+.note[data-badge] {
+  gap: 3px;
+  padding: 1px 5px 1px 3px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 :global(html:not([data-platform='darwin'])) .heading {
   border-radius: var(--dsw-radius-md);
 }

@@ -187,7 +187,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
             <div ref={viewportRef} role="listbox" aria-label={t('listbox.aria', { command: String(state.command) })} className={css.viewport}>
               {groups.map(({ group, rows: groupRows }) => group === undefined
                 ? <Fragment key="ungrouped">{groupRows.map(option => renderOption(option, optionIndex++))}</Fragment>
-                : <MenuGroup key={`group:${group.name}`} label={group.label}>
+                : <MenuGroup key={`group:${group.name}`} label={group.label} description={group.description} badge={group.badge}>
                   {groupRows.map(option => renderOption(option, optionIndex++))}
                 </MenuGroup>)}
             </div>

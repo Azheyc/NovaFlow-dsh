@@ -20,6 +20,7 @@ it('keeps the Windows updater and NSIS flow on the mirrored NovaFlow release fee
   expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
   expect(config.extraMetadata).toHaveProperty('name', '@novaflow/desktop')
   expect(config.win.forceCodeSigning).toBe(false)
+  expect(config.extraMetadata).not.toHaveProperty('novaFlowManualMacUpdate')
 })
 it('uses the same mirror for both channels and refuses upstream publication', () => {
   for (const channel of ['stable', 'nightly']) {
@@ -31,6 +32,7 @@ it('uses the same mirror for both channels and refuses upstream publication', ()
   expect(() => resolveDesktopUploadConfig(env, 'win32', 'x64')).toThrow('GitHub')
   const mac = createElectronBuilderConfig(env, 'darwin', 'arm64')
   expect(mac.productName).toBe('NovaFlow')
+  expect(mac.extraMetadata).toHaveProperty('novaFlowManualMacUpdate', true)
   expect(mac.artifactName).toBe('NovaFlow-${version}-${os}-${arch}.${ext}')
   expect(mac.mac).toMatchObject({ target: ['dmg', 'zip'] })
   expect(mac.protocols[0].schemes).toEqual(['novaflow'])

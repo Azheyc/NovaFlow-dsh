@@ -57,7 +57,9 @@ function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>): Sel
       rows.push({
         id: rowId(group.id, model.id),
         label: model.name,
-        group: { name: group.id, label: name },
+        group: { name: group.id, label: name, description: group.description || t('provider.noNote'),
+          ...(group.priceMultiplier === undefined ? {} : { badge: `${group.priceMultiplier}×` }),
+        },
         ...(directory.current !== null
           && directory.current.provider === group.id
           && directory.current.model === model.id

@@ -3,10 +3,12 @@
   - menu "模型":
     - group "DeepSeek":
       - text: DeepSeek
+      - button "暂无分组备注"
       - menuitemradio "DeepSeek-V4-Flash"
       - menuitemradio "DeepSeek-V4-Flash-Vision-Exp"
     - group "Acme Gateway":
       - text: Acme Gateway
+      - button "暂无分组备注"
       - menuitemradio "Acme Think"
       - menuitemradio "Acme Swift" [checked]
       - menuitemradio "Acme Lite"

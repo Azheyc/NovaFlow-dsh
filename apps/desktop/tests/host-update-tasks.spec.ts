@@ -52,13 +52,28 @@ afterEach(async () => { await ctx.fiber.dispose() })
 
 function idleAgent(): AgentState { return { id: SessionId('update-task-owner'), status: 'idle', inbox: { nextTurn: [], nextStep: [] } } }
 
-function request(next: () => Promise<void>) {
+function request(next: () => Promise<void>, method = 'POST', url = '/api/tasks') {
   const incoming = Readable.from([]) as IncomingMessage
+  incoming.method = method
+  incoming.url = url
   const response = { writeHead: vi.fn(), end: vi.fn() }
   return { response, done: ctx.waterfall('connection/request', incoming, response as unknown as ServerResponse, next) }
 }
 
 describe('Desktop Host update task protection', () => {
+  it('locks while an existing Bot event feed is open and rejects reconnects', async () => {
+    const entered = Promise.withResolvers<undefined>()
+    const finish = Promise.withResolvers<undefined>()
+    const pending = request(async () => { entered.resolve(undefined); await finish.promise }, 'GET', '/api/bot/feed?since=0')
+    try {
+      await entered.promise
+      expect(await inspect('lock')).toBe(false)
+      const reconnect = request(async () => {}, 'GET', '/api/bot/feed')
+      await reconnect.done
+      expect(reconnect.response.writeHead).toHaveBeenCalledWith(503)
+    } finally { finish.resolve(undefined); await pending.done }
+  })
+
   it.each(['running', 'nextTurn', 'nextStep'] as const)('counts %s agent work without stopping it', async (kind) => {
     const agent = idleAgent()
     if (kind === 'running') agent.status = 'running'

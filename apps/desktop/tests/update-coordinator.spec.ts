@@ -73,6 +73,18 @@ function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alp
 }
 
 describe('desktop update coordinator', () => {
+  it('retries a transient transport interruption once before reporting a download failure', async () => {
+    const f = fixture()
+    await f.coordinator.check()
+    const reset = Object.assign(new Error('connection reset'), { code: 'ECONNRESET' })
+    f.downloadUpdate.mockRejectedValueOnce(reset).mockRejectedValueOnce(reset)
+    expect(await f.coordinator.download('1.1.0-rc.2')).toMatchObject({ phase: 'error', failedOperation: 'download' })
+    expect(f.downloadUpdate).toHaveBeenCalledTimes(2)
+    f.downloadUpdate.mockRejectedValueOnce(new Error('net::ERR_NETWORK_CHANGED'))
+    expect(await f.coordinator.download('1.1.0-rc.2')).toMatchObject({ phase: 'ready' })
+    expect(f.downloadUpdate).toHaveBeenCalledTimes(4)
+  })
+
   it.each(['stop-failed', 'fullscreen-timeout'] as const)('keeps safe %s diagnostics separate and clears them on an explicit retry', async (kind) => {
     const f = fixture()
     await f.coordinator.check()

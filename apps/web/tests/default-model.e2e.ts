@@ -30,6 +30,24 @@ const START_MODEL = 'origin-large'
 const ROUTE = 'acme-gateway'
 const MODEL = 'acme-large'
 
+const initialProviders = {
+  providers: {
+    [START_ROUTE]: {
+      displayName: 'Origin Gateway',
+      api: 'openai-completions',
+      baseURL: 'https://gateway.origin.example/v1',
+      models: [{ id: START_MODEL, name: 'Origin Large' }],
+    },
+    [ROUTE]: {
+      displayName: 'Acme Gateway',
+      description: '分组备注：适合日常任务。',
+      api: 'openai-completions',
+      baseURL: 'https://gateway.acme.example/v1',
+      models: [{ id: MODEL, name: 'Acme Large' }, { id: 'acme-small', name: 'Acme Small' }],
+    },
+  },
+}
+
 describe('web e2e: the composer model switch is the default for later sessions', () => {
   let scaffold: WebScaffold
   let browser: Browser
@@ -61,22 +79,7 @@ describe('web e2e: the composer model switch is the default for later sessions',
     // Declared through the settings seam rather than the Models page: this
     // scenario is about the composer, and the declaring flow is covered by
     // models-settings.e2e.
-    await scaffold.ctx.settings.update('llm-pi-ai', {
-      providers: {
-        [START_ROUTE]: {
-          displayName: 'Origin Gateway',
-          api: 'openai-completions',
-          baseURL: 'https://gateway.origin.example/v1',
-          models: [{ id: START_MODEL, name: 'Origin Large' }],
-        },
-        [ROUTE]: {
-          displayName: 'Acme Gateway',
-          api: 'openai-completions',
-          baseURL: 'https://gateway.acme.example/v1',
-          models: [{ id: MODEL, name: 'Acme Large' }, { id: 'acme-small', name: 'Acme Small' }],
-        },
-      },
-    })
+    await scaffold.ctx.settings.update('llm-pi-ai', initialProviders)
     browser = await chromium.launch()
     page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
     tripwire = watchConsole(page)
@@ -323,6 +326,10 @@ describe('web e2e: the composer model switch is the default for later sessions',
       const menu = page.getByRole('group', { name: '模型与推理等级', exact: true })
       const menuSearch = page.getByRole('searchbox', { name: '搜索模型…' })
       const order = await readGroups(menu, 'menuitemradio')
+      const note = '分组备注：适合日常任务。'
+      await menu.getByRole('button', { name: note }).hover()
+      await expect.poll(() => page.getByRole('tooltip').innerText()).toBe(note)
+      await menuSearch.hover()
       const sticky = await checkSticky(menu, menu.getByRole('menu', { name: '模型', exact: true }))
       await menuSearch.fill('  ACMLG  ')
       const filtered = await readGroups(menu, 'menuitemradio')
@@ -333,6 +340,8 @@ describe('web e2e: the composer model switch is the default for later sessions',
       const popup = page.locator('[aria-label="/model 选项"]')
       await popup.getByRole('option').first().waitFor()
       expect(await readGroups(popup, 'option')).toEqual(order)
+      await popup.getByRole('button', { name: note }).hover()
+      await expect.poll(() => page.getByRole('tooltip').innerText()).toBe(note)
       expect(await checkSticky(popup, popup.getByRole('listbox'))).toEqual(sticky)
       const popupSearch = page.getByRole('textbox', { name: '筛选选项', exact: true })
       await popupSearch.fill('  ACMLG  ')
@@ -342,6 +351,37 @@ describe('web e2e: the composer model switch is the default for later sessions',
       await page.keyboard.press('Escape')
       await page.keyboard.press('Escape')
       await page.locator('[data-composer-input]').first().fill('')
+    }
+  })
+
+  it('shows the group note above the compact desktop list in a narrow viewport', async () => {
+    const narrow = await browser.newPage({ viewport: { width: 620, height: 720 }, locale: ZH_BROWSER_LOCALE })
+    try {
+      await narrow.addInitScript(() => { Object.assign(globalThis, { __DSH_COMPACT_MODEL_PICKER__: true }) })
+      await narrow.goto(scaffold.authenticatedUrl)
+      await narrow.getByRole('textbox', { name: '选择工作区' }).click()
+      await narrow.getByRole('button', { name: /^选择模型/ }).click()
+      const dialog = narrow.getByRole('dialog', { name: '模型与推理等级' })
+      await dialog.getByRole('button', { name: /Origin Large/ }).click()
+      await dialog.getByRole('button', { name: '分组备注：适合日常任务。' }).waitFor()
+      await scaffold.ctx.settings.update('llm-pi-ai', { providers: { [ROUTE]: { priceMultiplier: 0.3 } } })
+      const noteText = '0.3× · 分组备注：适合日常任务。'
+      const note = dialog.getByRole('button', { name: noteText })
+      expect(await note.innerText()).toBe('0.3×')
+      for (const dark of [false, true]) {
+        await narrow.evaluate((value) => { document.body.toggleAttribute('data-ds-dark-theme', value) }, dark)
+        await note.hover()
+        const bubble = narrow.getByRole('tooltip', { name: noteText })
+        await expect.poll(async () => {
+          const bounds = await bubble.boundingBox()
+          return bounds !== null && bounds.x >= 0 && bounds.y >= 0
+            && bounds.x + bounds.width <= 620 && bounds.y + bounds.height <= 720
+        }).toBe(true)
+        await dialog.getByRole('searchbox').hover()
+      }
+    } finally {
+      await scaffold.ctx.settings.replace('llm-pi-ai', initialProviders)
+      await narrow.close()
     }
   })
 

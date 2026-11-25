@@ -6,6 +6,7 @@ import { RELEASE_VERSION } from '../src/release.js'
 import { fileURLToPath } from 'node:url'
 
 test('Host activates against actual installed libraries; management route is owner-only and schema bounded', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
   const effects = [], routes = [], webRoutes = [], tools = [], records = new Map()
   let principal = {kind:'owner'}, interactions = 'answer', rejected = false, account
   let installationCalls=0
@@ -60,7 +61,18 @@ test('Host activates against actual installed libraries; management route is own
   const res={setHeader:()=>{},writeHead:n=>{status=n},end:value=>{body=value}}
   await webRoutes.find(route=>route.path==='/novaflow/callback').handler({method:'GET',headers:{host:'evil.example'},url:'/novaflow/callback'},res)
   assert.equal(status,400);assert.equal(body,'Invalid NovaFlow callback.')
+  const refresh = t.mock.method(account, 'refresh', async () => account.snapshot())
+  const day = 24 * 60 * 60 * 1000
+  t.mock.timers.tick(day)
+  assert.equal(refresh.mock.callCount(), 0, 'signed-out accounts do not refresh')
   account.publish({connected:true,hasCredential:true})
+  t.mock.timers.tick(day - 1)
+  assert.equal(refresh.mock.callCount(), 0)
+  t.mock.timers.tick(1)
+  assert.equal(refresh.mock.callCount(), 1)
+  assert.deepEqual(refresh.mock.calls[0].arguments, [], 'scheduled sync preserves local model edits')
+  t.mock.timers.tick(day)
+  assert.equal(refresh.mock.callCount(), 2)
   const connected=await tools[0].execute({action:'state'})
   assert.equal(connected.value.pluginSetup, undefined)
   assert.equal(connected.value.delivery.version, RELEASE_VERSION)

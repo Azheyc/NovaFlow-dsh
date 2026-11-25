@@ -1169,7 +1169,25 @@ it('hides the inherited effort until a listed model is selected', async () => {
 })
 
 
-it('places account and official models before third-party models', async () => {
+it('orders model groups by family and account price, keeping unpriced routes available', () => {
+  const groups = [
+    { name: 'Gemini', model: 'custom', priceMultiplier: 0.1 },
+    { name: 'Other', model: 'deepseek-chat', priceMultiplier: 0 },
+    { name: 'GPT old', model: 'gpt-6' },
+    { name: 'premium', model: 'vendor/gpt-6', priceMultiplier: 2 },
+    { name: 'Claude', model: 'claude-opus', priceMultiplier: 0.4 },
+    { name: 'discount', model: 'gpt-6', priceMultiplier: 0 },
+  ].map(({ model, ...group }) => ({ ...group, id: group.name, models: [{ id: model, name: model }] }))
+  const directory = createSnapshotStore<ModelDirectoryState>(state({ current: null, groups }))
+  render(<ModelSelect renderSlot={renderLabel} locked={false} available directory={directory} load={vi.fn()}
+    resolveText={resolveText} select={vi.fn()} t={t} />)
+  fireEvent.click(screen.getByRole('button', { name: '请选择模型' }))
+  expect(Array.from(document.querySelectorAll('[data-menu-group-heading]'), el => [
+    el.querySelector('span[id]')?.textContent, el.querySelector('button')?.textContent,
+  ])).toEqual([['discount', '0×'], ['premium', '2×'], ['GPT old', ''], ['Claude', '0.4×'], ['Gemini', '0.1×'], ['Other', '0×']])
+})
+
+it('places account and official models before third-party models within the unpriced other family', async () => {
   const groups = ['custom', 'deepseek-official', 'deepseek-account', 'another'].map(id => ({
     id, name: id, models: [1, 2].map(index => ({ id: `${id}-${index}`, name: `${id}-${index}` })),
   }))

@@ -34,11 +34,13 @@ macOS 的 NovaFlow 开发版快捷方式会在启动 Electron 前从仓库执行
 
 以 [预装清单](preinstalled/package.json) 和 [锁文件](preinstalled/pnpm-lock.yaml) 为版本依据。`prepareNovaFlowPreinstalled()` 应用市场补丁、生成连接手机及自媒体工作台的本地版，并编译提示词插件。最终发货清单读取构建产物 `novaflow-preinstalled/package.json`。
 
+预装资源按目标系统和架构分别缓存。打包时从 pnpm 安装目录提取清单中的插件及各自的私有依赖。`dsh-ops` 随包提供目标平台的 worker 和校验记录。Windows x64 另保留 Niubash、Git 和离线读取 WSL 文件所需的 Linux x64 worker。
+
 | 插件 | 合并上游时保留的行为与源码 |
 | --- | --- |
 | 团队模式 | 从欢迎页登录后进入标准界面，通过「进入团队模式」打开 DS Bot。团队模式接管会话期间撤下标准首页的提示词分类和推荐，返回标准模式后恢复。连接手机负责渠道配置和团队 Bot 选择。 |
 | 持久记忆 | 内置 dsh-auto-memory 补丁在获取设置锁之前创建数据目录。「陪伴（日常）」默认使用 32 KB 预算和重要度门槛 1。已有的用户设置优先。 |
-| 插件市场 | `preinstalled/patches/dshmarket@<version>.patch`。在线目录继续更新，隐藏赞助区及顶部检查失败提示，市场自身随客户端更新。市场因 Host 重载时正常返回插件安装和更新结果。 |
+| 插件市场 | `preinstalled/patches/dshmarket@<version>.patch`。在线目录继续更新，隐藏赞助区及顶部检查失败提示，市场自身随客户端更新。默认可从「插件」页进入市场，侧栏入口可手动开启。市场因 Host 重载时正常返回插件安装和更新结果。 |
 | 连接手机 | `prepareLocalIm()`。保留包名和机器人配置，隐藏 GitHub 和插件自身更新入口，启用插件时始终显示「连接手机」。页面副标题为「让NovaFlow触手可及」。 |
 | 自媒体工作台 | 保留独立「无限画布」入口、每张画布独立的 DSH 会话和 NovaFlow Image 接入。默认目录是 `$DSH_HOME/media-desk/files`，用户可修改或恢复默认，旧文件按原目录读取。图像节点支持 1K、2K，使用客户端模型页选中的生图模型。 |
 | 提示词预设 | `plugins/prompt-presets/`。所有模式共用内置库，设置只开放自定义预设，客户端升级替换内置库并保留用户自定义内容。 |

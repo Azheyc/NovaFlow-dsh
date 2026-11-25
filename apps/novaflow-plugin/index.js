@@ -13,7 +13,7 @@ export const name = 'novaflow-account'
 export const inject = ['credentials', 'connection', 'webServer', 'llm', 'agentDefaultModel', 'tools', 'configEditor', 'mcpManager', 'workingDirectory']
 export const Config = Schema.object({
   enableAllCapabilities: Schema.boolean().default(true).description('首次开启图片输入与原生推理档位；Claude采用Anthropic Messages，其他模型采用OpenAI Responses；迁移后保留原生模型编辑'),
-  modelsRefreshInterval: Schema.number().min(60000).max(3600000).default(600000).description('账户与模型目录刷新间隔（毫秒）'),
+  modelsRefreshInterval: Schema.number().min(60000).max(86400000).default(86400000).description('账户与模型目录刷新间隔（毫秒）'),
 })
 const json = (value, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store, private', 'Referrer-Policy': 'no-referrer' } })
 export async function apply(ctx, rawConfig) {

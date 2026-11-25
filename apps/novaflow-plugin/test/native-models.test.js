@@ -61,6 +61,25 @@ test('catalog preserves raw model names without group suffixes and uses stable g
   assert.deepEqual(parseCatalog({ items: [...data.items].reverse() }).map(item => item.provider).sort(), items.map(item => item.provider).sort())
 })
 
+test('catalog refresh updates notes and effective rates on each native route for a group', async t => {
+  const h = await bindingFor(t)
+  const items = [row('shared', 'openai', 'gpt-x'), row('shared', 'anthropic', 'claude-x')]
+  for (const [ratio, description] of [[2, 'Standard'], [0, 'Promotion']]) {
+    await h.binding.update({ items, group_details: { shared: { ratio, description } } }, false)
+    const profiles = Object.values(h.state.entry.options.config.providers)
+    assert.equal(profiles.length, 2)
+    for (const profile of profiles) {
+      assert.equal(profile.priceMultiplier, ratio)
+      assert.equal(profile.description, description)
+    }
+  }
+  await h.binding.update({ items, group_details: {} }, false)
+  for (const profile of Object.values(h.state.entry.options.config.providers)) {
+    assert.equal(profile.priceMultiplier, undefined)
+    assert.equal(profile.description, undefined)
+  }
+})
+
 test('native model profiles reach the bridge through the shipped WebServer prefix router', async t => {
   const require = createRequire(import.meta.url)
   const anchors = [process.env.DSH_INSTALL_DIR, process.argv[1], process.resourcesPath && resolve(process.resourcesPath, 'app.asar/dsh')].filter(Boolean)

@@ -27,6 +27,8 @@ The test preset isolates release settings from the upstream test policy service.
 
 ## Publish
 
+Ad-hoc signed macOS builds check for updates and direct users to the matching release page for the DMG. Quit the app, then drag the new version into Applications and replace the old copy to preserve user data. Use the same procedure if an older build reports a signature validation failure. In-app replacement requires the installed and incoming apps to satisfy the same Developer ID signing requirement. Test an upgrade from an installed release before publishing.
+
 From the repository root, run `node apps/desktop/scripts/prepare-novaflow-release.mjs <artifact-directory> <version>`. Windows emits `stable.yml` and `nightly.yml`. macOS emits `stable-mac.yml` and `nightly-mac.yml`. Both channels use the same version. Download URLs go through gh-proxy.com and reference the immutable GitHub version tag. Combine the platform checksums in one `SHA256SUMS`.
 
 Existing version comparison, download progress, NSIS installation and restart behavior remain intact. The mirror must support HTTPS release assets and byte-range requests for differential downloads; the upstream updater retains its full-download fallback. There is no fallback to DeepSeek's release feed. Keep old release assets accessible.

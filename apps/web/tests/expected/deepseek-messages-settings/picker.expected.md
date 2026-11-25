@@ -2,5 +2,6 @@
   - menu "模型":
     - group "DeepSeek":
       - text: DeepSeek
+      - button "暂无分组备注"
       - menuitemradio "Messages Flash" [checked]
       - menuitemradio "DeepSeek-V4-Pro"
