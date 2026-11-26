@@ -19,6 +19,7 @@ This reference maps NovaFlow customization to its owning source and validation. 
 | Model endpoints and requests | [Model synchronization](../novaflow-plugin/src/native-models.js) migrates managed URLs, [request authentication](../novaflow-plugin/src/model-bridge.js) supplies the platform token and group header, and the [adapter entry](../../packages/llm/llm-pi-ai/src/index.ts) connects inference and discovery. |
 | Logo and home animation | resources/novaflow, scripts/render-novaflow-brand.ts, scripts/render-novaflow-animation.ts, packages/client/ui-brand-official |
 | macOS and Windows installers and mirrored updates | [release manual](novaflow-release/README.md), scripts/novaflow-distribution.mjs |
+| Update dialog | [Release card](src/client/release-card.tsx), [update dialog](src/update-dialog.ts), [Mac DMG download](src/updates/novaflow-dmg.ts) |
 
 Paths in the table are relative to apps/desktop unless prefixed with apps/ or packages/, which refer to the repository root. The account extension is protected client functionality; keep community-plugin management independent. Login does not install plugins. Mode selection is session-local; settings determine new-session defaults.
 
@@ -67,12 +68,12 @@ Run commands from the repository root. Prefix Vitest commands with node node_mod
 | --- | --- |
 | Account | Account Node tests; desktop welcome/account renderer tests; built welcome-flow.e2e.ts with synthetic platform transport |
 | Prompt presets | `node --test plugins/prompt-presets/catalog.test.mjs` covers read-only built-ins, migration across modes and concurrent saves. `novaflow-preinstalled.spec.ts` checks that seed upgrades preserve custom files. `welcome-flow.e2e.ts` checks the shared library on first launch. |
-| Model URLs | `native-models.test.js` covers migration and user edits. `model-bridge.test.js` covers destinations, dynamic authentication and group headers. `welcome-flow.e2e.ts` covers Host login and discovery for each group. |
+| Model synchronization | `native-models.test.js` covers endpoint migration, renamed groups, custom titles and explicit refresh. `media-service.test.js` covers media catalog metadata and stable selections. `model-bridge.test.js` covers destinations, authentication and group headers. `welcome-flow.e2e.ts` covers Host login and discovery. |
 | Preinstallation | novaflow-preinstalled.spec.ts, project-manager.spec.ts, runtime-manifests.spec.ts; actual packaged first-profile initialization offline |
 | Plugin market | `novaflow-market-install.e2e.ts` installs and updates against a local test registry. After a market remount, the active Host supplies activation state and the original request completes version validation and returns its result. |
 | Shared skills and retired presets | `novaflow-mode-isolation.spec.ts`, `novaflow-client-identity.e2e.ts` and the Host preset roster |
 | Infinite canvas | The Media Desk plugin’s `test/*.test.js` covers documents and nodes. `novaflow-board-interaction.spec.tsx` covers node and toolbar interactions. `novaflow-board.e2e.ts` covers default storage, concurrent first opens, assistant edits and reopening after restart. |
-| Updates | novaflow-distribution.spec.ts, desktop-auto-update-environment.spec.ts, desktop-policy-environment.spec.ts; packaged app-update.yml and mirrored assets |
+| Updates | `novaflow-distribution.spec.ts` checks asset names, hashes and release notes in both channels. `novaflow-dmg.spec.ts` covers progress, checksum and partial files. `update-coordinator.spec.ts` checks download and installer handoff. `fixtures/update-dialogs.mjs` exercises the renderer. Check packaged `app-update.yml`, mirrored feeds and upgrades on both target systems. |
 | Installer | scripts/test-windows-installer.mjs; complete package-target build including its packaged-runtime smoke |
 
 Preinstalled packages inside ASAR require recursive read/write copying, not native cpSync. Apply archive manifest cleanup before sealing the runtime inventory. Preserve these checks when changing seeding or packaging. Mock-platform tests do not establish real account or paid-model availability.

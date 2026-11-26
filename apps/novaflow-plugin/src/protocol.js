@@ -6,6 +6,30 @@ export const RECORD = 'novaflow-account/creator'
 export class NovaError extends Error {
   constructor(code) { super(code); this.code = code }
 }
+// Group IDs stay on requests and saved selections. Display fields come from the
+// same catalog response, with item names as a fallback for earlier platforms.
+export function catalogGroupDetails(data) {
+  const groups = new Map()
+  for (const row of data.items) {
+    if (typeof row?.group_id !== 'string') continue
+    const id = row.group_id
+    if (!groups.has(id)) {
+      const entry = data.group_details?.[id]
+      groups.set(id, {
+        name: typeof entry?.name === 'string' ? entry.name.trim() : '',
+        description: typeof entry?.description === 'string' ? entry.description.trim() : '',
+        ratio: Number.isFinite(entry?.ratio) && entry.ratio >= 0 ? entry.ratio : undefined,
+      })
+    }
+    const details = groups.get(id)
+    if (!details.name && typeof row.group_name === 'string') details.name = row.group_name.trim()
+  }
+  // Older catalog responses used the display name as a placeholder note.
+  for (const [id, details] of groups) {
+    if (!data.group_details?.[id]?.name && details.description === (details.name || id)) details.description = ''
+  }
+  return groups
+}
 export function safeCode(error) {
   return error instanceof NovaError ? error.code : 'INTERNAL_ERROR'
 }

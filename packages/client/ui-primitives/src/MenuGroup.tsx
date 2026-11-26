@@ -6,7 +6,7 @@ import css from './MenuGroup.module.css'
 
 /**
  * Render a named group with an instance-owned heading id and an inaccessible position sentinel.
- * @param props - Caller-localized label and optional menu rows.
+ * @param props - Localized heading, visible badge, optional tooltip description, and menu rows.
  * @returns A section named by its direct heading, followed by the supplied children.
  */
 export function MenuGroup({ label, description, badge, children }: {
@@ -16,12 +16,13 @@ export function MenuGroup({ label, description, badge, children }: {
   children?: ReactNode
 }) {
   const headingId = useId()
-  const note = [badge, description].filter(Boolean).join(' · ')
+  const note = description?.trim()
+  const hasMeta = Boolean(note || badge)
   return (
     <section role="group" aria-labelledby={headingId} data-menu-group="" className={css.group}>
       <span aria-hidden="true" data-menu-group-start="" className={css.start} />
-      <div id={note ? undefined : headingId} data-menu-group-heading="" className={css.heading}>
-        {note ? <span id={headingId}>{label}</span> : label}
+      <div id={hasMeta ? undefined : headingId} data-menu-group-heading="" className={css.heading}>
+        {hasMeta ? <span id={headingId}>{label}</span> : label}
         {note && <Tooltip label={note} portal side="top" maxWidth={300} openOnClick>
           <button type="button" className={css.note} data-badge={badge ? '' : undefined} aria-label={note}
             onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation() }}>
@@ -29,6 +30,7 @@ export function MenuGroup({ label, description, badge, children }: {
             {badge}
           </button>
         </Tooltip>}
+        {!note && badge && <span className={css.note} data-badge="">{badge}</span>}
       </div>
       {children}
     </section>

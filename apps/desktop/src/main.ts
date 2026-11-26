@@ -4,6 +4,7 @@ import { installFileActions } from './file-actions.ts'
 import { configurationFailure, channelSaveFailure, configurationMessage } from './update-configuration.ts'
 import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
+import { downloadNovaFlowDmg } from './updates/novaflow-dmg.ts'
 import { isDesktopUpdateChannel } from './settings-file.ts'
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
@@ -20,6 +21,7 @@ import {
   powerMonitor,
   nativeImage,
   nativeTheme,
+  net,
   protocol,
   session,
   shell,
@@ -636,6 +638,7 @@ async function main(): Promise<void> {
   const publishUpdate = (state: DesktopUpdateState): DesktopUpdateState => {
     updateJournal?.state(state)
     updateState = state
+    if (state.percent !== undefined) updateDialog.setProgress(state.percent)
     mandatoryUI?.sync()
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(DESKTOP_IPC.updatesPresentation, updatePresentation(state))
@@ -723,7 +726,9 @@ async function main(): Promise<void> {
       const parent = currentDialogWindow()
       if (parent === undefined || !await prepareDesktopUpdateWindow(parent, locale.messages.updateFullscreenTimeout)) return false
       const ready = desktopUpdateReadyConfirmation(locale.messages, updates.state.version ?? '', process.platform)
-      const confirmation: Electron.MessageBoxOptions = {
+      const confirmation: UpdateDialogOptions = {
+        releaseCard: novaFlowDesktop,
+        ...(updates.state.releaseNotes ? { releaseNotes: updates.state.releaseNotes } : {}),
         type: active ? 'warning' : 'info', title: locale.messages.updateTitle,
         message: active ? locale.messages.updateActiveTasks : ready.message,
         detail: active ? locale.messages.updateActiveTasksDetail : ready.detail,
@@ -769,6 +774,11 @@ async function main(): Promise<void> {
     undefined, undefined, undefined,
     (success, reason) => { void track('desktop_upgrade_download_result', { is_success: success, ...reason === undefined ? {} : { error_reason: reason } }) },
     updateChannel,
+    undefined, manualMacUpdate ? {
+      download: (info, signal, progress) => downloadNovaFlowDmg(info, join(app.getPath('userData'), 'updates'),
+        (url, options) => net.fetch(url, options), signal, progress),
+      open: path => shell.openPath(path),
+    } : undefined,
   )
 
   if (initialChannel.kind === 'error') updates.suspendConfiguration(initialChannel.error.path)
@@ -783,17 +793,44 @@ async function main(): Promise<void> {
 
   const updateSchedule = new DesktopUpdateSchedule(updates, resolveDesktopUpdateScheduleConfig(process.env))
 
-  const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
+  const confirmInstall = async (version: string, revision: number): Promise<DesktopUpdateState> => {
     if (manualMacUpdate) {
       const state = updates.state
-      if (revision === updates.revision && state.phase === 'available' && state.version === version) {
-        await shell.openExternal(`https://github.com/Azheyc/NovaFlow-dsh/releases/tag/v${encodeURIComponent(version)}`)
-      }
-      return state
+      if (revision !== updates.revision || state.version !== version) return state
+      const result = await ordinaryMessageBox({ title: locale.messages.updateCheckTitle,
+        releaseCard: true, detail: locale.messages.updateMacInstallDetail,
+        message: formatDesktopMessage(locale.messages.updateDownloadedTitle, { version }),
+        ...(state.releaseNotes ? { releaseNotes: state.releaseNotes } : {}),
+        buttons: [locale.messages.updateOpenInstaller], cancelId: 1 })
+      if (result.response !== 0) return state
     }
+    return updates.install(version, revision)
+  }
+  let dmgProgress: AbortController | undefined
+  const showDmgProgress = (signal: AbortSignal): Promise<unknown> => {
+    const parent = currentDialogWindow()
+    if (!parent) return Promise.resolve()
+    return updateDialog.show(parent, { signal, percent: updates.state.percent ?? 0, detail: locale.messages.updateDownloadDetail,
+      message: locale.messages.updateDownloadInProgress, buttons: [locale.messages.updateClose], cancelId: 0,
+      ...(updates.state.releaseNotes ? { releaseNotes: updates.state.releaseNotes } : {}) })
+  }
+  const downloadUpdate = async (version: string, revision = updates.revision): Promise<DesktopUpdateState> => {
     void track('desktop_upgrade_click', {})
     updateJournal?.action('download-requested')
-    const state = await updates.download(version, revision)
+    const transfer = updates.download(version, revision)
+    let progressDialog: Promise<unknown> | undefined
+    if (manualMacUpdate && !dmgProgress) {
+      dmgProgress = new AbortController()
+      progressDialog = showDmgProgress(dmgProgress.signal).catch((error: unknown) => { console.error(error) })
+    }
+    let state: DesktopUpdateState
+    try { state = await transfer } finally {
+      if (progressDialog) {
+        dmgProgress?.abort()
+        dmgProgress = undefined
+        await progressDialog
+      }
+    }
     if (state.phase !== 'ready' || quitting) return state
     // Only a completed user-driven download opens this prompt; cancelling installation does not reopen it.
     // A confirmation on a hidden window would go unseen, so it waits for the next show; the mandatory
@@ -801,7 +838,7 @@ async function main(): Promise<void> {
     if (!isMandatory()) await windowShown()
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- A quit can begin while the show is awaited.
     if (quitting) return state
-    return updates.install(version, revision)
+    return confirmInstall(version, revision)
   }
   const windowShown = (): Promise<void> => new Promise((resolve) => {
     const window = currentDialogWindow()
@@ -1037,7 +1074,10 @@ async function main(): Promise<void> {
         updateDialog.focus()
         return Promise.resolve()
       }
+      if (dmgProgress) return showDmgProgress(dmgProgress.signal).then(() => {})
       const options = { type: 'info' as const, title: locale.messages.updateCheckTitle,
+        releaseCard: novaFlowDesktop, ...(novaFlowDesktop && updates.state.percent !== undefined ? { percent: updates.state.percent } : {}),
+        ...(updates.state.releaseNotes ? { releaseNotes: updates.state.releaseNotes } : {}),
         message: updates.state.phase === 'downloading' ? locale.messages.updateDownloadInProgress : locale.messages.updateVerifying,
         detail: updates.state.phase === 'downloading' ? locale.messages.updateDownloadDetail : '', buttons: [locale.messages.updateClose], cancelId: 0,
       }
@@ -1085,16 +1125,17 @@ async function main(): Promise<void> {
         if (state.phase === 'ready' || (state.phase === 'error' && state.failedOperation === 'install')) {
           if (state.version !== undefined) {
             failedOperation = 'install'
-            await showUpdateFailure(await updates.install(state.version, revision))
+            await showUpdateFailure(await confirmInstall(state.version, revision))
           }
           return
         }
         if (state.phase !== 'available' && !(state.phase === 'error' && state.failedOperation === 'download')) return
-        if (manual || manualMacUpdate) {
+        if (manual || manualMacUpdate || state.releaseNotes) {
           const result = await ordinaryMessageBox({ title: locale.messages.updateCheckTitle,
             message: formatDesktopMessage(locale.messages.updateAvailable, { version: state.version ?? '' }),
-            detail: manualMacUpdate ? locale.messages.updateMacDmgDetail : locale.messages.updateDetail,
-            buttons: [manualMacUpdate ? locale.messages.mandatoryViewDownload : locale.messages.updateDownload], cancelId: 1 })
+            releaseCard: true, detail: manualMacUpdate ? locale.messages.updateMacDownloadDetail : locale.messages.updateDetail,
+            ...(state.releaseNotes ? { releaseNotes: state.releaseNotes } : {}),
+            buttons: [locale.messages.updateDownload], cancelId: 1 })
           if (result.response !== 0) return
         }
         if (!isMandatory() && state.version !== undefined) {

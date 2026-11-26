@@ -126,6 +126,18 @@ describe('MenuGroup', () => {
     expect(first!.heading.nextElementSibling).toBe(within(first!.section).getByRole('button', { name: 'Model A' }))
   })
 
+  it('shows the group note in the tooltip and the multiplier on the badge', () => {
+    const view = render(<MenuGroup label="[gpt]企业分组" description="企业专用线路" badge="0.5×" />)
+    const badge = screen.getByRole('button', { name: '企业专用线路' })
+    expect(badge.textContent).toBe('0.5×')
+    fireEvent.click(badge)
+    sizes[0]!.notify(screen.getByRole('tooltip', { hidden: true }), 24)
+    expect(screen.getByRole('tooltip').textContent).toBe('企业专用线路')
+    view.rerender(<MenuGroup label="[gpt]企业分组" badge="0.5×" />)
+    expect(screen.getByText('0.5×')).toBeTruthy()
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
   it('renders a named group without rows', () => {
     render(<MenuGroup label="Empty provider" />)
     const group = screen.getByRole('group', { name: 'Empty provider' })

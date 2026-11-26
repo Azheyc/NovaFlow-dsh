@@ -6,7 +6,7 @@ import { isIP } from 'node:net'
 import { request as httpsRequest } from 'node:https'
 import { Readable } from 'node:stream'
 import { imageSize as readRasterSize } from 'image-size'
-import { ORIGIN, PREFIX, RECORD, NovaError, storedGrant } from './protocol.js'
+import { ORIGIN, PREFIX, RECORD, NovaError, catalogGroupDetails, storedGrant } from './protocol.js'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 
 export const DEFAULT_IMAGE_MODEL = 'gpt-image-2.6'
@@ -57,8 +57,10 @@ function platformRequestId(response) {
   return value && /^\d{14}[A-Za-z0-9_-]{8,86}$/.test(value) ? value : undefined
 }
 
-export function mediaModels(items) {
+export function mediaModels(catalog) {
+  const items = catalog?.items
   if (!Array.isArray(items)) bad('INVALID_RESPONSE')
+  const groups = catalogGroupDetails(catalog)
   const models = new Map()
   for (const row of items) {
     if (!plain(row) || !Object.hasOwn(endpoints, row.kind) || !Array.isArray(row.supported_endpoint_types) || !row.supported_endpoint_types.includes(endpoints[row.kind])) continue
@@ -68,7 +70,8 @@ export function mediaModels(items) {
       const choices = row.capabilities?.[key]
       if (Array.isArray(choices)) capabilities[key] = choices.filter(value => key === 'durations' ? Number.isSafeInteger(value) : typeof value === 'string')
     }
-    models.set(JSON.stringify([row.kind,row.group_id,row.model_id]), {id:row.model_id,group:row.group_id,kind:row.kind,endpoints:row.supported_endpoint_types,...(Object.keys(capabilities).length ? { capabilities } : {})})
+    const details = groups.get(row.group_id)
+    models.set(JSON.stringify([row.kind,row.group_id,row.model_id]), {id:row.model_id,group:row.group_id,groupName:details.name || row.group_id,description:details.description,priceMultiplier:details.ratio,kind:row.kind,endpoints:row.supported_endpoint_types,...(Object.keys(capabilities).length ? { capabilities } : {})})
   }
   return [...models.values()]
 }
@@ -229,7 +232,7 @@ export function createMediaService({account,credentials,api,workspace,fetchImpl=
   async function catalog() {
     const token=await account.accessToken()
     const data=await api.request(PREFIX+'/creator/models',{token,signal:lifecycle.signal})
-    return mediaModels(data?.items)
+    return mediaModels(data)
   }
   async function savedPreferences() {
     const grant = storedGrant(await credentials.readRecord(RECORD))

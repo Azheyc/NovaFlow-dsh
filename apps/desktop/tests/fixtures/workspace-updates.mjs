@@ -161,10 +161,11 @@ async function press(window, expression) {
   await window.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
 }
 async function clickText(window, label) {
-  const title = await window.webContents.executeJavaScript("document.getElementById('title').textContent")
-  await press(window, `[...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)})`)
+  const heading = "document.querySelector('[role=dialog]:not([hidden]) :is(h1,h2)')?.textContent"
+  const title = await window.webContents.executeJavaScript(heading)
+  await press(window, `[...document.querySelectorAll('[role=dialog]:not([hidden]) button')].find(button => button.textContent.trim() === ${JSON.stringify(label)})`)
   await waitFor(async () => window.isDestroyed()
-    || await window.webContents.executeJavaScript("document.getElementById('title').textContent") !== title, `dialog response: ${label}`)
+    || await window.webContents.executeJavaScript(heading) !== title, `dialog response: ${label}`)
 }
 const dialogDrivers = new WeakMap()
 async function dialogWith(message) {
@@ -180,7 +181,7 @@ async function dialogWith(message) {
         dialogDrivers.set(contents, window)
       }
       try {
-        const ready = await window.webContents.executeJavaScript(`document.getElementById('title')?.textContent === ${JSON.stringify(message)} && !!document.querySelector('#actions button')`)
+        const ready = await window.webContents.executeJavaScript(`document.querySelector('[role=dialog]:not([hidden]) :is(h1,h2)')?.textContent === ${JSON.stringify(message)} && !!document.querySelector('[role=dialog]:not([hidden]) button')`)
         if (ready) { found = window; return true }
       } catch (error) { if (!window.isDestroyed()) throw error }
     }

@@ -414,7 +414,7 @@ window.__ModuleLoader__.load({
                   const row = rows.find(item => key(item) === event.target.value);
                   if (row) void act('set_media_model', {kind, model:row.id, group:row.group, owner:state.media.owner});
                 }}, h('option', {value:'',disabled:true}, t(selected && !available ? 'mediaUnavailable' : rows.length ? 'chooseMedia' : 'noMedia')),
-                rows.map(row => h('option', {key:key(row),value:key(row)}, `${row.id} · ${row.group}`))));
+                rows.map(row => h('option', {key:key(row),value:key(row), title:row.description || undefined}, `${row.id} · ${row.groupName || row.group}${row.priceMultiplier == null ? '' : ` · ${row.priceMultiplier.toFixed(2)}×`}`))));
           }
           return h('section', {className:'nf-account', 'aria-label':t('mediaTitle')}, h('style', null, css),
             h('div', {className:'nf-card'}, h('h3', null, t('mediaTitle')),

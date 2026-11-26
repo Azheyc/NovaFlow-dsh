@@ -27,9 +27,11 @@ The test preset isolates release settings from the upstream test policy service.
 
 ## Publish
 
-Ad-hoc signed macOS builds check for updates and direct users to the matching release page for the DMG. Quit the app, then drag the new version into Applications and replace the old copy to preserve user data. Use the same procedure if an older build reports a signature validation failure. In-app replacement requires the installed and incoming apps to satisfy the same Developer ID signing requirement. Test an upgrade from an installed release before publishing.
+Windows and Mac share the client's update dialog. A short description follows the download and installation steps. Release notes appear on one page when they fit, with page controls only when the text exceeds the reading area.
 
-From the repository root, run `node apps/desktop/scripts/prepare-novaflow-release.mjs <artifact-directory> <version>`. Windows emits `stable.yml` and `nightly.yml`. macOS emits `stable-mac.yml` and `nightly-mac.yml`. Both channels use the same version. Download URLs go through gh-proxy.com and reference the immutable GitHub version tag. Combine the platform checksums in one `SHA256SUMS`.
+On ad-hoc signed macOS builds, the update dialog downloads the DMG from the mirror and shows progress. After size and SHA-512 verification, choose **Open installer**, quit NovaFlow and drag the new app into Applications. Older clients may still open the release page. Windows uses its existing installer.
+
+From the repository root, run `node apps/desktop/scripts/prepare-novaflow-release.mjs <artifact-directory> <version> <release-notes-file>` for each platform. Use the same user-facing notes file for both feeds and the GitHub release body. The stable and nightly feeds carry the notes for that version and immutable mirror asset URLs. Keep the ZIP first in the Mac feed for signed clients. Combine the platform checksums in one `SHA256SUMS`.
 
 Existing version comparison, download progress, NSIS installation and restart behavior remain intact. The mirror must support HTTPS release assets and byte-range requests for differential downloads; the upstream updater retains its full-download fallback. There is no fallback to DeepSeek's release feed. Keep old release assets accessible.
 

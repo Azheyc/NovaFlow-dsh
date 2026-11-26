@@ -366,6 +366,7 @@ vi.mock('../src/host-process.ts', async importOriginal => ({
   ...await importOriginal<typeof import('../src/host-process.ts')>(), DesktopHostProcess: harness.FakeHost,
 }))
 vi.mock('../src/update-dialog.ts', () => ({ DesktopUpdateDialog: class {
+  setProgress() {}
   get isOpen() { return harness.shellDialog.isOpen }
   input() { return { revision: 0, blocked: false } }
   show(owner: { options: { modal?: boolean } }, options: unknown) {
@@ -2147,7 +2148,7 @@ describe('desktop main startup', () => {
       message: en.updateDownloadFailed, technicalDetails: 'desktop update: download confirmation is stale' }))
   })
 
-  it.each([0, 1])('uses the release page for an ad-hoc Mac update only after confirmation (%i)', async (response) => {
+  it.each([0, 1])('downloads the Mac installer and offers to open it after confirmation (%i)', async (response) => {
     vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64' })
     vi.stubEnv('DSH_HOME', harness.app.getPath('userData'))
     vi.stubEnv('DSH_AGENTS_HOME', harness.app.getPath('userData'))
@@ -2158,14 +2159,24 @@ describe('desktop main startup', () => {
     harness.app.name = 'NovaFlow'
     onTestFinished(() => { harness.app.name = previousName })
     await readyForUpdate()
-    harness.updateState = { phase: 'available', version: '1.1.0' }
+    const target = { version: '1.1.0', releaseNotes: 'Improved search' }
+    harness.updateState = { phase: 'available', ...target }
+    harness.updateDownload.mockImplementationOnce(async () => (harness.updateState = { phase: 'ready', ...target }))
     harness.dialog.showMessageBox.mockResolvedValue({ response })
     await invoke(DESKTOP_IPC.updatesOpen, 'app')
-    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ detail: en.updateMacDmgDetail }))
-    if (response === 0) expect(harness.openExternal).toHaveBeenCalledWith('https://github.com/Azheyc/NovaFlow-dsh/releases/tag/v1.1.0')
-    else expect(harness.openExternal).not.toHaveBeenCalled()
-    expect(harness.updateDownload).not.toHaveBeenCalled()
-    expect(harness.updateInstall).not.toHaveBeenCalled()
+    expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      releaseNotes: target.releaseNotes, buttons: [en.updateDownload],
+    }))
+    if (response === 0) {
+      expect(harness.updateDownload).toHaveBeenCalledWith(target.version, 0)
+      expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ percent: 0 }))
+      expect(harness.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ buttons: [en.updateOpenInstaller] }))
+      expect(harness.updateInstall).toHaveBeenCalledWith(target.version, 0)
+    } else {
+      expect(harness.updateDownload).not.toHaveBeenCalled()
+      expect(harness.updateInstall).not.toHaveBeenCalled()
+    }
+    expect(harness.openExternal).not.toHaveBeenCalled()
   })
 
   it('keeps policy failures silent while an ordinary update proceeds', async () => {

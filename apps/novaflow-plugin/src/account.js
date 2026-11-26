@@ -206,7 +206,7 @@ export class NovaAccount {
         if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
         const models = await this.onCatalog(catalog, selectDefault, { resetModels })
         if (generation !== this.generation || this.disposed) throw new NovaError('CANCELLED')
-        this.publish({ connected: true, hasCredential: true, account, models, mediaModels:mediaModels(catalog.items), error: null })
+        this.publish({ connected: true, hasCredential: true, account, models, mediaModels:mediaModels(catalog), error: null })
         // Balance availability must not delay or fail model sign-in/synchronization.
         void this.refreshBalance().catch(()=>{})
         return this.snapshot()

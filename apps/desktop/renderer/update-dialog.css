@@ -14,7 +14,12 @@ main:focus { outline: none; }
 h1 { margin: 0; min-height: 28px; font-size: 16px; font-weight: 500; line-height: 24px; overflow-wrap: anywhere; }
 p { margin: 0; font-size: 14px; line-height: 22px; white-space: pre-wrap; overflow-wrap: anywhere; }
 #actions { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; position: sticky; bottom: 0; background: var(--dsw-alias-bg-layer-1); }
-button { min-height: 44px; padding: 9px 16px; border: 0; border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 500; line-height: 22px; color: inherit; cursor: pointer; }
+#transfer { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+#progress { flex: 1; min-width: 0; accent-color: var(--dsw-alias-link); }
+#notes { margin-top: 16px; }
+#notes h2 { margin: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--dsw-alias-label-secondary); }
+#notes-body { max-height: min(220px, 32vh); overflow: auto; scrollbar-width: thin; }
+:where(main) button { min-height: 44px; padding: 9px 16px; border: 0; border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 500; line-height: 22px; color: inherit; cursor: pointer; }
 .primary { background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-inverted); }
 
 .secondary { background: var(--dsw-alias-button-primary-dimmed); color: inherit; }

@@ -28,7 +28,7 @@ export async function qualifyUpdateDialogs(root, fixture) {
   const screenshots = []
   protocol.handle('dsh-app', async request => {
     const name = new URL(request.url).pathname.slice(1)
-    assert.ok(['design-platform.css', 'shell-theme.js', 'update-dialog.html', 'update-dialog.js', 'update-dialog.css', 'update-close.svg'].includes(name))
+    assert.ok(['design-platform.css', 'shell-theme.js', 'update-dialog.html', 'update-dialog.js', 'update-dialog.css', 'update-close.svg', 'generated/release-card.js', 'generated/release-card.css'].includes(name))
     const mime = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css'
       : name.endsWith('.svg') ? 'image/svg+xml' : 'text/html'
     return new Response(await readFile(new URL(`${name === 'design-platform.css' ? '../../lib/welcome' : '../../renderer'}/${name}`, import.meta.url)), { headers: { 'content-type': mime } })
@@ -92,6 +92,31 @@ export async function qualifyUpdateDialogs(root, fixture) {
       assert.equal(f.installations.length, active ? 1 : 0)
     }
     assert.deepEqual(f.installations, [[true, true]])
+    const releaseCreated = once(app, 'web-contents-created', { signal: AbortSignal.timeout(10_000) })
+    const release = { message: messages.updateDownloadInProgress, detail: messages.updateDownloadDetail,
+      releaseNotes: '支持更多图片分辨率。', percent: 0, buttons: [messages.updateClose], cancelId: 0 }
+    const short = dialogs.show(parent, release)
+    const [, releaseContents] = await releaseCreated
+    await once(releaseContents, 'did-finish-load', { signal: AbortSignal.timeout(10_000) })
+    const waitForElement = selector => releaseContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const observer = new MutationObserver(check)
+      const timer = setTimeout(() => { observer.disconnect(); reject(new Error('Missing update component')) }, 5000)
+      function check() { if (document.querySelector(${JSON.stringify(selector)})) { clearTimeout(timer); observer.disconnect(); resolve(true) } }
+      observer.observe(document.body, { subtree: true, childList: true, characterData: true }); check()
+    })`)
+    await waitForElement('.release-card')
+    assert.equal(await releaseContents.executeJavaScript("document.querySelector('.release-pager') === null"), true)
+    const long = dialogs.show(parent, { ...release, releaseNotes: (release.releaseNotes + '\n').repeat(60) })
+    await short
+    await waitForElement('.release-pager')
+    await releaseContents.executeJavaScript("document.querySelector('.release-pager button:last-child').click()")
+    dialogs.setProgress(46)
+    await waitForElement('progress[value="46"]')
+    assert.equal(await releaseContents.executeJavaScript("document.querySelector('.release-pager span').textContent.startsWith('2 / ')"), true)
+    const releaseClosed = once(releaseContents, 'destroyed', { signal: AbortSignal.timeout(10_000) })
+    dialogs.cancel()
+    await long
+    await releaseClosed
     const created = once(app, 'web-contents-created', { signal: AbortSignal.timeout(10_000) })
     const diagnostics = 'exit 0; shutdown acknowledged false\n' + 'at internal/diagnostic/path\n'.repeat(1000)
     const pending = dialogs.show(parent, { title: messages.updateFailedTitle, message: messages.updateStopFailed,

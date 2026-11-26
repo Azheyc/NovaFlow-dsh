@@ -47,7 +47,8 @@ describe('desktop release metadata', () => {
 const coordinators: InstanceType<typeof DesktopUpdateCoordinator>[] = []
 afterEach(() => { for (const item of coordinators.splice(0)) item.dispose() })
 
-function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alpha.1', discard?: (updater: AppUpdater) => Promise<void>) {
+function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alpha.1', discard?: (updater: AppUpdater) => Promise<void>,
+  dmg?: ConstructorParameters<typeof DesktopUpdateCoordinator>[8]) {
   const events = new EventEmitter()
   const checkForUpdates = vi.fn(async () => ({
     isUpdateAvailable: true,
@@ -66,13 +67,33 @@ function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alp
   const updater = Object.assign(events, { checkForUpdates, downloadUpdate, quitAndInstall }) as unknown as AppUpdater
   const coordinator = new DesktopUpdateCoordinator(
     (state) => { states.push(state); return state },
-    beforeRestart, updater, () => true, () => version, downloadResult, channel, discard,
+    beforeRestart, updater, () => true, () => version, downloadResult, channel, discard, dmg,
   )
   coordinators.push(coordinator)
   return { coordinator, updater, events, states, checkForUpdates, downloadUpdate, quitAndInstall, beforeRestart, downloadResult }
 }
 
 describe('desktop update coordinator', () => {
+  it('keeps notes tied to the checked version and opens only the downloaded DMG without restarting', async () => {
+    const dmg = { download: vi.fn(async () => '/cache/NovaFlow.dmg'), open: vi.fn(async () => '') }
+    const f = fixture('stable', '1.0.0', async () => {}, dmg)
+    const info = { version: '1.1.0', releaseNotes: 'Faster search' }
+    f.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true, updateInfo: info })
+    expect(await f.coordinator.check()).toEqual({ phase: 'available', ...info })
+    await expect(f.coordinator.install(info.version)).rejects.toThrow(/not ready/)
+    expect(await f.coordinator.download(info.version)).toEqual({ phase: 'ready', ...info })
+    expect(dmg.open).not.toHaveBeenCalled()
+    expect(await f.coordinator.install(info.version)).toEqual({ phase: 'ready', ...info })
+    expect(dmg.open).toHaveBeenCalledWith('/cache/NovaFlow.dmg')
+    expect(f.downloadUpdate).not.toHaveBeenCalled()
+    expect(f.beforeRestart).not.toHaveBeenCalled()
+    expect(f.quitAndInstall).not.toHaveBeenCalled()
+    f.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '1.2.0' } })
+    await f.coordinator.switchChannel('nightly', async () => {})
+    expect(f.coordinator.state).toEqual({ phase: 'available', version: '1.2.0' })
+    await expect(f.coordinator.install(info.version)).rejects.toThrow(/not ready/)
+    expect(dmg.open).toHaveBeenCalledTimes(1)
+  })
   it('retries a transient transport interruption once before reporting a download failure', async () => {
     const f = fixture()
     await f.coordinator.check()

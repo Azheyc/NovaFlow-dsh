@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { createHash, randomBytes } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
-import { NovaError, ORIGIN } from './protocol.js'
+import { catalogGroupDetails, NovaError, ORIGIN } from './protocol.js'
 import { createModelBridge } from './model-bridge.js'
 
 /** Resolve shipped libraries from this running installation, never another global DSH. */
@@ -194,6 +194,7 @@ export async function createModelBinding(ctx, account, config, libraries, { when
   async function update(catalog, selectDefault, {force=false,ownedItems,protocolsOnly=false,resetModels=false}={}) {
     const generation = revision
     const sourceItems = ownedItems || parseCatalog(catalog), owners = await ownership(), changes = [], routes = []
+    const groupDetails = ownedItems ? new Map() : catalogGroupDetails(catalog)
     if (!ownedItems) lastCatalog = structuredClone(catalog)
     const savedPreferences = await ctx.credentials.readRecord(PREFERENCES_RECORD)
     const preferences = savedPreferences?.kind === 'grant' ? savedPreferences.payload : null
@@ -294,7 +295,11 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       }
       const baseURL=platformBase(api)
       let next=template ? {...template,api,baseURL,apiKeyEnv:ref,models} : {displayName:groupId,api,baseURL,apiKeyEnv:ref,models,transport:'sse'}
-      if (next.displayName==='NovaFlow · '+groupId) next.displayName=groupId
+      const details = groupDetails.get(groupId)
+      const previousName = prior?.catalogGroupName || owners.providers[source]?.catalogGroupName || groupId
+      const title = existing?.displayName ?? template?.displayName
+      const generated = !title || title === previousName || title === 'NovaFlow · '+groupId
+      next.displayName = generated ? details?.name || previousName : title
       next.reasoning='high'
       if (template?.modelOverrides) {
         next.modelOverrides=Object.fromEntries(Object.entries(template.modelOverrides).filter(([id])=>selectModel({id})).map(([id,value])=>{
@@ -314,11 +319,10 @@ export async function createModelBinding(ctx, account, config, libraries, { when
       })}
       for (const donor of donors) if (current[donor].modelOverrides) next.modelOverrides={...current[donor].modelOverrides,...next.modelOverrides}
       if (!ownedItems) {
-        const details = catalog.group_details?.[groupId]
         delete next.description
         delete next.priceMultiplier
-        if (typeof details?.description === 'string' && details.description.trim()) next.description = details.description.trim()
-        if (Number.isFinite(details?.ratio) && details.ratio >= 0) next.priceMultiplier = details.ratio
+        if (details?.description) next.description = details.description
+        if (details?.ratio !== undefined) next.priceMultiplier = details.ratio
         const catalogIds = new Set(rows.map(row => row.id))
         next.defaultContextWindow = MODEL_CAPACITY.contextWindow
         next.defaultMaxTokens = MODEL_CAPACITY.maxTokens
@@ -361,6 +365,8 @@ export async function createModelBinding(ctx, account, config, libraries, { when
     if (generation !== revision) throw new NovaError('CANCELLED')
     for (const route of routes) {
       Object.assign(owners.providers[route.provider],{api:route.api,provisioned:true,protocolPolicy:PROTOCOL_POLICY})
+      const name = groupDetails.get(route.group)?.name
+      if (name) owners.providers[route.provider].catalogGroupName = name
       delete owners.providers[route.provider].pendingApi
       if (!ownedItems) owners.providers[route.provider].catalogIds=[...new Set([...(resetModels ? [] : owners.providers[route.provider].catalogIds || []),...route.models.map(model=>model.id)])]
     }

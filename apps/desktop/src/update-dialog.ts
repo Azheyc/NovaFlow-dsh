@@ -1,30 +1,29 @@
 /** Main-owned update confirmations; closing or replacing a dialog never grants installation permission. */
 import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
 import type { DesktopLocale } from './locale.ts'
+import type { ReleaseCardView } from './release-card-view.ts'
 import type { DesktopUpdateOverlays, DesktopUpdateOverlay } from './update-overlay.ts'
 
 /** Channels available only to the isolated update-dialog document. */
 export const UPDATE_DIALOG_IPC = { status: 'dsh-update-dialog:status', changed: 'dsh-update-dialog:changed', respond: 'dsh-update-dialog:respond' } as const
 
 /** Text and choices supplied by the main process, never by product documents. */
-export interface UpdateDialogView {
+export interface UpdateDialogView extends ReleaseCardView {
   /** Button running a main-owned action; responses are disabled until it settles. */
   readonly busyButton?: number
   /** Identifies the displayed choices; a response from an older prompt is rejected. */
   readonly revision: number
   readonly locale: string
   readonly title: string
-  readonly message: string
-  readonly detail: string
-  readonly buttons: readonly string[]
-  readonly cancelId: number
-  readonly closeLabel: string
   readonly technicalDetails: string
   readonly technicalDetailsLabel: string
 }
 
 /** Electron message options with separately expandable, main-owned diagnostics. */
 export interface UpdateDialogOptions extends MessageBoxOptions {
+  readonly releaseCard?: boolean
+  readonly percent?: number
+  readonly releaseNotes?: string
   readonly technicalDetails?: string
   /** Synchronous auxiliary action that leaves the current prompt and choices open. */
   readonly keepOpenAction?: { index: number; run: () => void }
@@ -50,6 +49,7 @@ export class DesktopUpdateDialog {
   private parent: BrowserWindow | undefined
   private closing: ReturnType<typeof setTimeout> | undefined
   private active: {
+    progress: (percent: number) => void
     view: UpdateDialogView
     finish: (index: number, retain?: boolean) => void
     respond: (index: number) => Promise<void>
@@ -64,6 +64,8 @@ export class DesktopUpdateDialog {
 
   /** Whether a shell prompt is awaiting a response. */
   get isOpen(): boolean { return this.active !== undefined }
+
+  setProgress(percent: number): void { this.active?.progress(percent) }
 
   /**
    * @param preload - Bundled isolated preload.
@@ -108,6 +110,11 @@ export class DesktopUpdateDialog {
     this.parent = parent
     let view: UpdateDialogView = { revision: ++this.revision, locale: locale.id, title: options.title ?? '', message: options.message,
       detail: options.detail ?? '', buttons, cancelId, closeLabel: locale.messages.updateClose,
+      ...(options.releaseCard || options.releaseNotes || options.percent !== undefined ? {
+        pages: { previous: locale.messages.updatePreviousPage, next: locale.messages.updateNextPage },
+      } : {}),
+      ...(options.percent === undefined ? {} : { percent: options.percent }),
+      ...(options.releaseNotes ? { releaseNotes: options.releaseNotes, releaseNotesLabel: locale.messages.updateReleaseNotes } : {}),
       technicalDetails: options.technicalDetails ?? '', technicalDetailsLabel: locale.messages.updateTechnicalDetails }
     return new Promise((resolve) => {
       const abort = (): void => { finish(cancelId) }
@@ -149,7 +156,12 @@ export class DesktopUpdateDialog {
           throw error
         }
       }
-      this.active = { view, finish, respond }
+      this.active = { view, finish, respond, progress: (percent) => {
+        if (view.percent === undefined || view.percent === percent || !this.active || surface.webContents.isDestroyed()) return
+        view = { ...view, percent }
+        this.active.view = view
+        surface.webContents.send(UPDATE_DIALOG_IPC.changed, view)
+      } }
       options.signal?.addEventListener('abort', abort, { once: true })
       if (existing !== undefined) { surface.webContents.send(UPDATE_DIALOG_IPC.changed, view); return }
       const failed = (): void => { if (this.view === surface) { this.cancel(); this.close() } }

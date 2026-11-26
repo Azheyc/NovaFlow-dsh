@@ -26,7 +26,7 @@ async function fixture(t,options={}) {
   const requests=[],apiCalls=[],rejected=[]
   const account={accessToken:async()=>{accessCalls++;return record?.payload.accessToken},rejectToken:async value=>rejected.push(value)}
   const credentials={readRecord:async key=>{assert.equal(key,RECORD);return structuredClone(record)}, modifyRecord:async(key,fn)=>{assert.equal(key,RECORD);record=await fn(record)}}
-  const api={request:async(path,request)=>{apiCalls.push({path,...request});assert.equal(path,PREFIX+'/creator/models');return {items:options.rows||rows.filter(row=>!(row.model_id===DEFAULT_IMAGE_MODEL&&row.group_id==='团队 B'))}}}
+  const api={request:async(path,request)=>{apiCalls.push({path,...request});assert.equal(path,PREFIX+'/creator/models');return {group_details:options.groupDetails,items:options.rows||rows.filter(row=>!(row.model_id===DEFAULT_IMAGE_MODEL&&row.group_id==='团队 B'))}}}
   const fetchImpl=async(url,init={})=>{
     requests.push({url:String(url),...init})
     if(options.fetch)return options.fetch(String(url),init)
@@ -41,6 +41,24 @@ async function fixture(t,options={}) {
   return {service,workspace,requests,apiCalls,rejected,account,credentials,getRecord:()=>record,setRecord:value=>{record=value},accessCalls:()=>accessCalls}
 }
 async function final(service,job){const deadline=Date.now()+2000;while(job.status==='running'&&Date.now()<deadline){await new Promise(resolve=>setTimeout(resolve,5));job=await service.generationResult({id:job.id})}return job}
+
+test('media catalog refresh changes labels and pricing while selections and requests keep the group ID', async t => {
+  const group = '研发 A'
+  const details = {[group]: {name:'图像', description:'标准', ratio:0.5}}
+  const h = await fixture(t, {groupDetails:details})
+  const first = await h.service.listModels({kind:'image'})
+  assert.equal(first.models[0].groupName, '图像')
+  const {owner} = await h.service.preferences(first.models)
+  await h.service.setModel({owner, kind:'image', model:DEFAULT_IMAGE_MODEL, group})
+  details[group] = {name:'图像生成', description:'', ratio:0}
+  const next = await h.service.listModels({kind:'image'})
+  assert.equal(next.models[0].groupName, '图像生成')
+  assert.equal(next.models[0].description, '')
+  assert.equal(next.models[0].priceMultiplier, 0)
+  assert.deepEqual(next.selected, first.selected)
+  await h.service.generateImage({prompt:'test'})
+  assert.equal(h.requests[0].headers['X-NovaFlow-Group'], encodeURIComponent(group))
+})
 
 test('a fresh account lists its effective image model and uses it on the first generation',async t=>{
   const h=await fixture(t)

@@ -86,6 +86,15 @@ export default defineConfig([
           },
         },
       })
+      await build({
+        configFile: false,
+        root: fileURLToPath(new URL('.', import.meta.url)),
+        esbuild: { jsx: 'automatic' },
+        define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+        build: { outDir: 'renderer/generated', emptyOutDir: true, lib: {
+          entry: 'src/client/release-card.tsx', formats: ['es'], fileName: () => 'release-card.js', cssFileName: 'release-card',
+        } },
+      })
     },
     outDir: 'lib',
     format: ['esm'],

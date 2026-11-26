@@ -19,6 +19,7 @@
 | 模型地址与请求 | [模型同步](../novaflow-plugin/src/native-models.js)负责受管地址迁移；[请求鉴权](../novaflow-plugin/src/model-bridge.js)负责平台令牌和分组头；[适配器入口](../../packages/llm/llm-pi-ai/src/index.ts)接入推理与发现 |
 | Logo 与首页动画 | resources/novaflow、scripts/render-novaflow-brand.ts、scripts/render-novaflow-animation.ts、packages/client/ui-brand-official |
 | macOS、Windows 安装及镜像更新 | [发布手册](novaflow-release/README.zh.md)、scripts/novaflow-distribution.mjs |
+| 更新弹窗 | [版本卡片](src/client/release-card.tsx)、[更新弹窗](src/update-dialog.ts)、[Mac DMG 下载](src/updates/novaflow-dmg.ts) |
 
 表中路径默认相对于 apps/desktop；以 apps/ 或 packages/ 开头的路径相对于仓库根目录。账户扩展是受保护的客户端功能，社区插件管理保持独立。登录不安装插件。会话内的模式选择仅影响当前会话，设置中的选择决定新会话默认值。
 
@@ -67,12 +68,12 @@ npm.cmd pack (Join-Path $seed 'node_modules/novaflow-dsh-prompt-presets') --pack
 | --- | --- |
 | 账户 | 账户 Node 测试；桌面 welcome/account 渲染测试；模拟平台传输的真实 Host welcome-flow.e2e.ts |
 | 提示词 | `node --test plugins/prompt-presets/catalog.test.mjs` 验证内置写入拒绝、跨模式旧数据迁移和并发保存。`novaflow-preinstalled.spec.ts` 验证更新预装包后保留自定义文件；`welcome-flow.e2e.ts` 核对首次启动的共享库。 |
-| 模型地址 | `native-models.test.js` 验证旧地址迁移和手工修改保留；`model-bridge.test.js` 验证请求目的地、动态鉴权及分组头；`welcome-flow.e2e.ts` 验证 Host 登录和分组模型发现 |
+| 模型同步 | `native-models.test.js` 验证地址迁移、分组改名、自定义标题及手动刷新。`media-service.test.js` 验证媒体模型分组元数据和已有选择。`model-bridge.test.js` 验证请求地址、鉴权和分组头。`welcome-flow.e2e.ts` 验证 Host 登录和模型发现。 |
 | 预装 | novaflow-preinstalled.spec.ts、project-manager.spec.ts、runtime-manifests.spec.ts；实际安装包的离线首次配置初始化 |
 | 插件市场 | `novaflow-market-install.e2e.ts` 使用本地测试仓库验证安装和更新。市场重载后由当前 Host 提供加载状态，原请求继续完成版本校验并返回结果。 |
 | 全局技能与旧预设兼容 | `novaflow-mode-isolation.spec.ts`、`novaflow-client-identity.e2e.ts` 和 Host 预设列表 |
 | 无限画布 | 工作台插件的 `test/*.test.js` 覆盖文档和节点。`novaflow-board-interaction.spec.tsx` 覆盖节点和工具栏交互，`novaflow-board.e2e.ts` 验证默认存储、并发首次打开、助手修改及重启复用。 |
-| 更新 | novaflow-distribution.spec.ts、desktop-auto-update-environment.spec.ts、desktop-policy-environment.spec.ts；包内 app-update.yml 和镜像资产 |
+| 更新 | `novaflow-distribution.spec.ts` 验证资产命名、摘要和两频道日志。`novaflow-dmg.spec.ts` 验证进度、摘要和不完整文件。`update-coordinator.spec.ts` 验证下载和安装交接。`fixtures/update-dialogs.mjs` 验证弹窗渲染。发布前核对包内 `app-update.yml`、镜像清单与两端实机升级。 |
 | 安装器 | scripts/test-windows-installer.mjs；完整 package-target 构建及其打包运行时检查 |
 
 ASAR 中的预装包必须递归读取并写出，不能使用原生 cpSync。生成运行时完整性清单前先应用归档元数据清理。修改预装或打包逻辑时保留这些验证。模拟平台测试不证明真实账号或付费模型已可用。

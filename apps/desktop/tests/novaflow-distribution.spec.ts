@@ -4,6 +4,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
+import yaml from 'js-yaml'
+import type { UpdateInfo } from 'electron-updater'
 import { createElectronBuilderConfig } from '../scripts/electron-builder-config.mjs'
 import { resolveDesktopAutoUpdateConfig, resolveDesktopUploadConfig } from '../scripts/desktop-auto-update-environment.mjs'
 import { resolveDesktopPolicyEnvironment } from '../scripts/desktop-policy-environment.mjs'
@@ -55,10 +58,18 @@ it.each([
     writeFileSync(join(root, `${download}.blockmap`), 'update index')
     if (extension === 'zip') writeFileSync(join(root, `${base}.dmg`), 'disk image')
     const script = fileURLToPath(new URL('../scripts/prepare-novaflow-release.mjs', import.meta.url))
-    execFileSync(process.execPath, [script, root, version])
+    const notes = '搜索结果现在支持按日期筛选。'
+    const notesFile = join(root, 'notes.md')
+    writeFileSync(notesFile, notes)
+    execFileSync(process.execPath, [script, root, version, notesFile])
     const feed = readFileSync(join(root, channel), 'utf8')
     expect(feed).toContain(`/v${version}/${download}`)
     expect(feed).not.toContain(legacy)
+    const info = yaml.load(feed) as UpdateInfo
+    expect(info.releaseNotes).toBe(notes)
+    expect(readFileSync(join(root, channel.replace('stable', 'nightly')), 'utf8')).toBe(feed)
+    if (extension === 'zip') expect(info.files[1]).toMatchObject({ url: expect.stringContaining(`/${base}.dmg`),
+      size: 10, sha512: createHash('sha512').update('disk image').digest('base64') })
     const checksums = readFileSync(join(root, 'SHA256SUMS'), 'utf8')
     expect(checksums).toContain(`  ${download}.blockmap\n`)
     expect(checksums).not.toContain(legacy)

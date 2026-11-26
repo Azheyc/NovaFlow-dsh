@@ -143,6 +143,36 @@ test('sync uses the group name and upgrades only the former generated display na
   assert.equal(providers().displayName, '团队专用')
 })
 
+test('sync follows catalog name, description and price across renames and manual refresh', async t => {
+  const h = await bindingFor(t)
+  const group = 'gpt pro稳定分组'
+  const catalog = {items:[row(group, 'openai-response', 'gpt-6.2-sol')]}
+  const [item] = await h.binding.update(catalog, true)
+  const profile = () => h.state.entry.options.config.providers[item.provider]
+  const selection = clone(h.state.selection), key = h.state.keys.get(profile().apiKeyEnv)
+  catalog.items[0].group_name = '旧版目录名称'
+  catalog.group_details = {[group]: {description:'旧版目录名称', ratio:0.5}}
+  await h.binding.update(catalog, false)
+  assert.equal(profile().description, undefined)
+  assert.equal(profile().displayName, '旧版目录名称')
+  for (const resetModels of [false, true]) {
+    const name = resetModels ? 'GPT 专线' : '[gpt]稳定分组'
+    catalog.group_details = {[group]:{name, description:resetModels ? '' : '工作模型', ratio:resetModels ? 0 : 0.3}}
+    const [synced] = await h.binding.update(catalog, false, {resetModels})
+    assert.equal(profile().displayName, name)
+    assert.equal(profile().description, resetModels ? undefined : '工作模型')
+    assert.equal(profile().priceMultiplier, resetModels ? 0 : 0.3)
+    assert.equal(synced.group, group)
+    assert.equal(synced.provider, item.provider)
+    assert.deepEqual(h.state.selection, selection)
+    assert.equal(h.state.keys.get(profile().apiKeyEnv), key)
+  }
+  profile().displayName = '自定义标题'
+  catalog.group_details[group].name = '最新平台名称'
+  await h.binding.update(catalog, false, {resetModels:true})
+  assert.equal(profile().displayName, '自定义标题')
+})
+
 test('first sync saves official providers via ConfigEditor, with secret references rather than keys', async t => {
   const h = await bindingFor(t)
   const items = await h.binding.update({ items: [row('研发 A'), row('研发 B', 'anthropic'), row('Responses', 'openai-response')] }, true)
@@ -267,6 +297,7 @@ test('manual refresh rebuilds removed and edited models and providers from the c
   delete profiles[claude]
   profiles[gpt].api = 'openai-completions'
   profiles[gpt].displayName = 'Changed provider'
+  initial[gpt].displayName = 'Changed provider'
   profiles[gpt].models = [{ ...initial[gpt].models[0], name: 'Custom name', input: ['image'] }]
   profiles[gpt].models.push({ id: 'custom-added', name: 'Custom addition' })
   profiles[gpt].modelOverrides = { 'gpt-first': { maxTokens: 1024 } }

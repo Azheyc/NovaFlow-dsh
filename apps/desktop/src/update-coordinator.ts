@@ -25,14 +25,21 @@ export class DesktopUpdateCoordinator {
   private downloadGeneration = 0
   private switchTail: Promise<void> = Promise.resolve()
   private cancellation: UpdateCheckResult['cancellationToken']
+  private checkedInfo: UpdateInfo | undefined
+  private dmgAbort: AbortController | undefined
+  private dmgPath: string | undefined
   private configurationError: 'startup' | 'cleanup' | undefined
   private checkOperation: Promise<DesktopUpdateState> | undefined
   private downloadOperation: Promise<DesktopUpdateState> | undefined
   private installOperation: Promise<DesktopUpdateState> | undefined
 
   private readonly onProgress = (progress: ProgressInfo): void => {
+    this.publishProgress(progress.percent)
+  }
+
+  private publishProgress(value: number): void {
     if (this.downloadGeneration !== this.generation || this.downloadOperation === undefined || this.downloaded) return
-    const percent = Math.min(100, Math.max(0, progress.percent))
+    const percent = Math.min(100, Math.max(0, value))
     this.setState({ phase: percent >= 100 ? 'verifying' : 'downloading', ...this.target(), percent })
   }
 
@@ -67,6 +74,10 @@ export class DesktopUpdateCoordinator {
     private readonly downloadResult?: (success: boolean, reason?: string) => void,
     private channel: DesktopUpdateChannel = 'nightly',
     private readonly discard: (updater: AppUpdater) => Promise<void> = discardDesktopUpdate,
+    private readonly dmg?: {
+      download(info: UpdateInfo, signal: AbortSignal, progress: (percent: number) => void): Promise<string>
+      open(path: string): Promise<string>
+    },
   ) {
     if (updater === autoUpdater) {
       // electron-updater omits this internal transport property from its public declarations.
@@ -128,9 +139,12 @@ export class DesktopUpdateCoordinator {
       await persist()
       this.generation++
       this.cancellation?.cancel()
+      this.dmgAbort?.abort()
       await Promise.allSettled([this.checkOperation, this.downloadOperation])
       this.assertLive()
       this.release = { kind: 'none' }
+      this.checkedInfo = undefined
+      this.dmgPath = undefined
       this.cancellation = undefined
       try { await this.discard(this.updater) } catch (error) {
         this.suspendConfiguration('desktop update: could not retire the previous update', 'cleanup')
@@ -184,12 +198,19 @@ export class DesktopUpdateCoordinator {
       if (version !== this.candidate) throw new Error('desktop update: download confirmation is stale')
       this.setState({ phase: 'downloading', version, percent: 0 })
       try {
-        try { await this.updater.downloadUpdate(this.cancellation) } catch (error) {
+        const transfer = async (): Promise<void> => {
+          if (!this.dmg) { await this.updater.downloadUpdate(this.cancellation); return }
+          if (!this.checkedInfo || this.checkedInfo.version !== version) throw new Error('Missing checked installer')
+          this.dmgAbort = new AbortController()
+          this.dmgPath = await this.dmg.download(this.checkedInfo, this.dmgAbort.signal, percent => this.publishProgress(percent))
+          this.release = { kind: 'downloaded', version }
+        }
+        try { await transfer() } catch (error) {
           const transportError = error instanceof Error && ('code' in error ? error.code : error.message)
           if (typeof transportError !== 'string' || !interruptedDownload.test(transportError)
             || generation !== this.generation || this.disposed || this.switching > 0
             || this.cancellation?.cancelled || this.downloaded) throw error
-          await this.updater.downloadUpdate(this.cancellation)
+          await transfer()
         }
         if (generation !== this.generation || this.disposed) return this.current
         if (!this.downloaded) throw new Error('desktop update: platform preparation did not report readiness')
@@ -219,6 +240,11 @@ export class DesktopUpdateCoordinator {
     this.installOperation ??= Promise.resolve().then(async () => {
       this.setState({ phase: 'installing', version })
       try {
+        if (this.dmg && this.dmgPath) {
+          const error = await this.dmg.open(this.dmgPath)
+          if (error) throw new Error(error)
+          return this.setState({ phase: 'ready', version })
+        }
         if (!await this.beforeRestart()) return this.setState({ phase: 'ready', version })
         this.assertLive()
         this.release = { kind: 'handed-off', version }
@@ -235,6 +261,7 @@ export class DesktopUpdateCoordinator {
   /** Remove owned listeners and prevent pending library operations from publishing into closed UI. */
   dispose(): void {
     this.disposed = true
+    this.dmgAbort?.abort()
     this.updater.off('download-progress', this.onProgress)
     this.updater.off('update-downloaded', this.onDownloaded)
     // Pending updater promises can still emit EventEmitter errors during shutdown.
@@ -251,6 +278,10 @@ export class DesktopUpdateCoordinator {
   }
 
   private setState(state: DesktopUpdateState): DesktopUpdateState {
+    const notes = this.checkedInfo?.releaseNotes
+    if (state.version && this.checkedInfo?.version === state.version && typeof notes === 'string' && notes.trim()) {
+      state = { ...state, releaseNotes: notes.trim() }
+    }
     if (!this.disposed) {
       this.current = state
       this.publish(state)
@@ -285,6 +316,7 @@ export class DesktopUpdateCoordinator {
       if (valid(version) === null) throw new Error('desktop update: feed version is invalid')
       this.release = result.isUpdateAvailable && gt(version, this.currentVersion())
         ? { kind: 'checked', version } : { kind: 'none' }
+      this.checkedInfo = this.candidate ? result.updateInfo : undefined
       return this.setState(this.candidate === undefined ? { phase: 'idle' } : { phase: 'available', version })
     } catch (error) {
       if (generation !== this.generation || this.disposed) return this.current

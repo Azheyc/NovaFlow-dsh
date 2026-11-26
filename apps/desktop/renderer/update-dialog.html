@@ -13,6 +13,8 @@
     <main id="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="title" aria-describedby="detail" hidden>
       <header><h1 id="title"></h1><button id="close" class="close" type="button"></button></header>
       <p id="detail"></p>
+      <div id="transfer" hidden><progress id="progress" max="100"></progress><span id="percent"></span></div>
+      <section id="notes" hidden><h2 id="notes-label"></h2><p id="notes-body"></p></section>
       <details id="technical-details" hidden>
         <summary id="technical-details-label"></summary>
         <pre id="technical-details-content" tabindex="0"></pre>
